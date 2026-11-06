@@ -71,6 +71,11 @@ POLICY = {
     "POST /api/agent/chat/files": ALL_ROLES,
     "POST /api/agent/resume": ALL_ROLES,
     "POST /api/feedback": ALL_ROLES,
+    # landing-page field feedback: anyone may read the wall and submit; only staff can hide an entry
+    "GET /api/field-feedback": ALL_ROLES,
+    "GET /api/field-feedback/all": ALL_ROLES,
+    "POST /api/field-feedback": ALL_ROLES,
+    "POST /api/field-feedback/{feedback_id}/hide": (STAFF,),
 }
 PUBLIC = {"GET /api/health"}
 

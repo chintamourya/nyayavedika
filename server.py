@@ -30,6 +30,7 @@ from nyayavedika.agents import assistants, checkpoint, document_analyst, registr
 from nyayavedika.agents.context import clean_context  # noqa: E402
 from nyayavedika.agents.front_door import answer_kind  # noqa: E402
 from nyayavedika.agents.react import new_turn  # noqa: E402
+from nyayavedika import feedback as feedback_mod  # noqa: E402
 from nyayavedika.auth import Principal, guard  # noqa: E402
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
@@ -784,6 +785,47 @@ def feedback(body: FeedbackIn, principal: Principal = guard("POST /api/feedback"
     return {"ok": True}
 
 
+# ----------------------------------------------------------------------------- field feedback (landing page)
+def _feedback_error(exc):
+    return HTTPException(exc.status, exc.message)
+
+
+@app.get("/api/field-feedback")
+def field_feedback_wall(principal: Principal = guard("GET /api/field-feedback")):
+    """Short cards for the landing page (published entries only) plus summary numbers over all responses."""
+    with store.connect() as s:
+        return feedback_mod.public(s)
+
+
+@app.get("/api/field-feedback/all")
+def field_feedback_all(principal: Principal = guard("GET /api/field-feedback/all")):
+    """All published feedback entries, without the landing-page card limit."""
+    with store.connect() as s:
+        return feedback_mod.public(s, limit=None)
+
+
+@app.post("/api/field-feedback")
+def field_feedback_submit(body: Dict[str, Any], principal: Principal = guard("POST /api/field-feedback")):
+    try:
+        with store.connect() as s:
+            out = feedback_mod.submit(s, body, principal.role)
+    except feedback_mod.FeedbackError as exc:
+        raise _feedback_error(exc)
+    impact.record("feedback", float(body.get("rating") or 0), feature="landing", role=str(body.get("role") or ""))
+    return out
+
+
+@app.post("/api/field-feedback/{feedback_id}/hide")
+def field_feedback_hide(feedback_id: int, principal: Principal = guard("POST /api/field-feedback/{feedback_id}/hide")):
+    try:
+        with store.connect() as s:
+            out = feedback_mod.hide(s, feedback_id)
+    except feedback_mod.FeedbackError as exc:
+        raise _feedback_error(exc)
+    audit.record(principal, "field_feedback_hide", f"field_feedback:{feedback_id}")
+    return out
+
+
 @app.post("/api/legal-aid/{request_id}/outcome")
 def legal_aid_outcome(request_id: int, body: Dict[str, str],
                       principal: Principal = guard("POST /api/legal-aid/{request_id}/outcome")):
@@ -835,6 +877,11 @@ def staff_app():
 @app.get("/citizen")
 def citizen_portal():
     return FileResponse(ROOT / "static" / "citizen.html")
+
+
+@app.get("/feedback")
+def feedback_wall_page():
+    return FileResponse(ROOT / "static" / "feedback-wall.html")
 
 
 @app.get("/legal-info")

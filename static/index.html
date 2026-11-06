@@ -19,8 +19,31 @@
     <a class="door" href="/staff" style="text-decoration:none">🏛 <b>Court staff and lawyers</b>
       <small>Today board, intake, docket, cause list, undertrial alerts, insights. Needs a staff or lawyer access token.</small></a>
   </div>
+  <section class="fb" aria-labelledby="fbHeading">
+    <div class="row between wrap gap">
+      <div>
+        <h2 id="fbHeading">What people say</h2>
+        <p class="hint">From advocates, lawyers, court staff and citizens who used it. Tap a card to read the full feedback.</p>
+        <a class="btn ghost" href="/feedback">Browse all feedback</a>
+      </div>
+      <button type="button" class="btn" data-open-feedback>Give feedback · under 5 min</button>
+    </div>
+    <div class="kpis" id="fbStats" aria-live="polite"></div>
+    <div class="fb-filters" id="fbFilters" role="group" aria-label="Filter feedback by who wrote it"></div>
+    <div class="fb-cards" id="fbCards"><p class="hint">Loading feedback…</p></div>
+    <div class="fb-cta">
+      <span aria-hidden="true">⏱</span>
+      <div><b>Used NyayaVedika? Tell us in under 5 minutes.</b>
+        <small>Most people finish in about 3. Only your role and a star rating are required. No login. We never show your phone number or case details.</small></div>
+      <button type="button" class="btn ghost" data-open-feedback>Start</button>
+    </div>
+  </section>
 </div>
+
+<dialog id="fbDetail" aria-labelledby="fbDetailTitle"><div class="fb-dialog-body" id="fbDetailBody"></div></dialog>
+<dialog id="fbFormDialog" aria-labelledby="fbFormTitle"></dialog>
 <script src="/static/common.js"></script>
+<script src="/static/feedback.js"></script>
 <script>demoBanner();</script>
 </body>
 </html>

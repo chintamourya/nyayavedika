@@ -25,7 +25,7 @@ from urllib.parse import parse_qs, urlparse
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 # nyayavedika.config reads .env on import.
-from nyayavedika import (auth, cause_list, config, demo_seed, impact, intake, jobs, legal_aid, legal_aid_kb, ocr, staff_api,  # noqa: E402
+from nyayavedika import (auth, cause_list, feedback, config, demo_seed, impact, intake, jobs, legal_aid, legal_aid_kb, ocr, staff_api,  # noqa: E402
                    store, summarise, worker)
 from nyayavedika.agents import undertrial_watch  # noqa: E402
 from nyayavedika.agents.front_door import FrontDoor, answer_kind  # noqa: E402
@@ -297,6 +297,35 @@ def routes():
     def csv(h, m, q, b, p):
         return b"id,timestamp_utc,event,value,meta\n", "text/csv", "impact.csv"
 
+    @r("GET", "/api/field-feedback", "GET /api/field-feedback")
+    def field_feedback_wall(h, m, q, b, p):
+        return _db(feedback.public)
+
+    @r("GET", "/api/field-feedback/all", "GET /api/field-feedback/all")
+    def field_feedback_all(h, m, q, b, p):
+        return _db(feedback.public, limit=None)
+
+    @r("POST", "/api/field-feedback", "POST /api/field-feedback")
+    def field_feedback_submit(h, m, q, b, p):
+        try:
+            d = json.loads(b or b"{}")
+            out = _db(feedback.submit, d, p.role)
+        except json.JSONDecodeError:
+            raise HttpError(400, "Send JSON")
+        except feedback.FeedbackError as exc:
+            raise HttpError(exc.status, exc.message)
+        impact.record("feedback", float(d.get("rating") or 0), feature="landing", role=str(d.get("role") or ""))
+        return out
+
+    @r("POST", r"/api/field-feedback/(?P<feedback_id>\d+)/hide", "POST /api/field-feedback/{feedback_id}/hide")
+    def field_feedback_hide(h, m, q, b, p):
+        try:
+            out = _db(feedback.hide, int(m["feedback_id"]))
+        except feedback.FeedbackError as exc:
+            raise HttpError(exc.status, exc.message)
+        store.audit(p.actor, p.role, "field_feedback_hide", f"field_feedback:{m['feedback_id']}")
+        return out
+
     @r("POST", "/api/legal-aid", "POST /api/legal-aid")
     def la(h, m, q, b, p):
         d = json.loads(b or b"{}")
@@ -399,7 +428,7 @@ def routes():
 
 
 ROUTES = routes()
-PAGES = {"/": "index.html", "/staff": "staff.html", "/citizen": "citizen.html"}
+PAGES = {"/": "index.html", "/staff": "staff.html", "/citizen": "citizen.html", "/feedback": "feedback-wall.html"}
 TYPES = {".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8", ".css": "text/css; charset=utf-8",
          ".json": "application/json; charset=utf-8", ".svg": "image/svg+xml", ".png": "image/png"}
 

@@ -73,3 +73,12 @@ AF_SECTION_HERE
 - Outputs are legal information for a lawyer to review, not legal advice. Nothing is filed without a human decision.
 
 Open source under the [MIT licence](LICENSE). Credits: [docs/CREDITS.md](docs/CREDITS.md).
+
+## Field feedback (landing page)
+
+The landing page shows what real advocates, lawyers, court staff and citizens say: short cards, click for the full feedback, plus a form that takes under 5 minutes (only role and star rating are required). The questions follow the judging rubric (size, severity, quality, proven impact), so the numbers shown (responses, average rating, % whose situation changed, % who would recommend) are real aggregates. No placeholder reviews are shipped.
+
+- Code: `nyayavedika/feedback.py`, `static/feedback.js`, table `field_feedback` (run `python scripts/migrate_demo.py` on an existing database).
+- API: `GET /api/field-feedback` (landing-page feed, up to 60 published entries), `GET /api/field-feedback/all` (all published entries; no login), `POST /api/field-feedback` (no login), `POST /api/field-feedback/{id}/hide` (staff).
+- Page: `/feedback` renders the full published feedback feed with role filters, search, sorting, summary metrics and readable response cards.
+- Privacy: new submissions are shown publicly by default, including rating-only responses. The form explains which information is displayed; only a first name is shown, and obvious phone/email/Aadhaar/case numbers are masked. Existing responses that were previously private remain private. Staff can still hide entries through the staff-only API.

@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#f6f4ef">
+<title>Community feedback · NyayaVedika</title>
+<link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/static/styles.css">
+</head>
+<body class="feedback-wall-page">
+<header class="wall-top">
+  <a class="wall-brand" href="/" aria-label="NyayaVedika home">
+    <span class="logo" aria-hidden="true">⚖</span>
+    <span><b>NyayaVedika</b><small>Timely justice, together</small></span>
+  </a>
+  <a class="btn ghost" href="/">← Back to home</a>
+</header>
+
+<main class="wall-main">
+  <section class="wall-hero">
+    <div class="wall-hero-copy">
+      <span class="wall-eyebrow"><span aria-hidden="true">✦</span> VOICES FROM THE COMMUNITY</span>
+      <h1>Real experiences.<br><em>Real impact.</em></h1>
+      <p>Feedback from advocates, lawyers, court staff and citizens using NyayaVedika. Every story helps us make the service better.</p>
+    </div>
+    <div class="wall-hero-mark" aria-hidden="true"><span>“</span><i>Justice<br>works better<br>when we listen.</i></div>
+  </section>
+
+  <section class="wall-stats" id="wallStats" aria-label="Feedback summary" aria-live="polite">
+    <div class="wall-stat"><span class="wall-stat-icon">💬</span><div><b>—</b><span>Responses</span></div></div>
+    <div class="wall-stat"><span class="wall-stat-icon">★</span><div><b>—</b><span>Average rating</span></div></div>
+    <div class="wall-stat"><span class="wall-stat-icon">↗</span><div><b>—</b><span>Report a positive change</span></div></div>
+    <div class="wall-stat"><span class="wall-stat-icon">♥</span><div><b>—</b><span>Would recommend</span></div></div>
+  </section>
+
+  <section class="wall-content" aria-labelledby="wallTitle">
+    <div class="wall-section-head">
+      <div>
+        <span class="wall-eyebrow">THE COMMUNITY WALL</span>
+        <h2 id="wallTitle">What people say</h2>
+        <p id="wallCount" class="hint">Loading feedback…</p>
+      </div>
+      <button id="wallRefresh" type="button" class="btn ghost">↻ Refresh</button>
+    </div>
+
+    <div class="wall-toolbar">
+      <label class="wall-search"><span aria-hidden="true">⌕</span><span class="sr-only">Search feedback</span>
+        <input id="wallSearch" type="search" placeholder="Search comments, roles or places…" autocomplete="off">
+      </label>
+      <label class="wall-select"><span class="sr-only">Filter by role</span>
+        <select id="wallRole"><option value="all">All roles</option></select>
+      </label>
+      <label class="wall-select"><span class="sr-only">Sort feedback</span>
+        <select id="wallSort"><option value="newest">Newest first</option><option value="rating">Highest rated</option></select>
+      </label>
+    </div>
+
+    <div id="wallStatus" class="wall-status" role="status" aria-live="polite">Loading the latest community feedback…</div>
+    <div id="wallCards" class="wall-cards"></div>
+  </section>
+
+  <footer class="wall-footer">
+    <span>⚖</span><p>Built for a more accessible justice system.</p><a href="/">Explore NyayaVedika</a>
+  </footer>
+</main>
+<script src="/static/common.js"></script>
+<script src="/static/feedback-wall.js"></script>
+</body>
+</html>

@@ -146,6 +146,13 @@ SCHEMA: Dict[str, Dict] = {
                     ("status", "text", "DEFAULT 'checked'"), ("state", "text", ""), ("source", "text", ""),
                     ("applied_on", "date", ""), ("lawyer_assigned_on", "date", ""), ("resolved_on", "date", "")],
         "pk": None, "indexes": [("ix_legal_aid_district_created", "district, created_at", None, False, False)]},
+    "field_feedback": {  # landing-page feedback from advocates, lawyers, court staff, citizens (see nyayavedika/feedback.py)
+        "columns": [("id", "id", ""), ("created_at", "ts", NOW), ("role", "text", ""), ("auth_role", "text", ""),
+                    ("name", "text", ""), ("place", "text", ""), ("features", "json", ""), ("rating", "int", ""),
+                    ("would_recommend", "text", ""), ("headline", "text", ""), ("comment", "text", ""),
+                    ("answers", "json", ""), ("consent_public", "bool", "DEFAULT FALSE"),
+                    ("published", "bool", "DEFAULT FALSE")],
+        "pk": None, "indexes": [("ix_field_feedback_pub", "published, created_at", None, False, False)]},
     "dlsa_directory": {
         "columns": [("id", "id", ""), ("state", "text", ""), ("district", "text", ""), ("office", "text", ""),
                     ("address", "text", ""), ("phone", "text", ""), ("email", "text", ""), ("source_url", "text", ""),
