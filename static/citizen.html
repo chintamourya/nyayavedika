@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Nyaya Mitra</title>
+<link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/static/styles.css?v=2">
+</head>
+<body class="cz">
+<header class="top">
+  <div class="brand"><span class="logo" aria-hidden="true">⚖</span>
+    <div><h1 data-t="title">Nyaya Mitra</h1><p data-t="tagline"></p></div></div>
+  <a class="hint" href="/">Home</a>
+</header>
+<main>
+  <section class="card" aria-labelledby="langH">
+    <h2 id="langH" data-t="choose_language">Choose your language</h2>
+    <div class="langs" role="group" aria-labelledby="langH">
+      <button data-lang="en" aria-pressed="true">English</button>
+      <button data-lang="hi" aria-pressed="false" lang="hi">हिन्दी</button>
+      <button data-lang="te" aria-pressed="false" lang="te">తెలుగు</button>
+    </div>
+  </section>
+
+  <nav class="tabs citizen-tabs" role="tablist" aria-label="Citizen services">
+    <button class="tab active" type="button" role="tab" aria-selected="true" data-citizen-tab="legal" data-t="tab_legal_aid"></button>
+    <button class="tab" type="button" role="tab" aria-selected="false" data-citizen-tab="summary" data-t="tab_document_summary"></button>
+    <button class="tab" type="button" role="tab" aria-selected="false" data-citizen-tab="rights" data-t="tab_rights"></button>
+  </nav>
+
+  <!-- ONE CARD: the 5-question eligibility check, its explanation and the application draft -->
+  <section id="chat" class="card chat citizen-panel" aria-label="Nyaya Mitra">
+    <div class="chat-head">✅ <b data-t="door_guide"></b><small data-t="door_guide_sub"></small></div>
+    <div id="guide" class="guide">
+      <form id="guideForm">
+        <fieldset class="q"><legend data-t="q_custody"></legend></fieldset>
+        <fieldset class="q"><legend data-t="q_woman"></legend></fieldset>
+        <fieldset class="q"><legend data-t="q_scst"></legend></fieldset>
+        <fieldset class="q"><legend data-t="q_disability"></legend></fieldset>
+        <fieldset class="q"><legend data-t="q_income"></legend>
+          <input id="income" type="number" min="0" step="1000" inputmode="numeric" aria-label="income">
+          <label><span data-t="district"></span> <input id="district" placeholder="e.g. Warangal"></label>
+          <label><span data-t="state"></span> <select id="state"><option>Telangana</option><option>Andhra Pradesh</option><option>Karnataka</option><option>Maharashtra</option><option>Tamil Nadu</option></select></label>
+        </fieldset>
+        <p class="hint" id="legalAidLimits" data-t="legal_aid_limits"></p>
+        <p class="hint" id="followupCount" aria-live="polite"></p>
+        <p class="banner-warn hidden" id="followupRestriction" role="status" data-t="followup_limit_reason"></p>
+        <button class="btn ghost small hidden" id="startNewLegalAidSession" type="button" data-t="session_reset"></button>
+        <p id="legalAidError" class="banner-bad hidden" role="alert"></p>
+        <label for="legalQuestion"><span data-t="question_optional"></span>
+          <textarea id="legalQuestion" rows="3" maxlength="1500" data-tp="question_placeholder"></textarea>
+        </label>
+        <label for="legalDocuments"><span data-t="question_attachment"></span>
+          <input id="legalDocuments" type="file" multiple accept=".pdf,.txt">
+        </label>
+        <p class="hint" id="legalDocumentCount" aria-live="polite"></p>
+        <p class="hint hidden" id="attachedSummaryNote" aria-live="polite"></p>
+        <button class="btn big" type="submit" data-t="check">Check</button>
+      </form>
+      <div id="resultCard"></div>
+    </div>
+    <p class="hint" id="offlineNote"></p>
+  </section>
+
+  <section id="citizen-summary" class="card citizen-panel hidden" aria-label="Document summary">
+    <h2 data-t="summarize_heading"></h2>
+    <p class="hint" data-t="summarize_sub"></p>
+    <form id="citizenSummaryForm">
+      <label for="citizenSummaryFile"><span data-t="summarize_file"></span>
+        <input id="citizenSummaryFile" type="file" accept=".pdf,.txt">
+      </label>
+      <label for="citizenSummaryText"><span data-t="summarize_text"></span>
+        <textarea id="citizenSummaryText" rows="5"></textarea>
+      </label>
+      <button class="btn big" type="submit" data-t="summarize_button"></button>
+    </form>
+    <div id="citizenSummaryStatus" class="summary-progress hidden" role="status" aria-live="polite">
+      <span class="summary-spinner" aria-hidden="true"></span>
+      <span data-summary-message></span>
+      <button class="btn ghost small" type="button" data-summary-cancel></button>
+    </div>
+    <p id="citizenSummaryError" class="banner-bad hidden" role="alert"></p>
+    <div id="citizenSummaryOut" aria-live="polite"></div>
+  </section>
+
+  <!-- Know your rights: the curated legal_info.html entries (also indexed for the chat and the guide's explanation) -->
+  <section id="citizen-rights" class="card citizen-panel hidden" aria-labelledby="rightsH">
+    <h2 id="rightsH" data-t="rights_heading"></h2>
+    <p class="hint" data-t="rights_sub"></p>
+    <label class="sr-only" for="rightsSearch" data-t="rights_search"></label>
+    <input id="rightsSearch" type="search" data-tp="rights_search" autocomplete="off">
+    <p class="hint" id="rightsMeta" aria-live="polite"></p>
+    <div id="rightsList" class="rights-list"></div>
+  </section>
+
+  <p class="helpline" data-t="helpline">Free legal aid helpline: 15100</p>
+  <p class="hint" data-t="disclaimer"></p>
+</main>
+<script src="/static/common.js?v=9"></script>
+<script src="/static/citizen.js?v=12"></script>
+</body>
+</html>

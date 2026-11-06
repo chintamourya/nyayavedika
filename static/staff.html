@@ -1,0 +1,206 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NyayaVedika - Staff</title>
+<link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+<header class="top">
+  <div class="brand"><span class="logo" aria-hidden="true">⚖</span>
+    <div><h1>NyayaVedika <span lang="te">(న్యాయవేదిక)</span> · Staff</h1><p>Registry, judges' staff and legal-aid lawyers</p></div></div>
+  <div class="row gap wrap">
+    <label for="demoToken">Access token</label>
+    <input id="demoToken" type="password" autocomplete="off" placeholder="staff or lawyer token">
+    <span class="hint">Demo staff token: the value of <code>DEMO_TOKEN_STAFF</code> in your .env</span>
+    <span id="who" class="pill">not signed in</span>
+  </div>
+</header>
+
+<nav class="tabs" role="tablist" aria-label="Staff screens">
+  <button class="tab active" data-tab="today" role="tab" title="What needs a person now, and how cases flow between screens">Today</button>
+  <button class="tab" data-tab="intake" role="tab" data-staff title="Step 1: send case files; they are read, scored and become cases">Intake</button>
+  <button class="tab" data-tab="docket" role="tab" data-staff title="Step 2: every pending case with its priority score and why">Docket</button>
+  <button class="tab" data-tab="cause" role="tab" data-staff title="Step 3: build, check and publish the weekly hearing list">Cause list</button>
+  <button class="tab" data-tab="summary" role="tab" data-court title="Read any one document without creating a case">Document summary</button>
+  <button class="tab" data-tab="undertrial" role="tab" title="People in custody past the Sec. 479 BNSS limit, and their release applications">Undertrial</button>
+  <button class="tab" data-tab="insights" role="tab" data-staff title="Weekly docket health and evidence of impact">Insights</button>
+</nav>
+
+<main>
+  <p class="legend" aria-label="Where data comes from">Where data comes from:
+    <span class="badge src-synth">Synthetic</span> generated demo cases
+    <span class="badge src-upload">Uploaded</span> from files you sent
+    <span class="badge src-ai">AI</span> written by the language model - check it
+    <span class="badge src-rules">Rules</span> fixed rules / template.
+    Lists show at most 10 synthetic examples per data kind; totals, stored records and real uploads/imports are unchanged.</p>
+  <!-- TODAY -->
+  <section id="tab-today" class="panel active" aria-label="Today">
+    <h2>Today</h2>
+    <p class="purpose">What needs a person now. Every number is a link to the cases behind it.</p>
+    <div data-how="today"></div>
+    <h3 class="sr-label">How cases move <span class="hint">· live counts, click a step to open it</span></h3>
+    <div id="pipeline"></div>
+    <div class="card"><h3>Do next</h3><ol class="todo" id="todoList"><li class="hint">Enter your access token to load the board.</li></ol></div>
+    <p class="hint" id="todayMix"></p>
+    <div class="kpis" id="todayKpis"></div>
+  </section>
+
+  <!-- INTAKE -->
+  <section id="tab-intake" class="panel" aria-label="Intake">
+    <h2>Intake</h2>
+    <p class="purpose">Step 1 of the flow. Send FIRs, charge sheets, orders or petitions: each file is read, summarised,
+      its facts extracted with page references, scored, and saved as a case on the Docket.</p>
+    <div data-how="intake"></div>
+    <div class="card">
+      <p class="hint" id="limitLine">Loading upload limits from the server…</p>
+      <div class="dropzone" id="dropzone" tabindex="0">
+        <p><b>Drop files here</b> or</p>
+        <label class="btn ghost" for="filePick">Choose files</label>
+        <input id="filePick" type="file" multiple class="hidden" accept=".pdf,.txt">
+        <label class="btn ghost" for="folderPick">Choose folder</label>
+        <input id="folderPick" type="file" webkitdirectory class="hidden">
+      </div>
+      <ul class="filelist" id="fileList"></ul>
+      <p><b id="fileCount">0 files</b></p>
+      <p id="intakeError" class="banner-bad hidden" role="alert"></p>
+      <label for="pasteText">Or paste text (FIR, order, petition)</label>
+      <textarea id="pasteText" rows="3" placeholder="Paste the document text here"></textarea>
+      <fieldset class="q"><legend>How do these files belong together?</legend>
+        <label><input type="radio" name="mode" value="separate" checked> Each file is a separate case <span class="hint">- e.g. five unrelated FIRs</span></label>
+        <label><input type="radio" name="mode" value="by_folder"> Each sub-folder is one case <span class="hint">- one folder per accused</span></label>
+        <label><input type="radio" name="mode" value="one_case"> These files are one case <span class="hint">- FIR + charge sheet + order of the same matter</span></label>
+        <label><input type="radio" name="mode" value="existing_case"> Attach to case number <span class="hint">- a new order for a case already on the Docket</span></label>
+        <input id="caseNumber" placeholder="case number, e.g. SC/2024/9" class="hidden">
+      </fieldset>
+      <button class="btn" id="submitIntake" disabled>Submit</button>
+    </div>
+    <div id="batchView"></div>
+  </section>
+
+  <!-- DOCUMENT SUMMARY -->
+  <section id="tab-summary" class="panel" aria-label="Document summary">
+    <h2>Document summary</h2>
+    <div class="card">
+      <p class="hint">Upload a PDF (up to 50 pages) or TXT file, or paste its text, for a plain-language, source-grounded summary. This standalone summary is not saved to a case.</p>
+      <form id="staffSummaryForm">
+        <label for="staffSummaryFile">PDF or text file</label>
+        <input id="staffSummaryFile" type="file" accept=".pdf,.txt">
+        <label for="staffSummaryText">Or paste document text</label>
+        <textarea id="staffSummaryText" rows="6"></textarea>
+        <button class="btn" type="submit">Summarize document</button>
+      </form>
+      <div id="staffSummaryStatus" class="summary-progress hidden" role="status" aria-live="polite">
+        <span class="summary-spinner" aria-hidden="true"></span>
+        <span data-summary-message></span>
+        <button class="btn ghost small" type="button" data-summary-cancel>Cancel</button>
+      </div>
+      <p id="staffSummaryError" class="banner-bad hidden" role="alert"></p>
+    </div>
+    <div id="staffSummaryOut" aria-live="polite"></div>
+  </section>
+
+  <!-- DOCKET -->
+  <section id="tab-docket" class="panel" aria-label="Docket">
+    <h2>Docket</h2>
+    <p class="purpose">Step 2. Every pending case, highest priority first. Click a row to see why it scored what it did,
+      its facts with source pages, timeline and history.</p>
+    <div data-how="docket"></div>
+    <div class="card row gap wrap" id="docketFilters">
+      <select id="fBand" aria-label="Band"><option value="">All bands</option><option>Critical</option><option>High</option><option>Medium</option><option>Routine</option></select>
+      <select id="fType" aria-label="Case type"><option value="">All types</option></select>
+      <select id="fFlag" aria-label="Flag"><option value="">Any flag</option><option>UNDERTRIAL_RELEASE_ELIGIBLE</option><option>UNDERTRIAL_NEARING_THRESHOLD</option>
+        <option>CUSTODY_DATE_MISSING</option><option>CUSTODY_UNKNOWN</option><option>TIME_BOUND_LAW</option><option>DECADE_OLD</option><option>NEEDS_REVIEW</option></select>
+      <label><input type="checkbox" id="fDef"> Deferred 3+</label>
+      <label><input type="checkbox" id="fReview"> Needs review</label>
+      <label><input type="checkbox" id="fCustody"> In custody</label>
+      <label><input type="checkbox" id="fPast"> Past deadline</label>
+      <label title="Not on any upcoming draft or published list"><input type="checkbox" id="fNotListed"> Not on a list yet</label>
+      <input id="fQ" placeholder="Search case number" aria-label="Search case number">
+      <button class="btn" id="fApply">Apply</button>
+    </div>
+    <p class="hint" id="docketCount"></p>
+    <div class="card table-wrap"><table id="docketTable"><thead><tr><th>Case</th><th title="Critical / High / Medium / Routine - follows from the score">Band</th>
+      <th title="0-100: sum of the points in 'How this works'">Score</th><th>Type / stage</th>
+      <th title="Facts that changed the score or need attention">Flags</th>
+      <th title="Left out of this many published lists in a row; 3+ = must-list">Deferred</th>
+      <th title="List by this date (band deadline in working days)">Due by</th>
+      <th title="Next hearing, or the slot in an upcoming list">Next hearing / list</th></tr></thead><tbody></tbody></table></div>
+  </section>
+
+  <!-- CAUSE LIST -->
+  <section id="tab-cause" class="panel" aria-label="Cause list">
+    <h2>Cause list</h2>
+    <p class="purpose">Step 3. Turn the Docket into next week's hearing list. Cases that do not fit are carried over and
+      climb next time; publishing creates the hearings.</p>
+    <div data-how="cause"></div>
+    <ol class="flow" id="clFlow" aria-label="Steps">
+      <li class="now" data-step="1">Pick the week</li><li data-step="2">Check the draft</li><li data-step="3">Approve and publish</li>
+    </ol>
+    <div class="card">
+      <h3>1. Which week?</h3>
+      <div class="row gap wrap">
+        <label for="clStart">Week starting (Monday)</label><input id="clStart" type="date">
+        <button class="btn" id="clDraft">Prepare draft</button>
+      </div>
+      <p class="hint">The system lists urgent and long-waiting cases first and checks bench time and advocate clashes.
+        Nothing is published until you approve it in step 3.</p>
+    </div>
+    <div id="clView"></div>
+  </section>
+
+  <!-- UNDERTRIAL -->
+  <section id="tab-undertrial" class="panel" aria-label="Undertrial">
+    <h2>Undertrial Watch</h2>
+    <p class="purpose">Custody cases from the Docket are checked every day against Sec. 479 BNSS. Anyone past the
+      limit gets an alert with a ready release application for a legal-aid lawyer.</p>
+    <div data-how="undertrial"></div>
+    <div class="card">
+      <p>Each alert moves through:</p>
+      <ol class="flow small" id="utFlow"><li>Found</li><li>Lawyer approves</li><li>Filed in court</li><li>Heard</li><li>Released / denied</li></ol>
+      <div class="row gap wrap"><span class="hint" id="utRole"></span>
+        <button class="btn ghost small" id="utScan" data-staff>Check again now</button></div>
+    </div>
+    <h3 id="utNeedH">Needs a decision</h3>
+    <div id="utDecide"></div>
+    <h3 id="utProgH">In progress</h3>
+    <div id="utProgress"></div>
+    <details class="card"><summary><b id="utNeededH">Missing information</b></summary>
+      <p class="hint">Custody cases the watch cannot check yet, and who can supply the missing fact.</p><ul id="utNeeded"></ul></details>
+  </section>
+
+  <!-- INSIGHTS -->
+  <section id="tab-insights" class="panel" aria-label="Insights">
+    <h2>Insights</h2>
+    <p class="purpose">Is the docket getting healthier, and what has the system done? Figures come from the database and
+      the impact log.</p>
+    <div data-how="insights"></div>
+    <h3>Docket health</h3>
+    <div class="kpis" id="weeklyKpis"></div>
+    <div id="beforeAfter"></div>
+    <h3>Impact so far</h3>
+    <div class="kpis" id="impactKpis"></div>
+    <button class="btn ghost" id="csvExport">Export impact log (CSV)</button>
+  </section>
+</main>
+
+<aside class="drawer" id="drawer" aria-label="Case details" aria-hidden="true">
+  <header><div><b id="dTitle">Case</b> <span id="dBand"></span></div>
+    <button class="btn ghost small" id="dClose" aria-label="Close case details">Close ✕</button></header>
+  <nav class="tabs" role="tablist">
+    <button class="tab active" data-dtab="brief">Brief</button><button class="tab" data-dtab="priority">Priority</button>
+    <button class="tab" data-dtab="timeline">Timeline</button><button class="tab" data-dtab="documents">Documents</button>
+    <button class="tab" data-dtab="history">History</button>
+  </nav>
+  <div class="body" id="dBody"></div>
+</aside>
+
+<dialog id="dialog"><div id="dialogBody"></div><div class="row gap" style="justify-content:flex-end;margin-top:12px"><button class="btn ghost" id="dialogClose">Close</button></div></dialog>
+
+<script src="/static/common.js?v=9"></script>
+<script src="/static/explain.js?v=2"></script>
+<script src="/static/staff.js?v=11"></script>
+</body>
+</html>

@@ -1,0 +1,14 @@
+{
+  "doc_type": "bail_custody",
+  "case_type": "criminal_trial",
+  "stage": "evidence",
+  "filing_date": "2023-09-19",
+  "accused_in_custody": true,
+  "custody_since": "2023-08-03",
+  "act": "BNS",
+  "section": "117(2)",
+  "case_number": "S.C. 241/2023",
+  "synthetic": true,
+  "file": "custody_01_jail_certificate.txt",
+  "pages": 1
+}

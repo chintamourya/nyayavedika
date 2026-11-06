@@ -1,0 +1,14 @@
+{
+  "doc_type": "fir",
+  "case_type": "criminal_trial",
+  "stage": "admission",
+  "filing_date": "2026-01-21",
+  "accused_in_custody": true,
+  "custody_since": "2026-01-23",
+  "act": "BNS",
+  "section": "309",
+  "case_number": "FIR 0233/2026",
+  "synthetic": true,
+  "file": "fir_03_robbery_scanned.pdf",
+  "pages": 1
+}

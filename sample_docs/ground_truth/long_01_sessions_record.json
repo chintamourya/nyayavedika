@@ -1,0 +1,14 @@
+{
+  "doc_type": "order",
+  "case_type": "criminal_trial",
+  "stage": "arguments",
+  "filing_date": "2022-03-24",
+  "accused_in_custody": true,
+  "custody_since": "2022-01-03",
+  "act": "BNS",
+  "section": "103",
+  "case_number": "S.C. 17/2022",
+  "synthetic": true,
+  "file": "long_01_sessions_record.pdf",
+  "pages": 63
+}

@@ -1,0 +1,19 @@
+# Keep secrets and local state out of the image. The image contains NO settings: the single settings file, .env,
+# is mounted into the container at /app/.env at run time (docker-compose does this; with plain `docker run` use
+# -v /path/to/.env:/app/.env:ro; on a platform with "secret files", mount it at /app/.env).
+.env
+.env.*
+*.env
+*.db
+__pycache__/
+*.pyc
+storage/
+kb/
+dist/
+.venv/
+venv/
+*.zip
+.pytest_cache/
+.claude/
+.git/
+tests/

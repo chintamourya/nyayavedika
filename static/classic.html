@@ -1,0 +1,150 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NyayaVedika</title>
+<link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+<header class="top">
+  <div class="brand">
+    <span class="logo">⚖</span>
+    <div><h1>NyayaVedika <span lang="te">(న్యాయవేదిక)</span></h1><p>Agentic AI for timely justice: legal aid, case files, undertrials and cause lists</p></div>
+  </div>
+  <div class="row gap">
+    <input id="demoToken" type="password" autocomplete="off" placeholder="Demo access token" aria-label="Demo access token">
+    <span class="hint">Demo staff token: the value of <code>DEMO_TOKEN_STAFF</code> in your .env</span>
+    <div id="engine" class="pill">checking…</div>
+  </div>
+</header>
+
+<nav class="tabs" role="tablist">
+  <button class="tab active" data-tab="mitra">Nyaya Mitra</button>
+  <button class="tab" data-tab="docs">Document Analyst</button>
+  <button class="tab" data-tab="watch">Undertrial Watch</button>
+  <button class="tab" data-tab="registry">Registry Agent</button>
+  <button class="tab" data-tab="aid">Legal Aid Check</button>
+  <button class="tab" data-tab="impact">Impact</button>
+</nav>
+
+<main>
+  <!-- NYAYA MITRA -->
+  <section id="tab-mitra" class="panel active">
+    <div class="row between wrap">
+      <h2>Nyaya Mitra: free legal help, in your language</h2>
+      <div class="row gap">
+        <select id="chatLang"><option value="">Auto language</option><option>English</option><option>Hindi</option><option>Telugu</option><option>Tamil</option><option>Kannada</option><option>Marathi</option><option>Bengali</option></select>
+        <button class="btn ghost" id="newChat">New conversation</button>
+      </div>
+    </div>
+    <div class="chat card">
+      <div id="chatLog" class="chat-log" aria-live="polite">
+        <div class="msg bot">Namaste. Tell me your legal problem in your own words. For example: "My brother has been in jail since 2022 for theft and the trial has not started."</div>
+      </div>
+      <form id="chatForm" class="row gap">
+        <input id="chatInput" autocomplete="off" placeholder="Type your problem… (do not share phone or Aadhaar numbers)">
+        <button class="btn" type="submit">Send</button>
+      </form>
+      <div class="row gap feedback-row">
+        <span class="hint">Was this helpful?</span>
+        <button class="btn ghost small" data-rate="5" data-feature="mitra">👍</button>
+        <button class="btn ghost small" data-rate="1" data-feature="mitra">👎</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- DOCUMENT ANALYST -->
+  <section id="tab-docs" class="panel">
+    <h2>Document Analyst agent</h2>
+    <p class="hint">OCR (Tesseract) → index (Pinecone) → parallel reading → structured brief → <b>self-verification against the source</b> → saved and linked to the case.</p>
+    <div class="card">
+      <div class="row gap wrap">
+        <label class="btn ghost">Upload PDF / image / TXT<input type="file" id="docFile" accept=".pdf,.txt,.png,.jpg,.jpeg,.tif,.tiff" hidden></label>
+        <button class="btn ghost" id="loadSample">Use sample judgment</button>
+        <label>Case no. (optional) <input id="docCase" placeholder="SC/2019/1016"></label>
+        <label>Explain in <select id="docLang"><option>English</option><option>Hindi</option><option>Telugu</option><option>Tamil</option><option>Kannada</option><option>Marathi</option><option>Bengali</option></select></label>
+        <button class="btn" id="runDoc">Analyse</button>
+      </div>
+      <textarea id="docText" rows="6" placeholder="…or paste the text of a judgment, order, FIR or petition"></textarea>
+      <p class="hint" id="docInfo"></p>
+    </div>
+    <div id="docOut"></div>
+  </section>
+
+  <!-- UNDERTRIAL WATCH -->
+  <section id="tab-watch" class="panel">
+    <div class="row between wrap">
+      <h2>Undertrial Watch: Sec. 479 BNSS</h2>
+      <button class="btn" id="runWatch">Scan custody cases now</button>
+    </div>
+    <p class="hint">Runs nightly. Finds people held beyond half (one-third for first-time offenders) of the maximum sentence, drafts the release application, and waits for a legal-aid lawyer to approve. Nothing is filed automatically.</p>
+    <div id="watchKpis" class="kpis"></div>
+    <div id="alerts"></div>
+  </section>
+
+  <!-- REGISTRY -->
+  <section id="tab-registry" class="panel">
+    <div class="row between wrap">
+      <h2>Registry Agent: weekly cause list</h2>
+      <div class="row gap">
+        <label>Start <input type="date" id="regStart"></label>
+        <label>Days <input type="number" id="regDays" value="5" min="1" max="30"></label>
+        <button class="btn" id="runRegistry">Prepare cause list</button>
+      </div>
+    </div>
+    <p class="hint">Triage every case → AI review of edge cases (bounded ±10, every change logged) → conflict-free cause list → registrar's note → <b>your approval</b>.</p>
+    <div id="regKpis" class="kpis"></div>
+    <div id="regNote"></div>
+    <div id="regTable"></div>
+    <div id="calendar"></div>
+  </section>
+
+  <!-- LEGAL AID FORM -->
+  <section id="tab-aid" class="panel">
+    <h2>Am I eligible for free legal aid?</h2>
+    <form id="aidForm" class="card">
+      <p class="hint">Section 12, Legal Services Authorities Act, 1987. Tick everything that applies.</p>
+      <div class="checks">
+        <label><input type="checkbox" name="woman"> I am a woman</label>
+        <label><input type="checkbox" name="child"> I am a child (below 18)</label>
+        <label><input type="checkbox" name="sc_st"> I belong to a Scheduled Caste / Tribe</label>
+        <label><input type="checkbox" name="disability"> I have a disability</label>
+        <label><input type="checkbox" name="in_custody"> I am in custody / jail</label>
+        <label><input type="checkbox" name="industrial_workman"> I am an industrial worker</label>
+        <label><input type="checkbox" name="trafficking_victim"> Victim of trafficking / forced labour</label>
+        <label><input type="checkbox" name="disaster_victim"> Victim of disaster / caste atrocity / ethnic violence</label>
+        <label><input type="checkbox" name="dispute_settleable"> My dispute could be settled by agreement</label>
+      </div>
+      <div class="row gap wrap">
+        <label>Annual family income (Rs.) <input type="number" name="annual_income" min="0" placeholder="e.g. 180000"></label>
+        <label>Case is in <select name="court_level">
+          <option value="district">District / Taluk court</option><option value="high_court">High Court</option><option value="supreme_court">Supreme Court</option>
+        </select></label>
+        <label>District <input name="district" placeholder="e.g. Guntur"></label>
+      </div>
+      <textarea name="problem" rows="3" placeholder="Describe your problem in a few lines (no phone or ID numbers)"></textarea>
+      <div class="row gap">
+        <button class="btn" type="submit">Check eligibility</button>
+        <label><input type="checkbox" name="draft" checked> Also draft my application</label>
+        <select name="language"><option>English</option><option>Hindi</option><option>Telugu</option><option>Tamil</option></select>
+      </div>
+    </form>
+    <div id="aidOut"></div>
+  </section>
+
+  <!-- IMPACT -->
+  <section id="tab-impact" class="panel">
+    <div class="row between wrap">
+      <h2>Impact, measured from real usage</h2>
+      <div class="row gap"><button class="btn ghost" id="refreshImpact">Refresh</button><a class="btn ghost" href="/api/impact/export.csv" download="nyayavedika_impact.csv">Export CSV</a></div>
+    </div>
+    <p class="hint">Every number here comes from events logged in Postgres as people use the system. No personal data is stored.</p>
+    <div id="impactKpis" class="kpis"></div>
+  </section>
+</main>
+<footer>Decision support only: every output must be reviewed by a judicial officer, registry official or lawyer. Demo docket is synthetic.</footer>
+<script src="/static/app.js"></script>
+</body>
+</html>

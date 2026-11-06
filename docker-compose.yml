@@ -1,0 +1,26 @@
+# Local / pilot stack: PostgreSQL + NyayaVedika. Azure OpenAI, Pinecone and Tavily are hosted (keys in .env).
+#   docker compose up --build
+# Settings: ONE file, .env, in this folder. Compose reads it for the ${...} values below, and it is mounted
+# read-only into the app at /app/.env. Nothing is set in this compose file and nothing is baked into the image.
+# For this stack set in .env: DATABASE_URL=postgresql+pg8000://<POSTGRES_USER>:<POSTGRES_PASSWORD>@db:5432/<POSTGRES_DB>,
+# NYAYAVEDIKA_CHECKPOINTER=postgres (and CHECKPOINT_DB_URI to the same database), NYAYAVEDIKA_HOST=0.0.0.0.
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes: [pgdata:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      retries: 10
+  app:
+    build: .
+    volumes: ["./.env:/app/.env:ro"]
+    ports: ["127.0.0.1:${NYAYAVEDIKA_PORT}:${NYAYAVEDIKA_PORT}"]
+    depends_on:
+      db: { condition: service_healthy }
+volumes:
+  pgdata:

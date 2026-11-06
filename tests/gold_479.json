@@ -1,0 +1,157 @@
+{
+ "_note": "Gold cases for the Sec. 479 BNSS rule engine, derived by hand from the statute text (one-third for a first-time offender, one-half otherwise, nothing for life/death, nothing when several offences or cases are pending). Expected values are NOT yet lawyer-verified - have a legal-aid lawyer sign these off before quoting accuracy.",
+ "cases": [
+  {
+   "id": "7y-first-851",
+   "max": 7,
+   "fto": true,
+   "days": 851,
+   "expect": "not_eligible"
+  },
+  {
+   "id": "7y-first-852",
+   "max": 7,
+   "fto": true,
+   "days": 852,
+   "expect": "eligible"
+  },
+  {
+   "id": "7y-repeat-1277",
+   "max": 7,
+   "fto": false,
+   "days": 1277,
+   "expect": "not_eligible"
+  },
+  {
+   "id": "7y-repeat-1278",
+   "max": 7,
+   "fto": false,
+   "days": 1278,
+   "expect": "eligible"
+  },
+  {
+   "id": "7y-unknown-900-between-thirds",
+   "max": 7,
+   "fto": null,
+   "days": 900,
+   "expect": "likely_eligible"
+  },
+  {
+   "id": "7y-unknown-1300-past-half",
+   "max": 7,
+   "fto": null,
+   "days": 1300,
+   "expect": "eligible"
+  },
+  {
+   "id": "multiple-sections-block",
+   "max": 7,
+   "fto": false,
+   "days": 2000,
+   "section": "379, 420",
+   "expect": "needs_review"
+  },
+  {
+   "id": "other-pending-case-block",
+   "max": 7,
+   "fto": false,
+   "days": 2000,
+   "other_pending_cases": 1,
+   "expect": "needs_review"
+  },
+  {
+   "id": "common-intention-not-a-second-offence",
+   "max": 7,
+   "fto": false,
+   "days": 2000,
+   "section": "379 r/w 34",
+   "expect": "eligible"
+  },
+  {
+   "id": "3y-first-exact-boundary-365",
+   "max": 3,
+   "fto": true,
+   "days": 365,
+   "expect": "eligible"
+  },
+  {
+   "id": "5y-repeat-912",
+   "max": 5,
+   "fto": false,
+   "days": 912,
+   "expect": "not_eligible"
+  },
+  {
+   "id": "5y-repeat-913",
+   "max": 5,
+   "fto": false,
+   "days": 913,
+   "expect": "eligible"
+  },
+  {
+   "id": "text-years-parsed",
+   "max": "7 years",
+   "fto": false,
+   "days": 1300,
+   "expect": "eligible"
+  },
+  {
+   "id": "life-excluded",
+   "max": "life",
+   "fto": false,
+   "days": 9000,
+   "expect": null
+  },
+  {
+   "id": "or-life-excluded",
+   "max": "10 years or life",
+   "fto": true,
+   "days": 9000,
+   "expect": null
+  },
+  {
+   "id": "imprisonment-for-life-excluded",
+   "max": "imprisonment for life",
+   "fto": true,
+   "days": 9000,
+   "expect": null
+  },
+  {
+   "id": "death-excluded",
+   "max": "death",
+   "fto": true,
+   "days": 9000,
+   "expect": null
+  },
+  {
+   "id": "life_or_death-flag-excluded",
+   "max": 7,
+   "fto": true,
+   "days": 9000,
+   "life_or_death": true,
+   "expect": null
+  },
+  {
+   "id": "zero-max-rejected",
+   "max": 0,
+   "fto": true,
+   "days": 500,
+   "expect": null
+  },
+  {
+   "id": "not-in-custody",
+   "max": 7,
+   "fto": true,
+   "days": 2000,
+   "in_custody": false,
+   "expect": null
+  },
+  {
+   "id": "no-custody-date",
+   "max": 7,
+   "fto": true,
+   "days": null,
+   "expect": null
+  }
+ ]
+}

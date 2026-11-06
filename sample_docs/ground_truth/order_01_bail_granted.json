@@ -1,0 +1,14 @@
+{
+  "doc_type": "order",
+  "case_type": "bail",
+  "stage": "pronouncement",
+  "filing_date": "2026-05-04",
+  "accused_in_custody": true,
+  "custody_since": "2026-04-10",
+  "act": "BNS",
+  "section": "305",
+  "case_number": "Crl.M.P. 1186/2026",
+  "synthetic": true,
+  "file": "order_01_bail_granted.pdf",
+  "pages": 1
+}

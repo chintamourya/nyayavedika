@@ -1,0 +1,14 @@
+{
+  "doc_type": "fir",
+  "case_type": "criminal_trial",
+  "stage": "admission",
+  "filing_date": "2026-03-14",
+  "accused_in_custody": true,
+  "custody_since": "2026-03-15",
+  "act": "BNS",
+  "section": "303",
+  "case_number": "FIR 0412/2026",
+  "synthetic": true,
+  "file": "fir_01_theft.txt",
+  "pages": 1
+}

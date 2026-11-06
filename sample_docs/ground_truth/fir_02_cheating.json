@@ -1,0 +1,14 @@
+{
+  "doc_type": "fir",
+  "case_type": "criminal_trial",
+  "stage": "admission",
+  "filing_date": "2025-09-02",
+  "accused_in_custody": false,
+  "custody_since": null,
+  "act": "BNS",
+  "section": "318",
+  "case_number": "FIR 0977/2025",
+  "synthetic": true,
+  "file": "fir_02_cheating.pdf",
+  "pages": 1
+}

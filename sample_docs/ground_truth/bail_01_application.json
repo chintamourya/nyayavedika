@@ -1,0 +1,14 @@
+{
+  "doc_type": "bail_custody",
+  "case_type": "bail",
+  "stage": "admission",
+  "filing_date": "2026-08-12",
+  "accused_in_custody": true,
+  "custody_since": "2026-07-29",
+  "act": "BNS",
+  "section": "318",
+  "case_number": "Crl.M.P. 2290/2026",
+  "synthetic": true,
+  "file": "bail_01_application.pdf",
+  "pages": 1
+}

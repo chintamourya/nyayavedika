@@ -1,0 +1,16 @@
+# Secrets and local state. The only settings file is the root .env; it never leaves your machine/server.
+.env
+.env.*
+!.env.example
+*.env
+*.db
+__pycache__/
+*.pyc
+kb/
+storage/
+dist/
+.venv/
+venv/
+*.zip
+*.egg-info/
+.pytest_cache/

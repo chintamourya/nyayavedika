@@ -1,0 +1,14 @@
+{
+  "doc_type": "order",
+  "case_type": "criminal_trial",
+  "stage": "evidence",
+  "filing_date": "2024-07-11",
+  "accused_in_custody": true,
+  "custody_since": "2024-05-02",
+  "act": "NDPS Act",
+  "section": "20",
+  "case_number": "S.C. 88/2024",
+  "synthetic": true,
+  "file": "order_02_adjournment.txt",
+  "pages": 1
+}
