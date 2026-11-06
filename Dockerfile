@@ -15,4 +15,5 @@ COPY . .
 RUN useradd -m nyayavedika && chown -R nyayavedika /app
 USER nyayavedika
 # Host, port and every other setting come from the mounted /app/.env (see docker-compose.yml)
-CMD ["python", "server.py"]
+
+CMD ["sh", "-c", "printf '%s' \"$DOTENV_B64\" | base64 -d > /app/.env && exec python server.py"]
