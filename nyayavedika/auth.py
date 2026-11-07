@@ -61,6 +61,7 @@ POLICY = {
     "POST /api/legal-aid/{request_id}/outcome": COURT,
     # everyone: legal-aid check, assistant (agent chosen by role), feedback
     "POST /api/legal-problem/research": (CITIZEN,),
+    "POST /api/legal-problem/chat": (CITIZEN,),
     "POST /api/advocate/workspaces": (LAWYER,),
     "POST /api/advocate/documents": (LAWYER,),
     "POST /api/advocate/documents/{doc_id}/insights": (LAWYER,),

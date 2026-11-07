@@ -12,7 +12,7 @@ import uuid
 from contextlib import asynccontextmanager
 from datetime import date, datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Literal, Optional
 
 ROOT = Path(__file__).parent
 # Settings: nyayavedika.config loads .env itself on import (nyayavedika/envfile.py); nothing to do here.
@@ -189,6 +189,17 @@ class LegalProblemResearchIn(BaseModel):
     jurisdiction: str = ""
 
 
+class LegalProblemChatMessageIn(BaseModel):
+    role: Literal["user", "assistant"]
+    content: str
+    kind: str = ""
+
+
+class LegalProblemChatIn(BaseModel):
+    messages: List[LegalProblemChatMessageIn]
+    language: str = "English"
+
+
 class AdvocateDocumentIn(BaseModel):
     workspace_token: str
     filename: str
@@ -198,6 +209,7 @@ class AdvocateDocumentIn(BaseModel):
 class AdvocateInsightIn(BaseModel):
     workspace_token: str
     insight_type: str
+    user_guidance: Optional[str] = None
 
 
 class AdvocateStudioIn(BaseModel):
@@ -586,7 +598,7 @@ def upload_advocate_document(body: AdvocateDocumentIn):
           dependencies=[guard("POST /api/advocate/documents/{doc_id}/insights")])
 def advocate_document_insight(doc_id: str, body: AdvocateInsightIn):
     try:
-        return advocate.generate_insight(body.workspace_token, doc_id, body.insight_type)
+        return advocate.generate_insight(body.workspace_token, doc_id, body.insight_type, body.user_guidance)
     except advocate.AdvocateError as exc:
         raise HTTPException(exc.status, str(exc))
 
@@ -711,6 +723,21 @@ def legal_problem_research_endpoint(body: LegalProblemResearchIn):
     except Exception as exc:
         logger.exception("Citizen legal-problem research failed: %s", type(exc).__name__)
         raise HTTPException(502, "Legal research could not be completed. No answer was generated; please try again.")
+
+
+@app.post("/api/legal-problem/chat", dependencies=[guard("POST /api/legal-problem/chat")])
+def legal_problem_chat_endpoint(body: LegalProblemChatIn):
+    try:
+        return legal_problem.chat_turn(body.messages, body.language)
+    except legal_problem.ResearchUnavailable as exc:
+        raise HTTPException(503, str(exc))
+    except legal_problem.InvalidResearchOutput as exc:
+        raise HTTPException(502, str(exc))
+    except ValueError as exc:
+        raise HTTPException(400, str(exc))
+    except Exception as exc:
+        logger.exception("Citizen legal-problem chat failed: %s", type(exc).__name__)
+        raise HTTPException(502, "The conversation could not be completed. No answer was generated; please try again.")
 
 
 @app.post("/api/legal-aid", dependencies=[guard("POST /api/legal-aid")])

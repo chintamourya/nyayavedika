@@ -169,6 +169,11 @@ input:focus, select:focus, textarea:focus { border-color: var(--brand-2); outlin
 .insight-choice .done { margin-left: auto; width: 20px; height: 20px; border-radius: 50%; border: 2px solid var(--line); flex: none; }
 .insight-choice.cached .done { background: var(--c); border-color: var(--c); box-shadow: inset 0 0 0 3px var(--surface); }
 .insight-choice:disabled { cursor: wait; }
+.insight-guidance { display: grid; gap: 7px; margin-top: 16px; color: var(--ink); font-size: 13px; font-weight: 650; }
+.insight-guidance textarea { width: 100%; min-height: 76px; padding: 10px 12px; resize: vertical; border: 1px solid var(--line); border-radius: 10px; background: var(--surface-2); color: var(--ink); font: inherit; font-weight: 400; }
+.insight-guidance textarea:focus { outline: 3px solid color-mix(in srgb, var(--brand) 24%, transparent); border-color: var(--brand); }
+.insight-guidance .hint { display: flex; justify-content: space-between; gap: 10px; font-weight: 400; }
+.insight-guidance #insightGuidanceCount { flex: 0 0 auto; white-space: nowrap; }
 .ic-issues { --c: var(--c-issues); } .ic-facts { --c: var(--c-facts); } .ic-background { --c: var(--c-background); } .ic-summary { --c: var(--c-summary); }
 .insight-soon { padding: 10px; border-radius: 12px; border: 1px dashed var(--line); background: transparent; color: var(--muted); font: inherit; font-size: 13px; }
 .preview-box summary { cursor: pointer; font-weight: 700; } .preview-box iframe { margin: 12px 0 0; }

@@ -44,6 +44,7 @@ class RoleMatrixTests(unittest.TestCase):
         "POST /api/documents/analyze": (200, 200, 403),
         "POST /api/documents/summarize": (200, 200, 200),
         "POST /api/legal-problem/research": (403, 403, 200),
+        "POST /api/legal-problem/chat": (403, 403, 200),
         "POST /api/advocate/workspaces": (403, 200, 403),
         "POST /api/advocate/documents": (403, 200, 403),
         "POST /api/advocate/documents/{doc_id}/insights": (403, 200, 403),
@@ -94,6 +95,7 @@ class RoleMatrixTests(unittest.TestCase):
             ("GET /api/cases", auth.STAFF),
             ("POST /api/advocate/workspaces", auth.LAWYER),
             ("POST /api/legal-problem/research", auth.CITIZEN),
+            ("POST /api/legal-problem/chat", auth.CITIZEN),
         ):
             principal = auth.check(
                 "Bearer mourya", *auth.POLICY[key], role_hint=role

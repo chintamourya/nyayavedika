@@ -209,7 +209,9 @@ class StaticContentTests(unittest.TestCase):
         tabs = re.findall(r'data-citizen-tab="([^"]+)"', html)
         self.assertEqual(tabs, ["legal", "summary", "problem", "rights"])
         self.assertIn('id="citizen-problem"', html)
-        self.assertIn('api("/api/legal-problem/research"', script)
+        self.assertIn('api("/api/legal-problem/chat"', script)
+        self.assertIn('id="problemChatForm"', html)
+        self.assertIn('role="log"', html)
         self.assertIn("noToken: true", script)
         self.assertIn("officialResearchUrl(source.url)", script)
         self.assertIn("esc(point.text)", script)
@@ -229,6 +231,10 @@ class StaticContentTests(unittest.TestCase):
         self.assertIn('"/api/advocate/documents"', script)
         self.assertIn('"/api/advocate/studio"', script)
         self.assertIn("esc(point.evidence)", script)
+        self.assertIn('id="insightGuidance"', html)
+        self.assertIn('maxlength="1000"', html)
+        self.assertIn("user_guidance: userGuidance", script)
+        self.assertIn("!userGuidance && insights.cache.has(key)", script)
 
     def test_demo_banner_and_no_colour_only_bands(self):
         common = (STATIC / "common.js").read_text(encoding="utf-8")
@@ -247,6 +253,24 @@ class StaticContentTests(unittest.TestCase):
         self.assertIn("createSummaryProgress", common)
         self.assertIn("signal: opts.signal", common)
         self.assertIn("5 * 60 * 1000", common)
+
+    def test_legal_problem_chat_has_clear_live_progress_and_responsive_composer(self):
+        html = (STATIC / "citizen.html").read_text(encoding="utf-8")
+        script = (STATIC / "citizen.js").read_text(encoding="utf-8")
+        styles = (STATIC / "styles.css").read_text(encoding="utf-8")
+        strings = json.loads((STATIC / "i18n.json").read_text(encoding="utf-8"))
+        self.assertIn('data-t="problem_chat_keyboard"', html)
+        self.assertIn('role="log" aria-live="polite"', html)
+        self.assertIn("createProblemProgress", script)
+        self.assertIn("problem-chat-spinner", styles)
+        self.assertIn("@media (max-width: 600px)", styles)
+        for key in ("problem_chat_working", "problem_chat_progress", "problem_chat_still_working",
+                    "problem_chat_elapsed", "problem_chat_keyboard", "problem_chat_you",
+                    "problem_chat_sending"):
+            self.assertIn(key, strings["en"])
+            self.assertIn(key, strings["hi"])
+            self.assertIn(key, strings["te"])
+        self.assertIn('fetch("/static/i18n.json?v=2", { cache: "no-cache" })', script)
 
     def test_dev_server_routes_exist_in_server(self):
         dev = set(re.findall(r'@r\("[A-Z]+", r?"[^"]+", "([A-Z]+ /api/[^"]+)"\)', (ROOT / "scripts" / "dev_api.py").read_text(encoding="utf-8")))

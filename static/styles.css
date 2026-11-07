@@ -1304,3 +1304,94 @@ body.advocate-page {
 .impact-grid > div { border: 1px solid var(--line); border-radius: 10px; padding: 12px; background: var(--bg); }
 .impact-grid b { display: block; color: var(--accent); margin-bottom: 4px; }
 .impact-grid span { font-size: 13.5px; color: var(--muted); }
+
+/* Describe a legal problem: conversational chat */
+.problem-chat-log {
+  height: auto;
+  min-height: 280px;
+  max-height: min(52vh, 560px);
+  padding: 14px;
+  overflow-y: auto;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--bg) 72%, var(--card));
+  scroll-behavior: smooth;
+}
+.problem-chat-log .msg {
+  max-width: min(86%, 720px);
+  padding: 12px 15px;
+  border-radius: 15px;
+  overflow-wrap: anywhere;
+}
+.problem-chat-log .msg.bot { border-bottom-left-radius: 5px; }
+.problem-chat-log .msg.user { border-bottom-right-radius: 5px; }
+.problem-chat-log .msg-sender {
+  display: block;
+  margin-bottom: 4px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .02em;
+  opacity: .78;
+}
+.problem-chat-log .msg-content { min-width: 0; white-space: pre-wrap; }
+.problem-chat-log .msg.answer { max-width: 100%; align-self: stretch; }
+.problem-chat-log .msg.answer h3 { font-size: 15px; margin: 14px 0 6px; }
+.problem-chat-log .msg.pending {
+  display: block;
+  max-width: min(86%, 560px);
+  font-style: normal;
+  opacity: 1;
+}
+.problem-chat-log .msg.pending .msg-content {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+.problem-chat-log .msg.pending .problem-chat-spinner {
+  display: block;
+  width: 20px;
+  height: 20px;
+  flex: 0 0 20px;
+  margin-top: 2px;
+  border: 2px solid var(--line);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: summary-spin .8s linear infinite;
+}
+.problem-chat-progress-copy { min-width: 0; }
+.problem-chat-progress-copy strong { display: block; font-size: 14px; }
+.problem-chat-progress-copy p { margin: 3px 0 0; color: var(--muted); font-size: 13px; }
+.problem-chat-elapsed { display: block; margin-top: 5px; color: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; }
+.problem-chat-chips { gap: 8px; margin: 10px 0 14px; }
+.problem-chat-chips .btn { min-height: 40px; }
+.problem-chat-form { display: flex; gap: 12px; align-items: flex-end; margin: 12px 0 6px; }
+.problem-chat-form textarea {
+  flex: 1;
+  min-width: 0;
+  min-height: 72px;
+  max-height: 180px;
+  margin: 0;
+  resize: vertical;
+}
+body.cz #citizen-problem .problem-chat-form textarea {
+  width: auto;
+  margin: 0;
+  min-height: 80px;
+  height: auto;
+}
+.problem-chat-form .btn { flex: 0 0 auto; }
+.problem-chat-footer { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+.problem-chat-footer .hint { margin: 0; font-size: 12px; }
+#problemChatReset { margin-left: auto; }
+@media (max-width: 600px) {
+  .problem-chat-log { min-height: 240px; max-height: 54vh; padding: 10px; }
+  .problem-chat-log .msg, .problem-chat-log .msg.pending { max-width: 94%; }
+  .problem-chat-form { align-items: stretch; }
+  .problem-chat-form textarea { min-height: 64px; }
+  .problem-chat-form .btn { min-height: 44px; padding: 8px 14px; }
+  .problem-chat-footer { align-items: flex-start; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .problem-chat-log { scroll-behavior: auto; }
+  .problem-chat-spinner { animation-duration: 2s; }
+}

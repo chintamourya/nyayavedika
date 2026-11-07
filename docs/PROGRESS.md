@@ -74,3 +74,26 @@
 - **Endpoints:** No API routes changed.
 - **Validation:** Focused Azure/Advocate tests passed (15). Full suite ran 357 tests and remains non-green with 5 failures, 3 errors, and 1 skipped; the new regressions pass. Existing failures include intake worker state expectations, a deployment-name assertion, and unrelated database/token-budget test errors.
 - **Limitations:** DNS resolution and TCP/443 reachability work from this environment, but that does not verify Azure authentication, deployment availability, TLS/proxy behavior, or a full model request.
+
+## Citizen "Describe a legal problem" as a chat
+- Changes: the tab is now a simple conversation. Each turn the server picks one of: ask ONE clarifying question (max 2, with tappable suggested replies), reply conversationally (greetings, thanks, what can you do), or run the existing grounded research on everything the citizen has said so far. Follow-up questions re-run research with the newest message marked as the current question. Missing State/city is still asked for in the chat. After an answer, `missing_info` is shown as "you can tell me" hints.
+- Unchanged: `research()` and `POST /api/legal-problem/research`; official-source filtering, citation grounding and "no source, no answer" rules. Chat/ask/reply text never states law; legal content comes only from research.
+- Files: nyayavedika/legal_problem.py (TurnDecision, chat_turn), server.py, nyayavedika/auth.py, static/citizen.html, citizen.js, styles.css, i18n.json (en/hi/te), tests/test_legal_problem.py, test_foundation.py, test_frontend.py.
+- Endpoint: POST /api/legal-problem/chat (citizen only; cross-role denial in test_foundation matrix).
+- Blockers: 8 tests fail identically on the original upload in a fresh environment (intake/OCR/dev-db schema/azure-deployment); none relate to this change.
+- Privacy/limits: chat history lives only in the browser tab's memory (no DB, no audit row, no sessionStorage); the server is stateless. Only the last 5 user turns are kept/used, and at most 2 follow-up questions are allowed after the first answer (plus the existing cap of 2 clarifying questions). Then the input locks until "Start over".
+
+## Follow-up — Citizen legal-problem chat polish
+
+- **Changes:** Reworked chat bubbles and spacing, constrained the conversation viewport, improved mobile composer layout, added sender labels and keyboard guidance, and replaced the vague pending text with a spinner, honest action explanation, and elapsed time. All progress copy is localized in English, Hindi, and Telugu.
+- **Fix:** Versioned and revalidated the translation JSON request to prevent a browser-cached older string table from rendering localization keys literally.
+- **Files:** `static/citizen.html`, `static/citizen.js`, `static/styles.css`, `static/i18n.json`, `tests/test_frontend.py`, `docs/PROGRESS.md`.
+- **Endpoints:** None changed.
+- **Validation:** Frontend regression tests (18), JavaScript syntax, translation JSON, and browser checks of the pending/waiting state passed.
+
+## Follow-up — Optional Advocate insight guidance
+
+- **Changes:** Added optional advocate-provided guidance for the selected AI insight. Guidance is bounded to 1,000 characters, is supplemental to fixed system/source-grounding rules, and does not replace the selected insight task. Guided results bypass the no-guidance result cache to avoid displaying stale analysis.
+- **Files:** `nyayavedika/advocate.py`, `server.py`, `scripts/dev_api.py`, `static/advocate.html`, `static/advocate.js`, `static/advocate.css`, `tests/test_advocate.py`, `tests/test_frontend.py`, `docs/PROGRESS.md`.
+- **Endpoints:** Existing lawyer-only insight endpoint accepts an optional `user_guidance` field; no route or role policy changed.
+- **Validation:** Advocate and frontend tests passed (24), and `node --check` plus Python compilation passed. The full suite ran 367 tests with 5 failures, 3 errors, and 1 skipped; these match the pre-existing unrelated intake worker/state, Azure deployment-name, database-schema, and token-budget failures from the prior full run.

@@ -6,7 +6,7 @@
 <meta name="color-scheme" content="light dark">
 <title>NyayaVedika - Advocate</title>
 <link rel="icon" href="/static/favicon.svg?v=3" type="image/svg+xml">
-<link rel="stylesheet" href="/static/advocate.css?v=3">
+<link rel="stylesheet" href="/static/advocate.css?v=4">
 </head>
 <body class="adv">
 <svg width="0" height="0" style="position:absolute" aria-hidden="true">
@@ -293,6 +293,12 @@
               <svg class="ic"><use href="#i-summary"/></svg><span><b>Summarization</b><em>A structured, source-grounded overview</em></span><i class="done" aria-hidden="true"></i></button>
             <button class="insight-soon" type="button" disabled aria-disabled="true" title="Multi-document insights are not part of this release">Multi-document insights · Coming soon</button>
           </div>
+          <label class="insight-guidance" for="insightGuidance">
+            Optional extra guidance
+            <textarea id="insightGuidance" rows="3" maxlength="1000"
+              placeholder="For example: highlight unclear dates or organize the facts as a short chronology."></textarea>
+            <span class="hint">Adds focus to the selected insight; it cannot replace the system's source-grounding and accuracy rules. <span id="insightGuidanceCount" aria-live="polite">0/1000</span></span>
+          </label>
         </div>
 
         <details id="insightPreviewBox" class="preview-box hidden">
@@ -318,6 +324,6 @@
 </main>
 <div id="toasts" class="toasts" role="status" aria-live="polite"></div>
 <script src="/static/common.js?v=10"></script>
-<script src="/static/advocate.js?v=3"></script>
+<script src="/static/advocate.js?v=4"></script>
 </body>
 </html>

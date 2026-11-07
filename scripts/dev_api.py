@@ -388,7 +388,9 @@ def routes():
     def advocate_insight(h, m, q, b, p):
         d = json.loads(b or b"{}")
         try:
-            return advocate.generate_insight(d.get("workspace_token") or "", m["doc"], d.get("insight_type") or "")
+            return advocate.generate_insight(
+                d.get("workspace_token") or "", m["doc"], d.get("insight_type") or "", d.get("user_guidance")
+            )
         except advocate.AdvocateError as exc:
             raise HttpError(exc.status, str(exc))
 

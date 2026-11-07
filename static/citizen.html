@@ -6,7 +6,7 @@
 <title>Nyaya Mitra</title>
 <link rel="icon" href="/static/favicon.svg?v=3" type="image/svg+xml">
 <meta name="theme-color" content="#123c35">
-<link rel="stylesheet" href="/static/styles.css?v=5">
+<link rel="stylesheet" href="/static/styles.css?v=8">
 </head>
 <body class="cz">
 <header class="top">
@@ -68,21 +68,18 @@
   <section id="citizen-problem" class="card citizen-panel hidden" aria-labelledby="problemResearchHeading">
     <h2 id="problemResearchHeading" data-t="problem_research_heading"></h2>
     <p class="hint" data-t="problem_research_sub"></p>
-    <form id="problemResearchForm">
-      <label for="problemDescription"><span data-t="problem_description_label"></span>
-        <textarea id="problemDescription" rows="6" maxlength="6000" required></textarea>
-      </label>
-      <label for="problemJurisdiction"><span data-t="problem_location_label"></span>
-        <input id="problemJurisdiction" type="text" maxlength="200" autocomplete="address-level1">
-      </label>
-      <button id="problemResearchSubmit" class="btn big" type="submit" data-t="problem_research_button"></button>
-    </form>
-    <p id="problemResearchStatus" class="summary-progress hidden" role="status" aria-live="polite">
-      <span class="summary-spinner" aria-hidden="true"></span>
-      <span data-t="problem_research_loading"></span>
-    </p>
+    <div id="problemChatLog" class="chat-log problem-chat-log" role="log" aria-live="polite"></div>
+    <div id="problemChatChips" class="chips problem-chat-chips"></div>
     <p id="problemResearchError" class="banner-bad hidden" role="alert"></p>
-    <div id="problemResearchOut" aria-live="polite"></div>
+    <form id="problemChatForm" class="problem-chat-form">
+      <label class="sr-only" for="problemChatInput" data-t="problem_chat_label"></label>
+      <textarea id="problemChatInput" rows="2" maxlength="2000" data-tp="problem_chat_placeholder" required></textarea>
+      <button id="problemChatSend" class="btn big" type="submit" data-t="problem_chat_send"></button>
+    </form>
+    <div class="problem-chat-footer">
+      <p class="hint" data-t="problem_chat_keyboard"></p>
+      <button id="problemChatReset" class="btn ghost small" type="button" data-t="problem_chat_new"></button>
+    </div>
   </section>
 
   <section id="citizen-summary" class="card citizen-panel hidden" aria-label="Document summary">
@@ -120,6 +117,6 @@
   <p class="hint" data-t="disclaimer"></p>
 </main>
 <script src="/static/common.js?v=10"></script>
-<script src="/static/citizen.js?v=12"></script>
+<script src="/static/citizen.js?v=14"></script>
 </body>
 </html>

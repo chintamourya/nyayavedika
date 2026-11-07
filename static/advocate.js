@@ -679,8 +679,9 @@ async function runInsight(type, force = false) {
   setError("#insightError", "");
   insights.current = type;
   $$(".insight-choice").forEach((b) => b.classList.toggle("active", b.dataset.insight === type));
+  const userGuidance = $("#insightGuidance").value.trim();
   const key = `${activeDocument.doc_id}:${type}`;
-  if (!force && insights.cache.has(key)) {
+  if (!force && !userGuidance && insights.cache.has(key)) {
     renderInsight(insights.cache.get(key), type);
     bump("reused");
     return toast(`${INSIGHT_LABELS[type]} reused. No new analysis needed.`);
@@ -695,13 +696,13 @@ async function runInsight(type, force = false) {
   try {
     const result = await api(`/api/advocate/documents/${encodeURIComponent(activeDocument.doc_id)}/insights`, {
       method: "POST",
-      json: { workspace_token: workspaceToken, insight_type: type },
+      json: { workspace_token: workspaceToken, insight_type: type, user_guidance: userGuidance },
     });
     if ((result.sections || []).length) {
-      insights.cache.set(key, result);
+      if (!userGuidance) insights.cache.set(key, result);
       bump("insights");
       bump("lastMs", Math.round(performance.now() - started));
-      $(`.insight-choice[data-insight="${type}"]`).classList.add("cached");
+      if (!userGuidance) $(`.insight-choice[data-insight="${type}"]`).classList.add("cached");
     }
     renderInsight(result, type);
   } catch (error) {
@@ -714,6 +715,9 @@ async function runInsight(type, force = false) {
   }
 }
 $$(".insight-choice").forEach((button) => button.addEventListener("click", () => runInsight(button.dataset.insight)));
+$("#insightGuidance").addEventListener("input", (event) => {
+  $("#insightGuidanceCount").textContent = `${event.target.value.length}/1000`;
+});
 
 // ---------------------------------------------------------------- start
 tokenBox($("#demoToken"), initialize);

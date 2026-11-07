@@ -30,6 +30,7 @@ function applyLang() {
   $$(".langs button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.lang === lang)));
   renderGuideQuestions();
   renderFollowupStatus();
+  if (typeof problemChat !== "undefined" && problemChat.length === 0) renderProblemGreeting();
 }
 $$(".langs button").forEach((b) => b.addEventListener("click", () => {
   lang = b.dataset.lang; try { localStorage.setItem("nyayavedika_lang", lang); } catch { /* ok */ }
@@ -178,39 +179,31 @@ function officialResearchUrl(raw) {
     return url.protocol === "https:" && official ? url.href : "";
   } catch { return ""; }
 }
-function renderResearchPoints(points, heading) {
+function renderResearchPoints(points, heading, prefix = "") {
   if (!points?.length) return "";
   return `<section class="research-section"><h3>${esc(t(heading))}</h3><ul>${points.map((point) =>
     `<li>${point.basis === "inference" ? `<span class="badge">${esc(t("problem_inference"))}</span> ` : ""}` +
     `${esc(point.text)} ${point.source_ids.map((id) =>
-      `<a class="source-citation" href="#problem-source-${Number(id)}">[${Number(id)}]</a>`).join(" ")}</li>`
+      `<a class="source-citation" href="#problem-source-${prefix}${Number(id)}">[${Number(id)}]</a>`).join(" ")}</li>`
   ).join("")}</ul></section>`;
 }
-function renderProblemResearch(result) {
-  const output = $("#problemResearchOut");
-  if (result.needs_clarification) {
-    const question = result.question || t("problem_location_question");
-    output.innerHTML = `<p class="banner-warn">${esc(question)}</p>`;
-    $("#problemJurisdiction").focus();
-    return;
-  }
+function researchHtml(result, prefix = "") {
   if (result.no_reliable_sources) {
-    output.innerHTML = `<p class="banner-warn">${esc(result.message || t("problem_no_sources"))}</p>`;
-    return;
+    return `<p class="banner-warn">${esc(result.message || t("problem_no_sources"))}</p>`;
   }
   const understanding = result.understanding || {};
-  const sections = RESEARCH_SECTIONS.map(([key, label]) => renderResearchPoints(result.answer?.[key], label)).join("");
+  const sections = RESEARCH_SECTIONS.map(([key, label]) => renderResearchPoints(result.answer?.[key], label, prefix)).join("");
   const sources = (result.sources || []).map((source) => {
     const id = Number(source.id);
     const href = officialResearchUrl(source.url);
     if (!Number.isInteger(id) || id < 1 || !href) return "";
-    return `<li id="problem-source-${id}"><b>[${id}] ${esc(source.title)}</b> ` +
+    return `<li id="problem-source-${prefix}${id}"><b>[${id}] ${esc(source.title)}</b> ` +
       `<span class="hint">${esc(source.organization)} · ${esc(t("problem_queries_used"))}: ${esc((source.query_ids || []).join(", "))}</span>` +
       `<p>${esc(source.excerpt)}</p><a href="${esc(href)}" target="_blank" rel="noopener noreferrer">${esc(href)}</a></li>`;
   }).join("");
   const listSection = (items, label) => items?.length
     ? `<h3>${esc(t(label))}</h3><ul>${items.map((item) => `<li>${esc(item)}</li>`).join("")}</ul>` : "";
-  output.innerHTML = `<p><b>${esc(t("problem_understanding"))}:</b> ${esc(result.answer?.understanding || t("problem_no_summary"))}</p>` +
+  return `<p><b>${esc(t("problem_understanding"))}:</b> ${esc(result.answer?.understanding || t("problem_no_summary"))}</p>` +
     `${understanding.legal_question ? `<p><b>${esc(t("problem_legal_question"))}:</b> ${esc(understanding.legal_question)}</p>` : ""}` +
     `<p class="hint">${esc(understanding.category || "")}${understanding.jurisdiction ? ` · ${esc(understanding.jurisdiction)}` : ""}` +
     `${result.retrieved_on ? ` · ${esc(t("problem_retrieved"))}: ${esc(result.retrieved_on)}` : ""}</p>` +
@@ -222,35 +215,174 @@ function renderProblemResearch(result) {
     `<p class="hint">${esc(result.answer?.grounding_note || t("problem_grounding_note"))}</p>` +
     `<section class="research-section"><h3>${esc(t("problem_sources"))}</h3><ol>${sources || `<li>${esc(t("problem_no_sources"))}</li>`}</ol></section>`;
 }
-$("#problemResearchForm").addEventListener("submit", async (event) => {
-  event.preventDefault();
-  const submit = $("#problemResearchSubmit");
-  const status = $("#problemResearchStatus");
+
+// ---------------------------------------------------------------- Describe a legal problem: conversational chat
+// The server decides each turn (ask one question / reply / research). Research answers are still built only from
+// retrieved official sources. History is kept in memory only; nothing is stored.
+let problemChat = [];          // [{role, content, kind}] sent with every turn
+let problemAnswerCount = 0;    // gives each answer's source anchors a unique prefix
+let problemBusy = false;
+const PROBLEM_MAX_TURNS = 5, PROBLEM_MAX_FOLLOWUPS = 2;   // session-only memory: last 5 turns; 2 follow-ups after an answer
+function problemFollowupsUsed() {
+  const first = problemChat.findIndex((m) => m.kind === "answer");
+  return first < 0 ? 0 : problemChat.slice(first + 1).filter((m) => m.role === "user").length;
+}
+function problemLimitReached() {
+  return problemChat.filter((m) => m.role === "user").length >= PROBLEM_MAX_TURNS ||
+    problemFollowupsUsed() >= PROBLEM_MAX_FOLLOWUPS;
+}
+function lockProblemInputIfNeeded() {
+  const locked = problemLimitReached();
+  $("#problemChatInput").disabled = $("#problemChatSend").disabled = locked;
+  if (locked) addProblemBubble("bot", t("problem_chat_limit"), { extra: "limit" });
+}
+const problemLog = () => $("#problemChatLog");
+function scrollProblemLog() { const log = problemLog(); log.scrollTop = log.scrollHeight; }
+function addProblemBubble(kind, content, { html = false, extra = "" } = {}) {
+  const div = document.createElement("div");
+  div.className = `msg ${kind}${extra ? ` ${extra}` : ""}`;
+  const sender = document.createElement("span");
+  sender.className = "msg-sender";
+  sender.textContent = kind === "user" ? t("problem_chat_you") : t("title");
+  const body = document.createElement("div");
+  body.className = "msg-content";
+  if (html) body.innerHTML = content; else body.textContent = content;
+  div.append(sender, body);
+  problemLog().appendChild(div);
+  scrollProblemLog();
+  return div;
+}
+function createProblemProgress(pending) {
+  pending.setAttribute("role", "status");
+  pending.setAttribute("aria-live", "polite");
+  const body = $(".msg-content", pending);
+  body.replaceChildren();
+
+  const spinner = document.createElement("span");
+  spinner.className = "problem-chat-spinner";
+  spinner.setAttribute("aria-hidden", "true");
+  const copy = document.createElement("div");
+  copy.className = "problem-chat-progress-copy";
+  const heading = document.createElement("strong");
+  heading.textContent = t("problem_chat_working");
+  const detail = document.createElement("p");
+  detail.textContent = t("problem_chat_progress");
+  const elapsed = document.createElement("small");
+  elapsed.className = "problem-chat-elapsed";
+  elapsed.setAttribute("aria-hidden", "true");
+  copy.append(heading, detail, elapsed);
+  body.append(spinner, copy);
+
+  const startedAt = Date.now();
+  const updateElapsed = () => {
+    const seconds = Math.floor((Date.now() - startedAt) / 1000);
+    elapsed.textContent = t("problem_chat_elapsed")
+      .replace("{time}", `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`);
+  };
+  updateElapsed();
+  const interval = setInterval(updateElapsed, 1000);
+  const delay = setTimeout(() => { detail.textContent = t("problem_chat_still_working"); }, 8000);
+  return () => {
+    clearInterval(interval);
+    clearTimeout(delay);
+  };
+}
+function renderProblemGreeting() {
+  problemLog().replaceChildren();
+  $("#problemChatChips").replaceChildren();
+  addProblemBubble("bot", t("problem_chat_greeting"), { extra: "greeting" });
+}
+function setProblemChips(suggestions) {
+  const box = $("#problemChatChips");
+  box.replaceChildren();
+  (suggestions || []).forEach((text) => {
+    const chip = document.createElement("button");
+    chip.type = "button";
+    chip.className = "btn ghost small";
+    chip.textContent = text;
+    chip.addEventListener("click", () => sendProblemMessage(text));
+    box.appendChild(chip);
+  });
+}
+function setProblemError(message) {
   const error = $("#problemResearchError");
-  const output = $("#problemResearchOut");
-  error.textContent = "";
-  error.classList.add("hidden");
-  output.replaceChildren();
-  status.classList.remove("hidden");
-  submit.disabled = true;
+  error.textContent = message || "";
+  error.classList.toggle("hidden", !message);
+}
+function historyTextFor(reply) {
+  if (reply.type === "answer") {
+    const result = reply.result || {};
+    return result.answer?.understanding || result.understanding?.legal_question || result.message || "A summary of official sources was shown.";
+  }
+  return reply.reply || "";
+}
+async function sendProblemMessage(text) {
+  text = (text || "").trim();
+  if (!text || problemBusy) return;
+  problemBusy = true;
+  setProblemError("");
+  setProblemChips([]);
+  const input = $("#problemChatInput"), send = $("#problemChatSend");
+  addProblemBubble("user", text);
+  problemChat.push({ role: "user", content: text, kind: "" });
+  input.value = "";
+  input.disabled = send.disabled = true;
+  send.textContent = t("problem_chat_sending");
+  const pending = addProblemBubble("bot", "", { extra: "pending" });
+  const clearProgress = createProblemProgress(pending);
   try {
-    const result = await api("/api/legal-problem/research", {
+    const reply = await api("/api/legal-problem/chat", {
       method: "POST",
       noToken: true,
-      json: {
-        description: $("#problemDescription").value,
-        jurisdiction: $("#problemJurisdiction").value,
-        language: LANG_NAMES[lang],
-      },
+      json: { messages: problemChat, language: LANG_NAMES[lang] },
     });
-    renderProblemResearch(result);
+    clearProgress();
+    pending.remove();
+    if (reply.type === "answer") {
+      problemAnswerCount += 1;
+      let html = researchHtml(reply.result || {}, `${problemAnswerCount}-`);
+      if (reply.followups?.length) {
+        html += `<p class="hint">${esc(t("problem_chat_followups"))}</p><ul>${reply.followups.map((item) => `<li>${esc(item)}</li>`).join("")}</ul>`;
+      }
+      addProblemBubble("bot", html, { html: true, extra: "answer" });
+    } else {
+      addProblemBubble("bot", reply.reply || "");
+      setProblemChips(reply.suggestions);
+    }
+    problemChat.push({ role: "assistant", content: historyTextFor(reply), kind: reply.type === "ask" ? "ask" : reply.type === "answer" ? "answer" : "" });
+    problemChat = problemChat.slice(-PROBLEM_MAX_TURNS * 2);   // never keep more than the last 5 turns in memory
   } catch (err) {
-    error.textContent = err.message || t("problem_request_failed");
-    error.classList.remove("hidden");
+    clearProgress();
+    pending.remove();
+    problemLog().lastElementChild?.remove();     // take back the unanswered message so a retry does not duplicate it
+    problemChat.pop();
+    input.value = text;
+    setProblemError(err.message || t("problem_request_failed"));
   } finally {
-    status.classList.add("hidden");
-    submit.disabled = false;
+    problemBusy = false;
+    send.textContent = t("problem_chat_send");
+    input.disabled = send.disabled = false;
+    lockProblemInputIfNeeded();
+    if (!input.disabled) input.focus();
   }
+}
+$("#problemChatForm").addEventListener("submit", (event) => {
+  event.preventDefault();
+  sendProblemMessage($("#problemChatInput").value);
+});
+$("#problemChatInput").addEventListener("keydown", (event) => {
+  if (event.key === "Enter" && !event.shiftKey && !event.isComposing) {
+    event.preventDefault();
+    $("#problemChatForm").requestSubmit();
+  }
+});
+$("#problemChatReset").addEventListener("click", () => {
+  if (problemBusy) return;
+  problemChat = [];
+  problemAnswerCount = 0;
+  setProblemError("");
+  $("#problemChatInput").disabled = $("#problemChatSend").disabled = false;
+  renderProblemGreeting();
 });
 
 function sourceMarkup(source) {
@@ -538,7 +670,12 @@ $("#citizenSummaryForm").addEventListener("submit", (e) => {
 });
 
 // ---------------------------------------------------------------- start
-fetch("/static/i18n.json").then((r) => r.json()).then((s) => { STR = s; }).catch(() => {}).finally(() => {
+fetch("/static/i18n.json?v=2", { cache: "no-cache" }).then((r) => {
+  if (!r.ok) throw new Error(`Translation request failed (${r.status})`);
+  return r.json();
+}).then((s) => { STR = s; }).catch((error) => {
+  console.error("Could not load citizen translations.", error);
+}).finally(() => {
   applyLang();
   api("/api/health", { noToken: true }).then((h) => { if (!h.llm_enabled) $("#offlineNote").textContent = t("offline_note"); }).catch(() => {});
 });
