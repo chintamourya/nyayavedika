@@ -2,6 +2,7 @@
 
 The role is resolved server-side from `Authorization: Bearer <token>` against DEMO_TOKEN_STAFF /
 DEMO_TOKEN_LAWYER / DEMO_TOKEN_CITIZEN. Anything the client sends as "mode" or "agent" is ignored.
+X-Demo-Role only selects among duplicate configured token roles and is not an authorization boundary.
 POLICY is the one role matrix; server.py attaches `guard("<METHOD> <path>")` to every /api route.
 """
 import hmac
@@ -59,6 +60,11 @@ POLICY = {
     "GET /api/alerts/data-needed": COURT,
     "POST /api/legal-aid/{request_id}/outcome": COURT,
     # everyone: legal-aid check, assistant (agent chosen by role), feedback
+    "POST /api/legal-problem/research": (CITIZEN,),
+    "POST /api/advocate/workspaces": (LAWYER,),
+    "POST /api/advocate/documents": (LAWYER,),
+    "POST /api/advocate/documents/{doc_id}/insights": (LAWYER,),
+    "POST /api/advocate/studio": (LAWYER,),
     "POST /api/legal-aid": ALL_ROLES,
     "POST /api/legal-aid/application.docx": ALL_ROLES,
     "POST /api/legal-aid/explain": ALL_ROLES,
@@ -103,15 +109,18 @@ def configured_roles() -> Tuple[str, ...]:
 
 
 def token_problems() -> list:
-    """Configuration mistakes that break role separation. Shown as warnings at start-up.
-    Two roles sharing one token would both resolve to the first role (staff), so the lawyer-only
-    approval endpoint could never be used; short or placeholder tokens are guessable."""
+    """Configuration mistakes shown as warnings at start-up.
+    Shared tokens can act as every configured role and are suitable only for isolated local demos;
+    short or placeholder tokens are guessable."""
     problems, seen = [], {}
     for role, tok in _tokens():
         if not tok:
             continue
         if tok in seen:
-            problems.append(f"DEMO_TOKEN_{role.upper()} equals DEMO_TOKEN_{seen[tok].upper()}: both would act as '{seen[tok]}'")
+            problems.append(
+                f"DEMO_TOKEN_{role.upper()} equals DEMO_TOKEN_{seen[tok].upper()}: "
+                "this shared credential can act as every configured role; use only for local demos"
+            )
         seen.setdefault(tok, role)
         if len(tok) < 12 or tok.lower().startswith("change-me"):
             problems.append(f"DEMO_TOKEN_{role.upper()} is short or a placeholder: use a long random string")
@@ -130,25 +139,45 @@ def resolve(authorization: Optional[str]) -> Principal:
     raise AuthError(401, "Unknown or expired token")
 
 
-def check(authorization: Optional[str], *roles: str) -> Principal:
+def _matching_roles(authorization: Optional[str]) -> Tuple[str, ...]:
+    scheme, _, token = (authorization or "").strip().partition(" ")
+    token = token.strip()
+    if scheme.lower() != "bearer" or not token:
+        raise AuthError(401, "Sign in required: send 'Authorization: ****** token>'")
+    matches = tuple(
+        role for role, expected in _tokens()
+        if expected and hmac.compare_digest(token.encode(), expected.encode())
+    )
+    if not matches:
+        raise AuthError(401, "Unknown or expired token")
+    return matches
+
+
+def check(authorization: Optional[str], *roles: str, role_hint: Optional[str] = None) -> Principal:
     """Resolve the caller and enforce the role list: 401 unknown caller, 403 wrong role.
     No token at all on a citizen endpoint = anonymous citizen (the portal needs no login) when ANONYMOUS_CITIZEN is on;
-    a wrong token is still 401, and staff / lawyer endpoints always need a token."""
+    a wrong token is still 401, and staff / lawyer endpoints always need a token. If configured role
+    tokens are shared, the requested portal role selects the principal from the endpoint's allowed roles."""
     if not (authorization or "").strip() and CITIZEN in roles and config.ANONYMOUS_CITIZEN:
         return Principal(role=CITIZEN, actor="anonymous-citizen")
-    principal = resolve(authorization)
-    if principal.role not in roles:
-        raise AuthError(403, f"The '{principal.role}' role cannot use this endpoint")
-    return principal
+    matched_roles = _matching_roles(authorization)
+    allowed_matches = tuple(role for role in roles if role in matched_roles)
+    if not allowed_matches:
+        raise AuthError(403, f"The '{matched_roles[0]}' role cannot use this endpoint")
+    role = role_hint if role_hint in allowed_matches else allowed_matches[0]
+    return Principal(role=role, actor=f"demo-{role}")
 
 
 def require_role(*roles: str):
     """FastAPI dependency returning the Principal; raises HTTP 401/403."""
     from fastapi import Header, HTTPException
 
-    def dependency(authorization: Optional[str] = Header(default=None)) -> Principal:
+    def dependency(
+        authorization: Optional[str] = Header(default=None),
+        role_hint: Optional[str] = Header(default=None, alias="X-Demo-Role"),
+    ) -> Principal:
         try:
-            return check(authorization, *roles)
+            return check(authorization, *roles, role_hint=role_hint)
         except AuthError as exc:
             raise HTTPException(exc.status, exc.message,
                                 headers={"WWW-Authenticate": "Bearer"} if exc.status == 401 else None)

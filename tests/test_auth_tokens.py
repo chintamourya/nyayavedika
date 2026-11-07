@@ -1,4 +1,4 @@
-"""Role tokens must be distinct and not guessable. Run: python -m unittest discover -s tests"""
+"""Role-token configuration checks. Run: python -m unittest discover -s tests"""
 import os
 import sys; sys.path.insert(0, os.path.dirname(os.path.abspath(__file__))); import _testenv  # noqa: E402,F401  (offline settings, see tests/_testenv.py)
 import sys
@@ -26,7 +26,10 @@ class TokenProblemTests(unittest.TestCase):
 
     def test_shared_token_is_reported(self):
         self._set("same-long-token-123", "same-long-token-123", "c" * 20)
-        self.assertTrue(any("LAWYER" in p and "STAFF" in p for p in auth.token_problems()))
+        problems = " ".join(auth.token_problems())
+        self.assertIn("LAWYER", problems)
+        self.assertIn("STAFF", problems)
+        self.assertIn("local demos", problems)
 
     def test_short_or_placeholder_token_is_reported(self):
         self._set("abc", "l" * 20, "change-me-citizen-token")

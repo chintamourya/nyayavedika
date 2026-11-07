@@ -161,6 +161,34 @@ class AzureOnlyTests(unittest.TestCase):
             {"type": "json_object"},
         )
 
+    def test_azure_connection_error_does_not_retry_in_json_object_mode(self):
+        error = RuntimeError("connection error")
+        response = types.SimpleNamespace(
+            choices=[types.SimpleNamespace(message=types.SimpleNamespace(content='{"value": "ok"}'))]
+        )
+        client = mock.Mock()
+        client.chat.completions.create.side_effect = [error, response]
+        backend = object.__new__(llm.AzureOpenAIBackend)
+        backend._client = client
+
+        with self.assertRaisesRegex(RuntimeError, "connection error"):
+            backend.structured("model", "system", [{"role": "user", "content": "text"}], Reply)
+
+        self.assertEqual(client.chat.completions.create.call_count, 1)
+
+    def test_unrelated_bad_request_does_not_retry_as_json_object(self):
+        error = RuntimeError("deployment is unavailable")
+        error.status_code = 400
+        client = mock.Mock()
+        client.chat.completions.create.side_effect = error
+        backend = object.__new__(llm.AzureOpenAIBackend)
+        backend._client = client
+
+        with self.assertRaisesRegex(RuntimeError, "deployment is unavailable"):
+            backend.structured("model", "system", [{"role": "user", "content": "text"}], Reply)
+
+        self.assertEqual(client.chat.completions.create.call_count, 1)
+
 
 if __name__ == "__main__":
     unittest.main()

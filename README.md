@@ -50,7 +50,7 @@ critical-case wait 0.09 days vs 1.40 for an oldest-first list; 0 advocate double
 
 ```bash
 pip install -r requirements.txt
-cp .env.example .env          # then set three different long random DEMO_TOKEN_* values
+cp .env.example .env          # use distinct long random DEMO_TOKEN_* values except for isolated local demos
 python scripts/reset_demo.py  # seeds synthetic data
 python server.py              # http://127.0.0.1:8000  (/staff for staff + lawyers, /citizen for citizens)
 python -m unittest discover -s tests

@@ -43,6 +43,11 @@ class RoleMatrixTests(unittest.TestCase):
         "POST /api/alerts/decide": (403, 200, 403),
         "POST /api/documents/analyze": (200, 200, 403),
         "POST /api/documents/summarize": (200, 200, 200),
+        "POST /api/legal-problem/research": (403, 403, 200),
+        "POST /api/advocate/workspaces": (403, 200, 403),
+        "POST /api/advocate/documents": (403, 200, 403),
+        "POST /api/advocate/documents/{doc_id}/insights": (403, 200, 403),
+        "POST /api/advocate/studio": (403, 200, 403),
         "POST /api/legal-aid/ask": (200, 200, 200),
         "POST /api/legal-aid": (200, 200, 200),
         "POST /api/agent/chat": (200, 200, 200),
@@ -62,6 +67,7 @@ class RoleMatrixTests(unittest.TestCase):
 
     def test_unauthenticated_cases_is_401(self):
         self.assertEqual(_status("GET /api/cases", None), 401)
+        self.assertEqual(_status("POST /api/legal-problem/research", None), 200)
 
     def test_citizen_cannot_decide_alerts(self):
         self.assertEqual(_status("POST /api/alerts/decide", TOKENS["citizen"]), 403)
@@ -81,6 +87,30 @@ class RoleMatrixTests(unittest.TestCase):
     def test_principal_records_actor(self):
         p = auth.resolve(f"Bearer {TOKENS['lawyer']}")
         self.assertEqual((p.role, p.actor), ("lawyer", "demo-lawyer"))
+
+    def test_shared_demo_token_uses_portal_role_within_policy(self):
+        _set_tokens("mourya", "mourya", "mourya")
+        for key, role in (
+            ("GET /api/cases", auth.STAFF),
+            ("POST /api/advocate/workspaces", auth.LAWYER),
+            ("POST /api/legal-problem/research", auth.CITIZEN),
+        ):
+            principal = auth.check(
+                "Bearer mourya", *auth.POLICY[key], role_hint=role
+            )
+            self.assertEqual(principal.role, role, key)
+            self.assertEqual(principal.actor, f"demo-{role}", key)
+
+    def test_demo_tokens_are_distinct_by_default(self):
+        self.assertNotEqual(config.DEMO_TOKEN_STAFF, config.DEMO_TOKEN_LAWYER)
+        self.assertNotEqual(config.DEMO_TOKEN_STAFF, config.DEMO_TOKEN_CITIZEN)
+        self.assertNotEqual(config.DEMO_TOKEN_LAWYER, config.DEMO_TOKEN_CITIZEN)
+
+    def test_role_hint_cannot_change_a_distinct_token_role(self):
+        principal = auth.check(
+            f"Bearer {TOKENS['lawyer']}", *auth.ALL_ROLES, role_hint=auth.STAFF
+        )
+        self.assertEqual(principal.role, auth.LAWYER)
 
 
 class EveryEndpointGuardedTests(unittest.TestCase):
@@ -174,9 +204,67 @@ class ServerRoleTests(unittest.TestCase):
         self.assertEqual(c.post("/api/alerts/decide", json={}, headers=self.h("citizen")).status_code, 403)
         self.assertEqual(c.get("/api/alerts", headers=self.h("lawyer")).status_code, 200)
         self.assertEqual(c.get("/api/drafting/sections", headers=self.h("citizen")).status_code, 403)
+        for path, body in (
+            ("/api/advocate/workspaces", {}),
+            ("/api/advocate/documents", {}),
+            ("/api/advocate/documents/sample/insights", {}),
+            ("/api/advocate/studio", {}),
+        ):
+            self.assertEqual(c.post(path, json=body, headers=self.h("staff")).status_code, 403, path)
+            self.assertEqual(c.post(path, json=body, headers=self.h("citizen")).status_code, 403, path)
         self.assertEqual(c.post("/api/legal-aid", json={"applicant": {"annual_income": 1}},
                                 headers=self.h("citizen")).status_code, 200)
         self.assertEqual(c.get("/api/health").status_code, 200)
+
+    def test_shared_demo_token_uses_portal_role_header(self):
+        _set_tokens("mourya", "mourya", "mourya")
+        for role in auth.ALL_ROLES:
+            response = self.client.get("/api/whoami", headers={
+                "Authorization": "Bearer mourya",
+                "X-Demo-Role": role,
+            })
+            self.assertEqual(response.status_code, 200, response.text)
+            self.assertEqual(response.json()["role"], role)
+
+        lawyer = self.client.post(
+            "/api/advocate/workspaces",
+            headers={"Authorization": "Bearer mourya", "X-Demo-Role": "lawyer"},
+            json={},
+        )
+        self.assertEqual(lawyer.status_code, 200, lawyer.text)
+
+    def test_advocate_documents_are_workspace_scoped_and_hidden_from_staff_sources(self):
+        import base64
+        import server
+        lawyer = self.client.post("/api/advocate/workspaces", headers=self.h("lawyer"))
+        self.assertEqual(lawyer.status_code, 200)
+        workspace = lawyer.json()["workspace_token"]
+        second = self.client.post("/api/advocate/workspaces", headers=self.h("lawyer"))
+        self.assertEqual(second.status_code, 200)
+
+        with mock.patch.object(server.advocate.intake, "pdf_page_count", return_value=1), \
+                mock.patch.object(server.advocate.ocr, "extract", return_value=[
+                    {"page": 1, "text": "The applicant filed this petition on 1 January 2024.",
+                     "source": "native", "confidence": None},
+                ]):
+            uploaded = self.client.post("/api/advocate/documents", headers=self.h("lawyer"), json={
+                "workspace_token": workspace,
+                "filename": "petition.pdf",
+                "content_base64": base64.b64encode(b"%PDF-1.4 test").decode("ascii"),
+            })
+        self.assertEqual(uploaded.status_code, 200, uploaded.text)
+        doc_id = uploaded.json()["doc_id"]
+        self.assertEqual(self.client.get(
+            f"/api/documents/{doc_id}/pages/1", headers=self.h("staff")
+        ).status_code, 404)
+        with mock.patch.object(server.advocate.llm, "available", return_value=True), \
+                mock.patch.object(server.advocate.summarise, "call") as generate:
+            response = self.client.post(
+                f"/api/advocate/documents/{doc_id}/insights", headers=self.h("lawyer"),
+                json={"workspace_token": second.json()["workspace_token"], "insight_type": "facts"},
+            )
+        self.assertEqual(response.status_code, 404)
+        generate.assert_not_called()
 
     def test_legal_aid_question_limits_and_followup_count(self):
         import server

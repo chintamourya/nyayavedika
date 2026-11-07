@@ -1,8 +1,19 @@
 // Staff app: Today, Intake, Docket (+ case drawer), Cause list, Undertrial, Insights.
 // The server decides the role from the token and checks every call; tabs are only hidden for convenience.
 demoBanner();
+const ADVOCATE_DOOR = location.pathname === "/advocate";
 let ROLE = null, LIMITS = { max_files: 5, max_files_per_folder: 2, max_pages_per_file: 50, max_file_mb: 25, allowed_types: ["pdf", "txt"] };
 let limitsReady = false, limitsError = "";
+
+if (ADVOCATE_DOOR) {
+  document.title = "NyayaVedika - Advocate";
+  $("#portalKind").textContent = "Advocate";
+  $("#portalSubtitle").textContent = "Lawyer access to the shared justice-support platform";
+  $("#tokenLabel").textContent = "Lawyer access token";
+  $("#demoToken").placeholder = "Enter your lawyer token";
+  $("#tokenHint").textContent = "Use the lawyer token configured by your administrator.";
+  $("#portalTabs").setAttribute("aria-label", "Advocate screens");
+}
 
 // Where a row came from (see the legend at the top of the page).
 const SRC = { synthetic: ["src-synth", "Synthetic", "Generated demo data"], upload: ["src-upload", "Uploaded", "From documents sent through Intake"],
@@ -35,9 +46,21 @@ async function whoami() {
     const me = await api("/api/whoami");
     ROLE = me.role;
     $("#who").textContent = `${me.role} (${me.actor})`;
+    const roleAllowed = ADVOCATE_DOOR ? ROLE === "lawyer" : ["staff", "lawyer"].includes(ROLE);
+    if (!roleAllowed) {
+      $("#portalAccessMessage").textContent = ADVOCATE_DOOR
+        ? "This is the Advocate portal. Enter a lawyer access token to continue; the current token does not have the lawyer role."
+        : "This portal requires a Court Staff or lawyer access token. Enter one, or use the Citizen portal for citizen services.";
+      $("#portalAccessMessage").classList.remove("hidden");
+      $("#portalTabs").classList.add("hidden");
+      $$("main .panel").forEach((panel) => panel.classList.remove("active"));
+      return;
+    }
     $$("[data-staff]").forEach((el) => el.classList.toggle("hidden", ROLE !== "staff"));
     $$("[data-court]").forEach((el) => el.classList.toggle("hidden", !["staff", "lawyer"].includes(ROLE)));
     if (ROLE === "citizen") toast("This token is a citizen token - use the citizen portal.", "error");
+    $("#portalAccessMessage").classList.add("hidden");
+    $("#portalTabs").classList.remove("hidden");
     if (ROLE !== "citizen") fillHow();
     if (ROLE === "staff") api("/api/intake/limits").then((l) => {
       LIMITS = l; limitsReady = true; limitsError = "";
@@ -45,7 +68,15 @@ async function whoami() {
       renderFiles();
     }).catch((e) => { limitsError = e.message; renderFiles(); });
     loadToday();
-  } catch (e) { $("#who").textContent = "not signed in"; }
+  } catch (e) {
+    $("#who").textContent = "not signed in";
+    $("#portalAccessMessage").textContent = ADVOCATE_DOOR
+      ? "Enter a lawyer access token to use the Advocate portal."
+      : "Enter a staff or lawyer access token to use this portal.";
+    $("#portalAccessMessage").classList.remove("hidden");
+    $("#portalTabs").classList.add("hidden");
+    $$("main .panel").forEach((panel) => panel.classList.remove("active"));
+  }
 }
 tokenBox($("#demoToken"), whoami);
 whoami();

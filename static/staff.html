@@ -10,26 +10,27 @@
 <body class="staff-page">
 <header class="top">
   <div class="brand"><span class="logo" aria-hidden="true">⚖</span>
-    <div><h1>NyayaVedika <span lang="hi">(न्यायवेदिका)</span> <span lang="te">(న్యాయవేదిక)</span> · Staff</h1><p>Registry, judges' staff and legal-aid lawyers</p></div></div>
+    <div><h1>NyayaVedika <span lang="hi">(न्यायवेदिका)</span> <span lang="te">(న్యాయవేదిక)</span> · <span id="portalKind">Staff</span></h1><p id="portalSubtitle">Registry and court operations</p></div></div>
   <div class="row gap wrap">
-    <label for="demoToken">Access token</label>
-    <input id="demoToken" type="password" autocomplete="off" placeholder="staff or lawyer token">
-    <span class="hint">Demo staff token: the value of <code>DEMO_TOKEN_STAFF</code> is "mourya"</span>
+    <label id="tokenLabel" for="demoToken">Staff access token</label>
+    <input id="demoToken" type="password" autocomplete="off" placeholder="Enter your staff token">
+    <span class="hint" id="tokenHint">Use the staff token configured by your administrator.</span>
     <span id="who" class="pill">not signed in</span>
   </div>
 </header>
 
-<nav class="tabs" role="tablist" aria-label="Staff screens">
-  <button class="tab active" data-tab="today" role="tab" title="What needs a person now, and how cases flow between screens">Today</button>
+<nav class="tabs" id="portalTabs" role="tablist" aria-label="Court staff screens">
+  <button class="tab active" data-tab="today" role="tab" data-court title="What needs a person now, and how cases flow between screens">Today</button>
   <button class="tab" data-tab="intake" role="tab" data-staff title="Step 1: send case files; they are read, scored and become cases">Intake</button>
   <button class="tab" data-tab="docket" role="tab" data-staff title="Step 2: every pending case with its priority score and why">Docket</button>
   <button class="tab" data-tab="cause" role="tab" data-staff title="Step 3: build, check and publish the weekly hearing list">Cause list</button>
   <button class="tab" data-tab="summary" role="tab" data-court title="Read any one document without creating a case">Document summary</button>
-  <button class="tab" data-tab="undertrial" role="tab" title="People in custody past the Sec. 479 BNSS limit, and their release applications">Undertrial</button>
+  <button class="tab" data-tab="undertrial" role="tab" data-court title="People in custody past the Sec. 479 BNSS limit, and their release applications">Undertrial</button>
   <button class="tab" data-tab="insights" role="tab" data-staff title="Weekly docket health and evidence of impact">Insights</button>
 </nav>
 
 <main>
+  <p id="portalAccessMessage" class="banner-warn hidden" role="status" aria-live="polite"></p>
   <p class="legend" aria-label="Where data comes from">Where data comes from:
     <span class="badge src-synth">Synthetic</span> generated demo cases
     <span class="badge src-upload">Uploaded</span> from files you sent
@@ -85,6 +86,7 @@
     <h2>Document summary</h2>
     <div class="card">
       <p class="hint">Upload a PDF (up to 50 pages) or TXT file, or paste its text, for a plain-language, source-grounded summary. This standalone summary is not saved to a case.</p>
+      <p class="hint"><b>Why it matters:</b> long papers are a hidden source of delay. A source-grounded summary lets staff see what a document is about, and what is missing, before it reaches the bench.</p>
       <form id="staffSummaryForm">
         <label for="staffSummaryFile">PDF or text file</label>
         <input id="staffSummaryFile" type="file" accept=".pdf,.txt">
@@ -199,7 +201,7 @@
 
 <dialog id="dialog"><div id="dialogBody"></div><div class="row gap" style="justify-content:flex-end;margin-top:12px"><button class="btn ghost" id="dialogClose">Close</button></div></dialog>
 
-<script src="/static/common.js?v=9"></script>
+<script src="/static/common.js?v=10"></script>
 <script src="/static/explain.js?v=2"></script>
 <script src="/static/staff.js?v=11"></script>
 </body>

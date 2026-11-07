@@ -1,0 +1,323 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>NyayaVedika - Advocate</title>
+<link rel="icon" href="/static/favicon.svg?v=3" type="image/svg+xml">
+<link rel="stylesheet" href="/static/advocate.css?v=3">
+</head>
+<body class="adv">
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <symbol id="i-merge" viewBox="0 0 24 24"><path d="M6 3v6a4 4 0 0 0 4 4h4a4 4 0 0 1 4 4v4M18 3v6a4 4 0 0 1-1.2 2.8M14 17l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-split" viewBox="0 0 24 24"><path d="M12 3v18M4 7h5M4 12h5M4 17h5M15 7h5M15 12h5M15 17h5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></symbol>
+    <symbol id="i-reorder" viewBox="0 0 24 24"><path d="M7 4v16M7 4 3.5 7.5M7 4l3.5 3.5M17 20V4M17 20l-3.5-3.5M17 20l3.5-3.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-rotate" viewBox="0 0 24 24"><path d="M20 11a8 8 0 1 0-2.3 5.7M20 4v7h-7" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-trash" viewBox="0 0 24 24"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13M10 11v6M14 11v6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-ocr" viewBox="0 0 24 24"><path d="M4 8V5a1 1 0 0 1 1-1h3M16 4h3a1 1 0 0 1 1 1v3M20 16v3a1 1 0 0 1-1 1h-3M8 20H5a1 1 0 0 1-1-1v-3M8 9h8M8 12h8M8 15h5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></symbol>
+    <symbol id="i-bookmark" viewBox="0 0 24 24"><path d="M6 4h12v17l-6-4-6 4z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></symbol>
+    <symbol id="i-index" viewBox="0 0 24 24"><path d="M9 6h11M9 12h11M9 18h11M4 6h1M4 12h1M4 18h1" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
+    <symbol id="i-hash" viewBox="0 0 24 24"><path d="M9 3 7 21M17 3l-2 18M4 9h17M3 15h17" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></symbol>
+    <symbol id="i-issues" viewBox="0 0 24 24"><path d="M12 3 2.5 20h19zM12 10v4.5M12 17.2v.1" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-facts" viewBox="0 0 24 24"><path d="M5 12.5 10 17.5 19 7M4 4h5M4 20h5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-background" viewBox="0 0 24 24"><path d="M12 7v5l3 2M21 12a9 9 0 1 1-3-6.7M21 4v4h-4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-summary" viewBox="0 0 24 24"><path d="M5 5h14M5 10h14M5 15h9M5 20h6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></symbol>
+    <symbol id="i-upload" viewBox="0 0 24 24"><path d="M12 16V4M12 4 7.5 8.5M12 4l4.5 4.5M4 15v4a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-download" viewBox="0 0 24 24"><path d="M12 4v12M12 16l-4.5-4.5M12 16l4.5-4.5M4 19h16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-copy" viewBox="0 0 24 24"><path d="M9 9h10v11H9zM5 15V4h10" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></symbol>
+    <symbol id="i-print" viewBox="0 0 24 24"><path d="M7 9V3h10v6M7 17H4v-7h16v7h-3M7 14h10v7H7z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></symbol>
+    <symbol id="i-chain" viewBox="0 0 24 24"><path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1M14 10a4 4 0 0 0-5.7 0l-3 3A4 4 0 0 0 11 18.7l1-1" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></symbol>
+    <symbol id="i-moon" viewBox="0 0 24 24"><path d="M20 14.5A8 8 0 0 1 9.5 4 8 8 0 1 0 20 14.5z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></symbol>
+    <symbol id="i-file" viewBox="0 0 24 24"><path d="M6 3h8l4 4v14H6zM14 3v4h4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></symbol>
+    <symbol id="i-x" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></symbol>
+    <symbol id="i-eye" viewBox="0 0 24 24"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z" fill="none" stroke="currentColor" stroke-width="1.8"/><circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" stroke-width="1.8"/></symbol>
+  </defs>
+</svg>
+
+<a class="skip" href="#main">Skip to content</a>
+
+<header class="top">
+  <div class="brand">
+    <span class="logo" aria-hidden="true">⚖</span>
+    <div><h1>NyayaVedika <span class="dot">·</span> Advocate</h1><p>Document preparation and case intelligence</p></div>
+  </div>
+  <div class="auth">
+    <label for="demoToken">Lawyer access token</label>
+    <input id="demoToken" type="password" autocomplete="off" placeholder="Enter your lawyer token">
+    <span id="who" class="pill">not signed in</span>
+    <button id="themeToggle" class="icon-btn" type="button" aria-label="Toggle light or dark theme" title="Toggle theme"><svg class="ic"><use href="#i-moon"/></svg></button>
+  </div>
+</header>
+
+<main id="main">
+  <p id="advocateStatus" class="banner banner-warn hidden" role="status" aria-live="polite"></p>
+
+  <nav class="tabs advocate-tabs" role="tablist" aria-label="Advocate capabilities">
+    <button class="tab active" type="button" role="tab" aria-selected="true" data-advocate-tab="studio">
+      <svg class="ic"><use href="#i-file"/></svg><span>Document Studio</span><kbd>Alt 1</kbd></button>
+    <button class="tab" type="button" role="tab" aria-selected="false" data-advocate-tab="insights">
+      <svg class="ic"><use href="#i-summary"/></svg><span>AI Document Insights</span><kbd>Alt 2</kbd></button>
+  </nav>
+
+  <details id="impactPanel" class="impact">
+    <summary>
+      <span class="imp-title">Impact on Timely Justice <em>· Legal Backlog</em></span>
+      <span class="imp-live" aria-live="polite">This session: PDF operations <b id="mOps">0</b> · documents analysed <b id="mDocs">0</b> · insights <b id="mInsights">0</b></span>
+    </summary>
+    <div class="imp-body">
+      <p class="imp-lead">Indian courts hold about <b>5.9 crore</b> pending cases and roughly <b>64 lakh</b> have been pending over ten years. Before a bench can decide, advocates must assemble, paginate, index and read very long papers. Delay at the preparation stage becomes delay in court. These two tools shorten that stage. They do not decide anything: the advocate reviews every output.</p>
+      <div class="imp-cols">
+        <section>
+          <h3><svg class="ic"><use href="#i-file"/></svg> Document Studio</h3>
+          <ul>
+            <li><b>Helps avoid defective filings.</b> Page numbers, bookmarks and a clickable index make a paper-book navigable, so a bench and the registry can find each document without hunting.</li>
+            <li><b>Faster paper-book assembly.</b> Merge, split into volumes, reorder, rotate and remove pages in one place instead of several desktop tools.</li>
+            <li><b>Scanned records become searchable text.</b> OCR turns image-only pages into text that can be quoted and searched.</li>
+            <li><b>Private by design.</b> Files are processed in memory and are not added to court records.</li>
+          </ul>
+        </section>
+        <section>
+          <h3><svg class="ic"><use href="#i-summary"/></svg> AI Document Insights</h3>
+          <ul>
+            <li><b>Faster comprehension of long papers.</b> Issues, Facts, Case Background and Summarization, each point tied to a page and the exact source text.</li>
+            <li><b>Read once, ask four times.</b> Extraction and OCR are reused, so each extra insight needs no second pass over the file.</li>
+            <li><b>Advocate stays in control.</b> Inferences are labelled, and every claim can be checked against the original page.</li>
+            <li><b>Better prepared hearings.</b> Clearer issues and chronologies can help hearings use court time well, which matters where adjournments feed the backlog.</li>
+          </ul>
+        </section>
+      </div>
+      <h3 class="imp-h">Where this scores against the problem</h3>
+      <div class="rubric">
+        <div><b>Size</b><span>About 5.9 crore pending cases in all courts. <a href="https://forthepeople.in/en/india/justice-pendency" target="_blank" rel="noopener">NJDG</a> <i>Reported</i></span></div>
+        <div><b>Severity</b><span>Litigants lose about ₹50,387 crore a year to court delay (0.48% of GDP). <a href="https://www.dakshindia.org/access-to-justice-survey-findings-india" target="_blank" rel="noopener">DAKSH</a> <i>Reported</i></span></div>
+        <div><b>Solution quality</b><span>Source-grounded output with page references, reused extraction, deterministic PDF operations and lawyer-only access.</span></div>
+        <div><b>Proven impact</b><span>Measured below for this session. No field figures are claimed here; pilot results are reported separately from real use.</span></div>
+      </div>
+      <h3 class="imp-h">Measured in this session <span class="muted">(real counts from your actions, not estimates)</span></h3>
+      <div class="metrics" id="metricsGrid">
+        <div><b id="mPages">0</b><span>pages handled in Studio</span></div>
+        <div><b id="mOps2">0</b><span>PDF operations completed</span></div>
+        <div><b id="mDocs2">0</b><span>documents analysed</span></div>
+        <div><b id="mInsights2">0</b><span>insights generated</span></div>
+        <div><b id="mReused">0</b><span>insights reused without re-extraction</span></div>
+        <div><b id="mLast">–</b><span>last insight, upload to result</span></div>
+      </div>
+      <p class="hint">Sources: national figures from the project's problem statement (docs/PROBLEM_STATS.md, prepared 7 November 2026). Before-and-after time savings need a pilot with real advocates and are not asserted here.</p>
+    </div>
+  </details>
+
+  <!-- ============================ DOCUMENT STUDIO ============================ -->
+  <section id="advocate-studio" class="advocate-panel" aria-labelledby="studioHeading">
+    <div class="panel-head">
+      <div>
+        <h2 id="studioHeading">Document Studio</h2>
+        <p class="hint">Prepare court-ready PDFs. Files are processed in memory for this session and are never added to court records.</p>
+      </div>
+      <div id="studioChain" class="chain hidden" aria-live="polite"></div>
+    </div>
+
+    <div class="studio-grid">
+      <div class="studio-left">
+        <div class="step">
+          <div class="step-title"><span class="num">1</span> Choose an operation</div>
+          <div id="opCards" class="op-cards" role="radiogroup" aria-label="PDF operation">
+            <button type="button" role="radio" class="op" data-op="merge"><svg class="ic"><use href="#i-merge"/></svg><b>Merge</b><span>Combine several PDFs into one</span></button>
+            <button type="button" role="radio" class="op" data-op="split"><svg class="ic"><use href="#i-split"/></svg><b>Split</b><span>Pages or volumes</span></button>
+            <button type="button" role="radio" class="op" data-op="reorder"><svg class="ic"><use href="#i-reorder"/></svg><b>Reorder</b><span>Drag pages into a new order</span></button>
+            <button type="button" role="radio" class="op" data-op="rotate"><svg class="ic"><use href="#i-rotate"/></svg><b>Rotate</b><span>Fix sideways pages</span></button>
+            <button type="button" role="radio" class="op" data-op="remove"><svg class="ic"><use href="#i-trash"/></svg><b>Remove</b><span>Delete selected pages</span></button>
+            <button type="button" role="radio" class="op" data-op="ocr"><svg class="ic"><use href="#i-ocr"/></svg><b>OCR</b><span>Extract scanned text</span></button>
+            <button type="button" role="radio" class="op" data-op="bookmarks"><svg class="ic"><use href="#i-bookmark"/></svg><b>Bookmarks</b><span>Navigation outline</span></button>
+            <button type="button" role="radio" class="op" data-op="index"><svg class="ic"><use href="#i-index"/></svg><b>Index</b><span>Clickable contents page</span></button>
+            <button type="button" role="radio" class="op" data-op="page_numbers"><svg class="ic"><use href="#i-hash"/></svg><b>Page numbers</b><span>Stamp running numbers</span></button>
+          </div>
+          <select id="studioOperation" class="sr-only" tabindex="-1" aria-hidden="true">
+            <option value="merge">Merge PDFs</option>
+            <option value="split">Split into pages or volumes</option>
+            <option value="reorder">Reorder pages</option>
+            <option value="rotate">Rotate selected pages</option>
+            <option value="remove">Remove selected pages</option>
+            <option value="ocr">OCR / extract scanned text</option>
+            <option value="bookmarks">Add bookmarks</option>
+            <option value="index">Create clickable index</option>
+            <option value="page_numbers">Add page numbers</option>
+          </select>
+        </div>
+
+        <form id="studioForm" class="step" novalidate>
+          <div class="step-title"><span class="num">2</span> Add your PDF<span id="studioFilesHint" class="muted"></span></div>
+          <label class="drop" id="studioDrop" for="studioFiles">
+            <svg class="ic big"><use href="#i-upload"/></svg>
+            <b>Drop a PDF here or <u>browse</u></b>
+            <span class="muted" id="studioDropSub">One PDF · up to the server upload limit</span>
+            <input id="studioFiles" type="file" accept="application/pdf,.pdf">
+          </label>
+          <ul id="mergeList" class="file-list hidden" aria-label="PDFs to merge, in order"></ul>
+
+          <div class="step-title"><span class="num">3</span> Settings</div>
+          <div id="studioOptions" class="options">
+            <p id="optNone" class="hint hidden" data-operations="ocr">OCR needs no settings. Scanned pages are recognised and the text is returned page by page.</p>
+            <p class="hint opt hidden" data-operations="merge">PDFs are merged in the order shown above. Use the arrows to change it.</p>
+
+            <div class="opt hidden" data-operations="split">
+              <label for="splitMode">Split mode</label>
+              <select id="splitMode"><option value="ranges">Use page ranges (volumes)</option><option value="pages">Split every page</option></select>
+              <div id="splitRangeBox">
+                <label for="splitRanges">Volume page ranges</label>
+                <textarea id="splitRanges" rows="2" placeholder="1-3;4-6"></textarea>
+                <div class="row">
+                  <span class="muted">Quick fill:</span>
+                  <input id="splitEvery" type="number" min="1" value="10" aria-label="Pages per volume">
+                  <button class="chip-btn" type="button" id="splitEveryBtn">pages per volume</button>
+                  <button class="chip-btn" type="button" id="splitHalfBtn">Two halves</button>
+                </div>
+                <span class="hint">Separate volumes with semicolons, for example 1-3;4-6.</span>
+              </div>
+            </div>
+
+            <div class="opt hidden" data-operations="reorder">
+              <label for="pageOrder">New page order</label>
+              <input id="pageOrder" type="text" placeholder="For example: 3,1,2">
+              <div class="row"><button class="chip-btn" type="button" id="orderReverse">Reverse</button>
+                <button class="chip-btn" type="button" id="orderReset">Reset</button></div>
+              <span class="hint">Drag pages in the grid, or type the order. Every page number must appear exactly once.</span>
+            </div>
+
+            <div class="opt hidden" data-operations="rotate">
+              <label for="rotateDegrees">Clockwise rotation</label>
+              <select id="rotateDegrees"><option value="90">90°</option><option value="180">180°</option><option value="270">270° (90° anticlockwise)</option></select>
+              <span class="hint" id="rotateHint">Select pages in the page grid.</span>
+            </div>
+
+            <div class="opt hidden" data-operations="remove">
+              <label for="removePages">Pages to remove</label>
+              <input id="removePages" type="text" placeholder="For example: 2,5-7">
+              <span class="hint">Select pages in the grid or type page numbers. At least one page must remain.</span>
+            </div>
+
+            <div class="opt hidden" data-operations="bookmarks">
+              <label for="bookmarkItems">Bookmarks <span class="muted">(page and title, one per line)</span></label>
+              <textarea id="bookmarkItems" rows="5" placeholder="1 Cover&#10;2 Index"></textarea>
+              <div class="row"><button class="chip-btn" type="button" data-fill="bookmarkItems">Fill from selected pages</button>
+                <span class="muted" id="bookmarkCount"></span></div>
+            </div>
+
+            <div class="opt hidden" data-operations="index">
+              <label for="indexItems">Clickable index entries <span class="muted">(page: title, one per line)</span></label>
+              <textarea id="indexItems" rows="5" placeholder="3: Petition&#10;12: Supporting documents"></textarea>
+              <div class="row"><button class="chip-btn" type="button" data-fill="indexItems">Fill from selected pages</button>
+                <span class="muted" id="indexCount"></span></div>
+              <span class="hint">A contents page is added at the front. At most 40 entries.</span>
+            </div>
+
+            <div class="opt hidden" data-operations="page_numbers">
+              <label for="startNumber">First printed page number</label>
+              <input id="startNumber" type="number" min="1" max="999999" value="1">
+              <span class="hint" id="numberHint"></span>
+            </div>
+          </div>
+
+          <button id="studioSubmit" class="btn primary wide" type="submit"><span id="studioSubmitLabel">Run operation</span><kbd>Ctrl ↵</kbd></button>
+          <p id="studioLoading" class="progress hidden" role="status" aria-live="polite"><span class="spinner"></span> Processing PDF…</p>
+          <p id="studioError" class="banner banner-bad hidden" role="alert"></p>
+        </form>
+      </div>
+
+      <div class="studio-right">
+        <div id="studioEmpty" class="empty">
+          <svg class="ic huge"><use href="#i-file"/></svg>
+          <b>No PDF loaded yet</b>
+          <span>Add a PDF to preview it, select pages and see how each operation will apply.</span>
+        </div>
+        <div id="studioPreviewWrap" class="hidden">
+          <div class="pane-head">
+            <b>PDF preview</b><span id="studioPageCount" class="muted" aria-live="polite"></span>
+          </div>
+          <iframe id="studioPreview" title="Selected PDF preview"></iframe>
+          <div class="pane-head">
+            <b>Pages</b>
+            <div class="row tight" id="pageTools" role="group" aria-label="Page selection tools">
+              <button class="chip-btn" type="button" data-select="all">All</button>
+              <button class="chip-btn" type="button" data-select="odd">Odd</button>
+              <button class="chip-btn" type="button" data-select="even">Even</button>
+              <button class="chip-btn" type="button" data-select="invert">Invert</button>
+              <button class="chip-btn" type="button" data-select="none">Clear</button>
+            </div>
+          </div>
+          <p class="hint" id="pageGridHint">Click to select · Shift-click for a range · use the eye to jump the preview to that page.</p>
+          <div id="studioPageList" class="page-grid" aria-label="Pages in selected PDF"></div>
+        </div>
+        <div id="studioOutput" class="results" aria-live="polite"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================ AI DOCUMENT INSIGHTS ============================ -->
+  <section id="advocate-insights" class="advocate-panel hidden" aria-labelledby="insightsHeading">
+    <div class="panel-head">
+      <div>
+        <h2 id="insightsHeading">AI Document Insights</h2>
+        <p class="hint">Upload a PDF once, then request one detailed insight at a time. Extracted text and OCR are reused for every later selection in this private workspace.</p>
+      </div>
+    </div>
+
+    <div class="insight-grid">
+      <aside class="insight-left">
+        <form id="insightUploadForm" class="step" novalidate>
+          <div class="step-title"><span class="num">1</span> Upload the document</div>
+          <label class="drop" id="insightDrop" for="insightFile">
+            <svg class="ic big"><use href="#i-upload"/></svg>
+            <b>Drop a legal PDF or <u>browse</u></b>
+            <span class="muted" id="insightFileName">Scanned pages are recognised automatically</span>
+            <input id="insightFile" type="file" accept="application/pdf,.pdf">
+          </label>
+          <button id="insightUploadButton" class="btn primary wide" type="submit">Upload and extract pages</button>
+        </form>
+        <p id="insightUploadLoading" class="progress hidden" role="status" aria-live="polite"><span class="spinner"></span> Extracting document text and checking for scanned pages…</p>
+        <p id="insightError" class="banner banner-bad hidden" role="alert"></p>
+
+        <div id="insightDocument" class="doc-card hidden" aria-live="polite"></div>
+
+        <div class="step">
+          <div class="step-title"><span class="num">2</span> Choose one insight</div>
+          <div id="insightActions" class="insight-cards locked" role="group" aria-label="Choose one insight">
+            <button class="insight-choice ic-issues" type="button" data-insight="issues">
+              <svg class="ic"><use href="#i-issues"/></svg><span><b>Issues</b><em>Questions in dispute and matters to be decided</em></span><i class="done" aria-hidden="true"></i></button>
+            <button class="insight-choice ic-facts" type="button" data-insight="facts">
+              <svg class="ic"><use href="#i-facts"/></svg><span><b>Facts</b><em>Material facts, dates, parties and events</em></span><i class="done" aria-hidden="true"></i></button>
+            <button class="insight-choice ic-background" type="button" data-insight="background">
+              <svg class="ic"><use href="#i-background"/></svg><span><b>Case Background</b><em>Procedural history and how the matter arrived here</em></span><i class="done" aria-hidden="true"></i></button>
+            <button class="insight-choice ic-summary" type="button" data-insight="summary">
+              <svg class="ic"><use href="#i-summary"/></svg><span><b>Summarization</b><em>A structured, source-grounded overview</em></span><i class="done" aria-hidden="true"></i></button>
+            <button class="insight-soon" type="button" disabled aria-disabled="true" title="Multi-document insights are not part of this release">Multi-document insights · Coming soon</button>
+          </div>
+        </div>
+
+        <details id="insightPreviewBox" class="preview-box hidden">
+          <summary>Document preview</summary>
+          <iframe id="insightPreview" title="Uploaded document preview"></iframe>
+        </details>
+      </aside>
+
+      <div class="insight-right">
+        <div id="insightEmpty" class="empty">
+          <svg class="ic huge"><use href="#i-summary"/></svg>
+          <b>Your analysis appears here</b>
+          <span>Upload a document, then pick Issues, Facts, Case Background or Summarization. Every point cites its page and source text.</span>
+        </div>
+        <p id="insightLoading" class="progress hidden" role="status" aria-live="polite"><span class="spinner"></span> <span id="insightLoadingText">Generating the selected insight…</span></p>
+        <div id="insightSkeleton" class="skeleton hidden" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
+        <div id="insightOutput" aria-live="polite"></div>
+      </div>
+    </div>
+  </section>
+
+  <p class="foot">AI insights are source-grounded summaries for advocate review, not a substitute for checking the original document.</p>
+</main>
+<div id="toasts" class="toasts" role="status" aria-live="polite"></div>
+<script src="/static/common.js?v=10"></script>
+<script src="/static/advocate.js?v=3"></script>
+</body>
+</html>

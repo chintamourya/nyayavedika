@@ -9,8 +9,12 @@
    lists every key with a comment; a missing or malformed key stops start-up with one error naming all of them.
    Fill in `AZURE_OPENAI_API_KEY`, `AZURE_OPENAI_ENDPOINT` and `AZURE_OPENAI_DEPLOYMENT` (optionally
    `AZURE_OPENAI_FAST_DEPLOYMENT` for a smaller, quicker model on the reading and classification steps, `PINECONE_API_KEY`,
-   `TAVILY_API_KEY`) and set three different long random `DEMO_TOKEN_*` values. Azure OpenAI is the only LLM provider.
+   `TAVILY_API_KEY`) and set three different long random `DEMO_TOKEN_*` values. For an isolated local demo only,
+   the same token may be used for all three roles; it grants access to all three roles and must not be used in deployment.
+   Azure OpenAI is the only LLM provider.
    All keys may be empty: with none, the app runs offline on rules.
+   The template's demo triage weights and zero income threshold are placeholders, not approved policy. Set the applicable
+   state income limit and registry-reviewed triage values before using eligibility or prioritization results.
    Check the file any time with `python scripts/check_env.py` (prints key names only, never values).
    Index the legal-aid knowledge (files + `legal_info.html`): `python scripts/ingest_legal_aid.py`.
 5. **Knowledge base:** put bare acts / NALSA PDFs in `kb/law` and judgments in `kb/judgments`, then run:
@@ -26,15 +30,17 @@
    ```bash
    python server.py
    ```
-   Reset the demo data any time with `python scripts/reset_demo.py`. Then open http://127.0.0.1:8000. It has two front doors: `/staff` for court staff and lawyers (token) and `/citizen` for citizens (no login).
+   Reset the demo data any time with `python scripts/reset_demo.py`. Then open http://127.0.0.1:8000.    It has three doors: `/citizen` for citizens (no login), `/advocate` for lawyers, and `/staff` for court staff (role token).
    The citizen portal pairs the eligibility check with optional cited legal questions and document uploads; both portals have a separate document-summary tab. Legal-aid questions search the local guide index first and consult trusted official web domains when no local passage is found. Limits are shown in the UI: at most 2 files per folder, 50 pages per file and 2 attachments per legal-aid question; each citizen legal-aid session allows 5 answered follow-up questions (eligibility checks do not count).
+   The citizen's **Describe a legal problem** tab uses Azure OpenAI to structure the description and Tavily for two live searches. It asks for jurisdiction when missing and does not generate an answer if either live provider is unavailable or no reliable official sources are found. This research is general information, not legal advice, and is separate from the deterministic Legal Aid eligibility check.
+   The **Advocate Door** uses the existing lawyer role token (the portal selects its role when a local demo token is shared) and provides a private browser-session workspace for PDF preparation and one-at-a-time, page-evidence-grounded document insights. Workspace capabilities are random and server-validated; they are not user accounts, are not recoverable after the browser session ends, and do not replace per-advocate authentication. Document Studio supports merge, split, reorder, rotate, remove pages, OCR text export, bookmarks, a clickable index, and page numbers. OCR downloads extracted page-tagged text and does not embed a searchable text layer in the source PDF.
    Staff lists display at most 10 synthetic examples per data kind; this is display-only, so stored demo records, aggregate counts and scheduling actions are unchanged. Uploaded/imported records are not subject to this display cap.
    Schedule the nightly jobs as shown under "Background jobs".
 8. **No FastAPI on the demo machine?** Run the stdlib demo server instead, then open http://127.0.0.1:8010:
    ```bash
    python scripts/dev_api.py
    ```
-   It serves the same pages and role checks, the offline assistant, and an in-process worker. See `docs/UI_WALKTHROUGH.md` for the click-through.
+   It serves the same pages and role checks, the offline assistant, and an in-process worker. The landing page offers separate Citizen (`/citizen`), Advocate (`/advocate`), and Court Staff (`/staff`) entry points. Advocate access uses the existing `lawyer` role token; no fourth role is introduced. See `docs/UI_WALKTHROUGH.md` for the click-through.
 
 Each integration degrades gracefully. With no Azure OpenAI key, agents fall back to offline rules. Without Pinecone,
 search_law reports "unavailable" and the agent uses web_search. Without Tesseract, scanned pages are marked
@@ -62,6 +68,10 @@ a PostgreSQL `DATABASE_URL`, `NYAYAVEDIKA_CHECKPOINTER=postgres`, and three diff
 | POST | `/api/agent/resume` | Answer the agent's clarifying question: `{thread_id, answer}` |
 | POST | `/api/documents/analyze` | `{filename, content_base64 \| text, case_id?, language}` |
 | POST | `/api/documents/summarize` | `{filename, content_base64 \| text, language}`; one-off, not saved to a case |
+| POST | `/api/advocate/workspaces` | Issue an ephemeral private Advocate workspace capability (lawyer role) |
+| POST | `/api/advocate/documents` | Upload a PDF and cache extracted page text in the workspace (lawyer role) |
+| POST | `/api/advocate/documents/{doc_id}/insights` | Generate one selected insight with page citations (lawyer role) |
+| POST | `/api/advocate/studio` | Run an in-memory PDF preparation operation (lawyer role) |
 | POST | `/api/undertrial/scan` | Run Undertrial Watch |
 | GET/POST | `/api/alerts`, `/api/alerts/decide` | Review and approve release applications |
 | POST | `/api/registry/run`, `/api/registry/decide` | Prepare and approve a cause list |

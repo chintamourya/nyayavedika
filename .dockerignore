@@ -17,3 +17,5 @@ venv/
 .claude/
 .git/
 tests/
+
+reference/

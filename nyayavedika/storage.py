@@ -49,6 +49,12 @@ def get(key: str) -> bytes:
     return path.read_bytes()
 
 
+def delete(key: str) -> None:
+    path = _path(key)
+    path.unlink(missing_ok=True)
+    path.with_name(f"{key}.pages.json").unlink(missing_ok=True)
+
+
 def uri(key: str) -> str:
     return f"{config.STORAGE_DIR}/{key}"
 

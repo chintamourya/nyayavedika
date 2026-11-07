@@ -23,7 +23,7 @@ from fastapi.staticfiles import StaticFiles  # noqa: E402
 from langgraph.types import Command  # noqa: E402
 from pydantic import BaseModel  # noqa: E402
 
-from nyayavedika import (audit, auth, cause_list, config, db, documents, drafting, impact, intake, jobs,  # noqa: E402
+from nyayavedika import (advocate, audit, auth, cause_list, config, db, document_studio, documents, drafting, impact, intake, jobs, legal_problem,  # noqa: E402
                    legal_aid, llm, ocr, sample_data, scheduler, staff_api, store, offline_summary, summarise, triage, vectorstore,
                    websearch)
 from nyayavedika.agents import assistants, checkpoint, document_analyst, registry, undertrial_watch  # noqa: E402
@@ -181,6 +181,29 @@ class LegalAidIn(BaseModel):
     draft: bool = False
     district: str = ""
     state: str = ""
+
+
+class LegalProblemResearchIn(BaseModel):
+    description: str
+    language: str = "English"
+    jurisdiction: str = ""
+
+
+class AdvocateDocumentIn(BaseModel):
+    workspace_token: str
+    filename: str
+    content_base64: str
+
+
+class AdvocateInsightIn(BaseModel):
+    workspace_token: str
+    insight_type: str
+
+
+class AdvocateStudioIn(BaseModel):
+    operation: str
+    files: List[Dict[str, Any]]
+    options: Dict[str, Any] = {}
 
 
 class LegalAidAskIn(BaseModel):
@@ -397,7 +420,7 @@ def alert_state(alert_id: int, body: AlertStateIn, principal: Principal = guard(
                                               body.reason or None, body.snooze_until)
     except LookupError as exc:
         raise HTTPException(404, str(exc))
-    except ValueError as exc:
+    except legal_problem.InvalidResearchInput as exc:
         raise HTTPException(400, str(exc))
 
 
@@ -534,10 +557,46 @@ def case_detail(case_id: str):
 
 @app.get("/api/documents/{doc_id}/pages/{page}", dependencies=[guard("GET /api/documents/{doc_id}/pages/{page}")])
 def document_page(doc_id: str, page: int):
+    if db.is_advocate_document(doc_id):
+        raise HTTPException(404, "No such document")
     out = _court_call(staff_api.source_page, doc_id, page)
     if out is None:
         raise HTTPException(404, "No such document")
     return out
+
+
+@app.post("/api/advocate/workspaces", dependencies=[guard("POST /api/advocate/workspaces")])
+def create_advocate_workspace():
+    return advocate.create_workspace()
+
+
+@app.post("/api/advocate/documents", dependencies=[guard("POST /api/advocate/documents")])
+def upload_advocate_document(body: AdvocateDocumentIn):
+    try:
+        data = base64.b64decode(body.content_base64, validate=True)
+    except (ValueError, binascii.Error):
+        raise HTTPException(400, "The uploaded file is not valid base64")
+    try:
+        return advocate.upload_document(body.workspace_token, body.filename, data)
+    except advocate.AdvocateError as exc:
+        raise HTTPException(exc.status, str(exc))
+
+
+@app.post("/api/advocate/documents/{doc_id}/insights",
+          dependencies=[guard("POST /api/advocate/documents/{doc_id}/insights")])
+def advocate_document_insight(doc_id: str, body: AdvocateInsightIn):
+    try:
+        return advocate.generate_insight(body.workspace_token, doc_id, body.insight_type)
+    except advocate.AdvocateError as exc:
+        raise HTTPException(exc.status, str(exc))
+
+
+@app.post("/api/advocate/studio", dependencies=[guard("POST /api/advocate/studio")])
+def advocate_document_studio(body: AdvocateStudioIn):
+    try:
+        return document_studio.process(body.operation, body.files, body.options)
+    except document_studio.StudioError as exc:
+        raise HTTPException(exc.status, str(exc))
 
 
 @app.get("/api/whoami")
@@ -637,6 +696,21 @@ def triage_endpoint(body: Dict[str, Any] = None):
     cases = (body or {}).get("cases") or db.list_cases()
     results = triage.triage_all(cases)
     return {"results": results[:300], "stats": triage.backlog_stats(results)}
+
+
+@app.post("/api/legal-problem/research", dependencies=[guard("POST /api/legal-problem/research")])
+def legal_problem_research_endpoint(body: LegalProblemResearchIn):
+    try:
+        return legal_problem.research(body.description, body.language, body.jurisdiction)
+    except legal_problem.ResearchUnavailable as exc:
+        raise HTTPException(503, str(exc))
+    except legal_problem.InvalidResearchOutput as exc:
+        raise HTTPException(502, str(exc))
+    except ValueError as exc:
+        raise HTTPException(400, str(exc))
+    except Exception as exc:
+        logger.exception("Citizen legal-problem research failed: %s", type(exc).__name__)
+        raise HTTPException(502, "Legal research could not be completed. No answer was generated; please try again.")
 
 
 @app.post("/api/legal-aid", dependencies=[guard("POST /api/legal-aid")])
@@ -865,8 +939,14 @@ def favicon():
 
 @app.get("/")
 def index():
-    """Landing page: the two front doors."""
+    """Landing page for the three role-specific portals."""
     return FileResponse(ROOT / "static" / "index.html")
+
+
+@app.get("/advocate")
+def advocate_app():
+    """Serve the separate lawyer-role Document Studio and AI insights portal."""
+    return FileResponse(ROOT / "static" / "advocate.html")
 
 
 @app.get("/staff")

@@ -105,7 +105,7 @@ function showCitizenTab(name) {
     button.classList.toggle("active", active);
     button.setAttribute("aria-selected", String(active));
   });
-  const panelId = { summary: "citizen-summary", rights: "citizen-rights" }[name] || "chat";
+  const panelId = { summary: "citizen-summary", problem: "citizen-problem", rights: "citizen-rights" }[name] || "chat";
   $$(".citizen-panel").forEach((panel) => panel.classList.toggle("hidden", panel.id !== panelId));
   if (name === "rights") loadRights();
 }
@@ -157,6 +157,100 @@ async function loadRights() {
 $("#rightsSearch")?.addEventListener("input", renderRights);
 $$(".citizen-tabs [data-citizen-tab]").forEach((button) => {
   button.addEventListener("click", () => showCitizenTab(button.dataset.citizenTab));
+});
+
+const RESEARCH_SECTIONS = [
+  ["laws_and_provisions", "problem_laws"],
+  ["rights_and_protections", "problem_rights"],
+  ["possible_remedies", "problem_remedies"],
+  ["authorities", "problem_authorities"],
+  ["free_legal_aid", "problem_free_aid"],
+  ["next_steps", "problem_next_steps"],
+  ["limitations", "problem_limitations"],
+  ["conflicts", "problem_conflicts"],
+];
+function officialResearchUrl(raw) {
+  try {
+    const url = new URL(raw);
+    const host = url.hostname.toLowerCase().replace(/\.$/, "");
+    const official = host === "gov.in" || host.endsWith(".gov.in") || host === "nic.in" ||
+      host.endsWith(".nic.in") || host.endsWith(".gov") || host.endsWith(".nalsa.gov.in");
+    return url.protocol === "https:" && official ? url.href : "";
+  } catch { return ""; }
+}
+function renderResearchPoints(points, heading) {
+  if (!points?.length) return "";
+  return `<section class="research-section"><h3>${esc(t(heading))}</h3><ul>${points.map((point) =>
+    `<li>${point.basis === "inference" ? `<span class="badge">${esc(t("problem_inference"))}</span> ` : ""}` +
+    `${esc(point.text)} ${point.source_ids.map((id) =>
+      `<a class="source-citation" href="#problem-source-${Number(id)}">[${Number(id)}]</a>`).join(" ")}</li>`
+  ).join("")}</ul></section>`;
+}
+function renderProblemResearch(result) {
+  const output = $("#problemResearchOut");
+  if (result.needs_clarification) {
+    const question = result.question || t("problem_location_question");
+    output.innerHTML = `<p class="banner-warn">${esc(question)}</p>`;
+    $("#problemJurisdiction").focus();
+    return;
+  }
+  if (result.no_reliable_sources) {
+    output.innerHTML = `<p class="banner-warn">${esc(result.message || t("problem_no_sources"))}</p>`;
+    return;
+  }
+  const understanding = result.understanding || {};
+  const sections = RESEARCH_SECTIONS.map(([key, label]) => renderResearchPoints(result.answer?.[key], label)).join("");
+  const sources = (result.sources || []).map((source) => {
+    const id = Number(source.id);
+    const href = officialResearchUrl(source.url);
+    if (!Number.isInteger(id) || id < 1 || !href) return "";
+    return `<li id="problem-source-${id}"><b>[${id}] ${esc(source.title)}</b> ` +
+      `<span class="hint">${esc(source.organization)} · ${esc(t("problem_queries_used"))}: ${esc((source.query_ids || []).join(", "))}</span>` +
+      `<p>${esc(source.excerpt)}</p><a href="${esc(href)}" target="_blank" rel="noopener noreferrer">${esc(href)}</a></li>`;
+  }).join("");
+  const listSection = (items, label) => items?.length
+    ? `<h3>${esc(t(label))}</h3><ul>${items.map((item) => `<li>${esc(item)}</li>`).join("")}</ul>` : "";
+  output.innerHTML = `<p><b>${esc(t("problem_understanding"))}:</b> ${esc(result.answer?.understanding || t("problem_no_summary"))}</p>` +
+    `${understanding.legal_question ? `<p><b>${esc(t("problem_legal_question"))}:</b> ${esc(understanding.legal_question)}</p>` : ""}` +
+    `<p class="hint">${esc(understanding.category || "")}${understanding.jurisdiction ? ` · ${esc(understanding.jurisdiction)}` : ""}` +
+    `${result.retrieved_on ? ` · ${esc(t("problem_retrieved"))}: ${esc(result.retrieved_on)}` : ""}</p>` +
+    `${listSection(understanding.facts, "problem_key_facts")}` +
+    `${listSection(understanding.parties, "problem_parties")}` +
+    `${listSection(understanding.events, "problem_events")}` +
+    `${listSection(understanding.dates, "problem_dates")}` +
+    `${sections || `<p class="banner-warn">${esc(t("problem_no_grounded_points"))}</p>`}` +
+    `<p class="hint">${esc(result.answer?.grounding_note || t("problem_grounding_note"))}</p>` +
+    `<section class="research-section"><h3>${esc(t("problem_sources"))}</h3><ol>${sources || `<li>${esc(t("problem_no_sources"))}</li>`}</ol></section>`;
+}
+$("#problemResearchForm").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const submit = $("#problemResearchSubmit");
+  const status = $("#problemResearchStatus");
+  const error = $("#problemResearchError");
+  const output = $("#problemResearchOut");
+  error.textContent = "";
+  error.classList.add("hidden");
+  output.replaceChildren();
+  status.classList.remove("hidden");
+  submit.disabled = true;
+  try {
+    const result = await api("/api/legal-problem/research", {
+      method: "POST",
+      noToken: true,
+      json: {
+        description: $("#problemDescription").value,
+        jurisdiction: $("#problemJurisdiction").value,
+        language: LANG_NAMES[lang],
+      },
+    });
+    renderProblemResearch(result);
+  } catch (err) {
+    error.textContent = err.message || t("problem_request_failed");
+    error.classList.remove("hidden");
+  } finally {
+    status.classList.add("hidden");
+    submit.disabled = false;
+  }
 });
 
 function sourceMarkup(source) {

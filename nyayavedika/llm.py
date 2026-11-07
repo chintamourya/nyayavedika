@@ -82,9 +82,16 @@ class AzureOpenAIBackend:
                 **options,
             )
         except Exception as exc:
-            if getattr(exc, "status_code", None) in (401, 403, 404, 413, 429):  # auth / missing deployment / size / rate: a second call cannot fix it
+            message = str(exc).casefold()
+            format_rejected = (
+                getattr(exc, "status_code", None) == 400
+                and any(term in message for term in ("response_format", "response format", "json_schema", "json schema"))
+                and any(term in message for term in ("unsupported", "not supported", "invalid"))
+            )
+            if not format_rejected:
                 raise
-            logger.warning("Azure OpenAI json_schema call failed (%s); retrying in json_object mode", exc)
+            logger.warning("Azure OpenAI json_schema format is unsupported (%s); retrying in json_object mode",
+                           type(exc).__name__)
             msgs[0]["content"] += ("\n\nReply with ONLY a JSON object matching this JSON Schema:\n"
                                    + json.dumps(schema.model_json_schema()))
             r = self._create(messages=msgs, response_format={"type": "json_object"}, **options)

@@ -44,6 +44,24 @@ documents = Table(
     Column("created_at", DateTime(timezone=True), default=_now),
 )
 
+advocate_workspaces = Table(
+    "advocate_workspaces", metadata,
+    Column("workspace_hash", String(64), primary_key=True),
+    Column("created_at", DateTime(timezone=True), default=_now),
+)
+
+advocate_documents = Table(
+    "advocate_documents", metadata,
+    Column("doc_id", String(64), primary_key=True),
+    Column("workspace_hash", String(64), nullable=False, index=True),
+    Column("storage_key", String(64), nullable=False),
+    Column("filename", String(255), nullable=False),
+    Column("size_bytes", Integer, nullable=False),
+    Column("pages", Integer, nullable=False),
+    Column("ocr_pages", Integer, nullable=False),
+    Column("created_at", DateTime(timezone=True), default=_now),
+)
+
 legal_aid_requests = Table(
     "legal_aid_requests", metadata,
     Column("id", Integer, primary_key=True, autoincrement=True),
@@ -219,6 +237,44 @@ def save_document(doc_id: str, **values) -> None:
             conn.execute(documents.update().where(documents.c.doc_id == doc_id).values(**values))
         else:
             conn.execute(documents.insert().values(doc_id=doc_id, **values))
+
+
+def create_advocate_workspace(workspace_hash: str) -> None:
+    with engine().begin() as conn:
+        conn.execute(advocate_workspaces.insert().values(workspace_hash=workspace_hash))
+
+
+def has_advocate_workspace(workspace_hash: str) -> bool:
+    with engine().connect() as conn:
+        return conn.execute(
+            select(advocate_workspaces.c.workspace_hash)
+            .where(advocate_workspaces.c.workspace_hash == workspace_hash)
+        ).first() is not None
+
+
+def register_advocate_document(workspace_hash: str, doc_id: str, storage_key: str, filename: str,
+                               size_bytes: int, pages: int, ocr_pages: int) -> None:
+    with engine().begin() as conn:
+        conn.execute(advocate_documents.insert().values(
+            workspace_hash=workspace_hash, doc_id=doc_id, storage_key=storage_key, filename=filename,
+            size_bytes=size_bytes, pages=pages, ocr_pages=ocr_pages, created_at=_now(),
+        ))
+
+
+def get_advocate_document(workspace_hash: str, doc_id: str) -> Optional[Dict[str, Any]]:
+    with engine().connect() as conn:
+        row = conn.execute(select(advocate_documents).where(
+            advocate_documents.c.workspace_hash == workspace_hash,
+            advocate_documents.c.doc_id == doc_id,
+        )).first()
+    return dict(row._mapping) if row else None
+
+
+def is_advocate_document(doc_id: str) -> bool:
+    with engine().connect() as conn:
+        return conn.execute(
+            select(advocate_documents.c.doc_id).where(advocate_documents.c.doc_id == doc_id)
+        ).first() is not None
 
 
 def event_totals() -> Dict[str, Dict[str, float]]:

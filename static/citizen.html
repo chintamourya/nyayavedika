@@ -27,6 +27,7 @@
   <nav class="tabs citizen-tabs" role="tablist" aria-label="Citizen services">
     <button class="tab active" type="button" role="tab" aria-selected="true" data-citizen-tab="legal" data-t="tab_legal_aid"></button>
     <button class="tab" type="button" role="tab" aria-selected="false" data-citizen-tab="summary" data-t="tab_document_summary"></button>
+    <button class="tab" type="button" role="tab" aria-selected="false" data-citizen-tab="problem" data-t="tab_problem_research"></button>
     <button class="tab" type="button" role="tab" aria-selected="false" data-citizen-tab="rights" data-t="tab_rights"></button>
   </nav>
 
@@ -64,6 +65,26 @@
     <p class="hint" id="offlineNote"></p>
   </section>
 
+  <section id="citizen-problem" class="card citizen-panel hidden" aria-labelledby="problemResearchHeading">
+    <h2 id="problemResearchHeading" data-t="problem_research_heading"></h2>
+    <p class="hint" data-t="problem_research_sub"></p>
+    <form id="problemResearchForm">
+      <label for="problemDescription"><span data-t="problem_description_label"></span>
+        <textarea id="problemDescription" rows="6" maxlength="6000" required></textarea>
+      </label>
+      <label for="problemJurisdiction"><span data-t="problem_location_label"></span>
+        <input id="problemJurisdiction" type="text" maxlength="200" autocomplete="address-level1">
+      </label>
+      <button id="problemResearchSubmit" class="btn big" type="submit" data-t="problem_research_button"></button>
+    </form>
+    <p id="problemResearchStatus" class="summary-progress hidden" role="status" aria-live="polite">
+      <span class="summary-spinner" aria-hidden="true"></span>
+      <span data-t="problem_research_loading"></span>
+    </p>
+    <p id="problemResearchError" class="banner-bad hidden" role="alert"></p>
+    <div id="problemResearchOut" aria-live="polite"></div>
+  </section>
+
   <section id="citizen-summary" class="card citizen-panel hidden" aria-label="Document summary">
     <h2 data-t="summarize_heading"></h2>
     <p class="hint" data-t="summarize_sub"></p>
@@ -98,7 +119,7 @@
   <p class="helpline" data-t="helpline">Free legal aid helpline: 15100</p>
   <p class="hint" data-t="disclaimer"></p>
 </main>
-<script src="/static/common.js?v=9"></script>
+<script src="/static/common.js?v=10"></script>
 <script src="/static/citizen.js?v=12"></script>
 </body>
 </html>

@@ -2,7 +2,7 @@
 
     python scripts/dev_api.py [--port 8010] [--no-worker] [--seed 120]
 
-Serves the staff app (/staff), the citizen portal (/citizen) and the /api routes the UI uses, with the SAME
+Serves the staff app (/staff), advocate door (/advocate), citizen portal (/citizen) and the /api routes the UI uses, with the SAME
 role checks (nyayavedika.auth.POLICY) and the SAME nyayavedika functions as server.py - no separate business logic.
 Differences: the assistant is the offline FrontDoor (no LLM graph), and the intake worker runs in a background
 thread. Use `python server.py` + `python -m nyayavedika.worker` where the requirements are installed.
@@ -25,7 +25,7 @@ from urllib.parse import parse_qs, urlparse
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 # nyayavedika.config reads .env on import.
-from nyayavedika import (auth, cause_list, feedback, config, demo_seed, impact, intake, jobs, legal_aid, legal_aid_kb, ocr, staff_api,  # noqa: E402
+from nyayavedika import (advocate, auth, cause_list, feedback, config, db, demo_seed, document_studio, impact, intake, jobs, legal_aid, legal_aid_kb, legal_problem, ocr, staff_api,  # noqa: E402
                    store, summarise, worker)
 from nyayavedika.agents import undertrial_watch  # noqa: E402
 from nyayavedika.agents.front_door import FrontDoor, answer_kind  # noqa: E402
@@ -66,7 +66,7 @@ def _court(fn, *a):
         return _db(fn, *a)
     except LookupError as exc:
         raise HttpError(404, str(exc))
-    except ValueError as exc:
+    except legal_problem.InvalidResearchInput as exc:
         raise HttpError(400, str(exc))
 
 
@@ -202,6 +202,8 @@ def routes():
 
     @r("GET", r"/api/documents/(?P<doc>[^/]+)/pages/(?P<n>\d+)", "GET /api/documents/{doc_id}/pages/{page}")
     def page(h, m, q, b, p):
+        if db.is_advocate_document(m["doc"]):
+            raise HttpError(404, "No such document")
         out = _court(staff_api.source_page, m["doc"], int(m["n"]))
         if out is None:
             raise HttpError(404, "No such document")
@@ -347,6 +349,57 @@ def routes():
                      **({"state": d["state"]} if d.get("state") else {})}
         return legal_aid.explain(legal_aid.check_eligibility(applicant), d.get("problem") or "", d.get("language") or "English")
 
+    @r("POST", "/api/legal-problem/research", "POST /api/legal-problem/research")
+    def legal_problem_research(h, m, q, b, p):
+        d = json.loads(b or b"{}")
+        try:
+            return legal_problem.research(d.get("description") or "", d.get("language") or "English",
+                                          d.get("jurisdiction") or "")
+        except legal_problem.ResearchUnavailable as exc:
+            raise HttpError(503, str(exc))
+        except legal_problem.InvalidResearchOutput as exc:
+            raise HttpError(502, str(exc))
+        except ValueError as exc:
+            raise HttpError(400, str(exc))
+        except Exception as exc:
+            import logging
+            logging.getLogger("nyayavedika.dev_api").exception(
+                "Citizen legal-problem research failed: %s", type(exc).__name__)
+            raise HttpError(502, "Legal research could not be completed. No answer was generated; please try again.")
+
+    @r("POST", "/api/advocate/workspaces", "POST /api/advocate/workspaces")
+    def advocate_workspace(h, m, q, b, p):
+        return advocate.create_workspace()
+
+    @r("POST", "/api/advocate/documents", "POST /api/advocate/documents")
+    def advocate_upload(h, m, q, b, p):
+        d = json.loads(b or b"{}")
+        try:
+            data = base64.b64decode(d.get("content_base64") or "", validate=True)
+        except (ValueError, binascii.Error):
+            raise HttpError(400, "The uploaded file is not valid base64")
+        try:
+            return advocate.upload_document(d.get("workspace_token") or "", d.get("filename") or "", data)
+        except advocate.AdvocateError as exc:
+            raise HttpError(exc.status, str(exc))
+
+    @r("POST", r"/api/advocate/documents/(?P<doc>[^/]+)/insights",
+       "POST /api/advocate/documents/{doc_id}/insights")
+    def advocate_insight(h, m, q, b, p):
+        d = json.loads(b or b"{}")
+        try:
+            return advocate.generate_insight(d.get("workspace_token") or "", m["doc"], d.get("insight_type") or "")
+        except advocate.AdvocateError as exc:
+            raise HttpError(exc.status, str(exc))
+
+    @r("POST", "/api/advocate/studio", "POST /api/advocate/studio")
+    def advocate_studio(h, m, q, b, p):
+        d = json.loads(b or b"{}")
+        try:
+            return document_studio.process(d.get("operation") or "", d.get("files") or [], d.get("options") or {})
+        except document_studio.StudioError as exc:
+            raise HttpError(exc.status, str(exc))
+
     @r("POST", "/api/legal-aid/ask", "POST /api/legal-aid/ask")
     def la_ask(h, m, q, b, p):
         d = json.loads(b or b"{}")
@@ -428,7 +481,8 @@ def routes():
 
 
 ROUTES = routes()
-PAGES = {"/": "index.html", "/staff": "staff.html", "/citizen": "citizen.html", "/feedback": "feedback-wall.html"}
+PAGES = {"/": "index.html", "/staff": "staff.html", "/advocate": "advocate.html",
+         "/citizen": "citizen.html", "/feedback": "feedback-wall.html"}
 TYPES = {".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8", ".css": "text/css; charset=utf-8",
          ".json": "application/json; charset=utf-8", ".svg": "image/svg+xml", ".png": "image/png"}
 

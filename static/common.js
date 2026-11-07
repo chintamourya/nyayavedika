@@ -47,7 +47,12 @@ class ApiError extends Error {
 async function api(path, opts = {}) {
   const headers = {};
   const token = opts.noToken ? "" : getToken();
-  if (token) headers.Authorization = `Bearer ${token}`;
+  if (token) {
+    headers.Authorization = `Bearer ${token}`;
+    const path = window.location.pathname.replace(/\/+$/, "");
+    const portalRole = { "/advocate": "lawyer", "/staff": "staff", "/citizen": "citizen" }[path];
+    if (portalRole) headers["X-Demo-Role"] = portalRole;
+  }
   let body;
   if (opts.json !== undefined) { headers["Content-Type"] = "application/json"; body = JSON.stringify(opts.json); }
   if (opts.form) body = opts.form;

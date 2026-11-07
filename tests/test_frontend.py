@@ -145,13 +145,29 @@ class DevServerTests(SeededDb):
             return e.code, dict(e.headers), e.read()
 
     def test_pages_and_assets(self):
-        for page, marker in (("/", b"Choose your door"), ("/staff", b'id="tab-intake"'), ("/citizen", b'id="guideForm"')):
+        for page, marker in (("/", b"Choose your door"), ("/staff", b'id="tab-intake"'),
+                             ("/advocate", b'data-advocate-tab="studio"'), ("/citizen", b'id="guideForm"')):
             status, _, body = self.call(page)
             self.assertEqual(status, 200, page)
             self.assertIn(marker, body)
             for src in re.findall(rb'(?:src|href)="(/static/[^"]+)"', body):
                 self.assertEqual(self.call(src.decode())[0], 200, src)
         self.assertEqual(self.call("/static/../server.py")[0], 404)
+
+    def test_three_portal_entry_points_and_advocate_role_gate(self):
+        landing = (STATIC / "index.html").read_text(encoding="utf-8")
+        self.assertIn('href="/citizen"', landing)
+        self.assertIn('href="/advocate"', landing)
+        self.assertIn('href="/staff"', landing)
+        self.assertIn("Advocate portal", landing)
+        staff_js = (STATIC / "staff.js").read_text(encoding="utf-8")
+        self.assertIn('location.pathname === "/advocate"', staff_js)
+        self.assertIn('ROLE === "lawyer"', staff_js)
+        self.assertIn('["staff", "lawyer"].includes(ROLE)', staff_js)
+        self.assertIn("current token does not have the lawyer role", staff_js)
+        common_js = (STATIC / "common.js").read_text(encoding="utf-8")
+        self.assertIn('"/advocate": "lawyer"', common_js)
+        self.assertIn('headers["X-Demo-Role"] = portalRole', common_js)
 
     def test_roles_over_http(self):
         self.assertEqual(self.call("/api/today")[0], 401)
@@ -186,6 +202,33 @@ class StaticContentTests(unittest.TestCase):
         html = (STATIC / "citizen.html").read_text(encoding="utf-8") + (STATIC / "citizen.js").read_text(encoding="utf-8")
         used = set(re.findall(r'data-t[pa]?="([a-z_]+)"', html)) | set(re.findall(r'\bt\("([a-z_]+)"\)', html))
         self.assertFalse(used - set(strings["en"]), used - set(strings["en"]))
+
+    def test_citizen_has_four_capabilities_and_safe_legal_research_rendering(self):
+        html = (STATIC / "citizen.html").read_text(encoding="utf-8")
+        script = (STATIC / "citizen.js").read_text(encoding="utf-8")
+        tabs = re.findall(r'data-citizen-tab="([^"]+)"', html)
+        self.assertEqual(tabs, ["legal", "summary", "problem", "rights"])
+        self.assertIn('id="citizen-problem"', html)
+        self.assertIn('api("/api/legal-problem/research"', script)
+        self.assertIn("noToken: true", script)
+        self.assertIn("officialResearchUrl(source.url)", script)
+        self.assertIn("esc(point.text)", script)
+        self.assertIn('catch (err)', script)
+
+    def test_advocate_portal_has_only_studio_and_insights_and_real_operations(self):
+        html = (STATIC / "advocate.html").read_text(encoding="utf-8")
+        script = (STATIC / "advocate.js").read_text(encoding="utf-8")
+        tabs = re.findall(r'data-advocate-tab="([^"]+)"', html)
+        self.assertEqual(tabs, ["studio", "insights"])
+        for operation in ("merge", "split", "reorder", "rotate", "remove", "ocr", "bookmarks", "index", "page_numbers"):
+            self.assertIn(f'<option value="{operation}"', html)
+        for kind in ("issues", "facts", "background", "summary"):
+            self.assertIn(f'data-insight="{kind}"', html)
+        self.assertIn('disabled aria-disabled="true"', html)
+        self.assertIn('"/api/advocate/workspaces"', script)
+        self.assertIn('"/api/advocate/documents"', script)
+        self.assertIn('"/api/advocate/studio"', script)
+        self.assertIn("esc(point.evidence)", script)
 
     def test_demo_banner_and_no_colour_only_bands(self):
         common = (STATIC / "common.js").read_text(encoding="utf-8")

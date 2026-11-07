@@ -16,6 +16,7 @@ pypdfium2                        # render scanned pages for OCR
 pytesseract                      # wrapper for Tesseract (system package)
 pillow
 python-docx                      # Word drafts (falls back to nyayavedika/docgen/ooxml.py if absent)
+reportlab                        # PDF index and page-number overlays in the Advocate Document Studio
 
 # Durable LangGraph checkpoints in Postgres (only when NYAYAVEDIKA_CHECKPOINTER=postgres, as in docker compose)
 langgraph-checkpoint-postgres
