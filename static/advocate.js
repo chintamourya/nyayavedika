@@ -28,6 +28,9 @@ function toast(message) {
   setTimeout(() => el.remove(), 3200);
 }
 function isPdf(file) { return file && (file.type === "application/pdf" || /\.pdf$/i.test(file.name)); }
+function isInsightFile(file) {
+  return file && /\.(pdf|docx|txt|md|csv|png|jpe?g|tiff?|bmp|webp)$/i.test(file.name);
+}
 function formatSize(bytes) {
   if (bytes < 1024) return `${bytes} B`;
   return bytes < 1048576 ? `${(bytes / 1024).toFixed(0)} KB` : `${(bytes / 1048576).toFixed(1)} MB`;
@@ -91,6 +94,21 @@ function renderMetrics() {
   set("#mLast", metrics.lastMs ? `${(metrics.lastMs / 1000).toFixed(1)} s` : "–");
 }
 
+async function prepareRestoredDocumentChat(documentInfo) {
+  setChatStatus("Preparing this saved document for chat…");
+  try {
+    const status = await api(`/api/advocate/documents/${encodeURIComponent(documentInfo.doc_id)}/chat/prepare`, {
+      method: "POST",
+      json: { workspace_token: workspaceToken },
+    });
+    activeDocument = { ...documentInfo, ...status };
+    sessionSet(DOCUMENT_KEY, JSON.stringify(activeDocument));
+    renderActiveDocument(activeDocument);
+  } catch (error) {
+    setChatStatus(error.message || "This document could not be prepared for chat.", true);
+  }
+}
+
 // ---------------------------------------------------------------- theme, auth, tabs
 function applyTheme(theme) {
   if (theme) document.documentElement.setAttribute("data-theme", theme);
@@ -125,7 +143,10 @@ async function initialize() {
       sessionSet(WORKSPACE_KEY, workspaceToken);
     }
     try { activeDocument = JSON.parse(sessionGet(DOCUMENT_KEY) || "null"); } catch { activeDocument = null; }
-    if (activeDocument?.doc_id) renderActiveDocument(activeDocument);
+    if (activeDocument?.doc_id) {
+      renderActiveDocument(activeDocument);
+      if (typeof activeDocument.chat_ready !== "boolean") prepareRestoredDocumentChat(activeDocument);
+    }
   } catch (error) {
     $("#who").textContent = "not signed in";
     $("#who").classList.remove("ok");
@@ -523,24 +544,98 @@ $("#studioForm").addEventListener("submit", async (event) => {
 });
 
 // ================================================================ AI DOCUMENT INSIGHTS
-const insights = { uploadedAt: 0, file: null, url: "", cache: new Map(), current: "", filter: "", evidence: true };
+const insights = {
+  uploadedAt: 0, file: null, previewBlob: null, url: "", cache: new Map(), current: "", filter: "", evidence: false,
+  chatMessages: [], chatReady: false, chatBusy: false,
+};
+
+function setChatStatus(message, bad = false) {
+  const status = $("#docChatStatus");
+  status.textContent = message || "";
+  status.classList.toggle("bad", bad);
+  status.setAttribute("aria-busy", "false");
+}
+function updateChatControls() {
+  const disabled = !insights.chatReady || insights.chatBusy;
+  $("#docChatInput").disabled = disabled;
+  $("#docChatSend").disabled = disabled;
+}
+function renderChat() {
+  const container = $("#docChatMessages");
+  if (!insights.chatMessages.length) {
+    container.innerHTML = '<p class="chat-empty">Your document answers will appear here with source passages.</p>';
+    return;
+  }
+  container.innerHTML = insights.chatMessages.map((message) => {
+    const sourceList = (message.sources || []).map((source) =>
+      `<div class="chat-source"><b>Page ${Number(source.page) || 1}:</b> ${esc(source.excerpt || "")}</div>`).join("");
+    const sources = sourceList
+      ? `<details><summary>Show ${message.sources.length} source passage${message.sources.length === 1 ? "" : "s"}</summary>${sourceList}</details>`
+      : "";
+    return `<article class="chat-message ${message.role === "user" ? "user" : "assistant"}">` +
+      `<span class="chat-role">${message.role === "user" ? "You" : "Document assistant"}</span>` +
+      `${esc(message.content)}${sources ? `<div class="chat-sources">${sources}</div>` : ""}</article>`;
+  }).join("");
+  container.scrollTop = container.scrollHeight;
+}
+
+function isPdfDocument(documentInfo = activeDocument) {
+  return Boolean(documentInfo?.filename && /\.pdf$/i.test(documentInfo.filename));
+}
+async function ensureDocumentPreview() {
+  if (insights.previewBlob) return insights.previewBlob;
+  if (!activeDocument?.doc_id || !isPdfDocument()) return "";
+  const response = await api(`/api/advocate/documents/${encodeURIComponent(activeDocument.doc_id)}/preview`, {
+    method: "POST",
+    json: { workspace_token: workspaceToken },
+    raw: true,
+  });
+  insights.previewBlob = await response.blob();
+  $("#insightPreviewBox").classList.remove("hidden");
+  return insights.previewBlob;
+}
+
+function showProgressStatus(element, message, delayedMessage) {
+  const status = $(element);
+  status.replaceChildren();
+  const spinner = document.createElement("span");
+  spinner.className = "spinner";
+  spinner.setAttribute("aria-hidden", "true");
+  const text = document.createElement("span");
+  text.textContent = message;
+  status.append(spinner, text);
+  status.classList.remove("hidden", "bad");
+  status.setAttribute("aria-busy", "true");
+  const timer = delayedMessage ? setTimeout(() => { text.textContent = delayedMessage; }, 10000) : 0;
+  return () => {
+    if (timer) clearTimeout(timer);
+    status.setAttribute("aria-busy", "false");
+  };
+}
 
 function renderActiveDocument(documentInfo) {
   const scanned = Number(documentInfo.ocr_pages) || 0;
+  insights.chatReady = documentInfo.chat_ready === true;
   $("#insightDocument").innerHTML = `${icon("file")}<span class="name">${esc(documentInfo.filename)}</span>` +
     `<div class="stats"><span class="stat">${Number(documentInfo.pages)} pages</span>` +
     `<span class="stat${scanned ? " warn" : ""}">${scanned} scanned page${scanned === 1 ? "" : "s"} read by OCR</span>` +
-    `<span class="stat">Text cached for reuse</span></div>`;
+    `<span class="stat">Text cached for reuse</span>` +
+    `<span class="stat${insights.chatReady ? "" : " warn"}">${insights.chatReady ? `${Number(documentInfo.indexed_chunks) || 0} chat chunks indexed` : "Chat indexing unavailable"}</span></div>`;
   $("#insightDocument").classList.remove("hidden");
   $("#insightActions").classList.remove("locked");
   $("#insightEmpty").querySelector("b").textContent = "Pick an insight to begin";
   $$(".insight-choice").forEach((button) =>
     button.classList.toggle("cached", insights.cache.has(`${documentInfo.doc_id}:${button.dataset.insight}`)));
-  $("#insightPreviewBox").classList.toggle("hidden", !insights.url);
+  $("#insightPreviewBox").classList.toggle("hidden", !insights.url && !isPdfDocument(documentInfo));
+  renderChat();
+  setChatStatus(insights.chatReady
+    ? "Document indexed. Recent messages are kept only in this page session."
+    : documentInfo.chat_message || "Re-upload this document to prepare it for chat.", !insights.chatReady);
+  updateChatControls();
 }
 async function uploadInsightFile(file) {
   if (!file) return;
-  if (!isPdf(file)) return setError("#insightError", "Only PDF files can be analysed.");
+  if (!isInsightFile(file)) return setError("#insightError", "Choose a PDF, DOCX, TXT, MD, CSV, or supported image file.");
   setError("#insightError", "");
   $("#insightOutput").replaceChildren();
   $("#insightEmpty").classList.remove("hidden");
@@ -558,8 +653,10 @@ async function uploadInsightFile(file) {
     insights.current = "";
     insights.file = file;
     if (insights.url) URL.revokeObjectURL(insights.url);
-    insights.url = URL.createObjectURL(file);
-    $("#insightPreview").src = insights.url;
+    insights.url = "";
+    insights.previewBlob = isPdf(file) ? file : null;
+    $("#insightPreview").src = "about:blank";
+    insights.chatMessages = [];
     sessionSet(DOCUMENT_KEY, JSON.stringify(documentInfo));
     renderActiveDocument(documentInfo);
     $$(".insight-choice").forEach((b) => b.classList.remove("active"));
@@ -573,7 +670,8 @@ async function uploadInsightFile(file) {
 }
 $("#insightFile").addEventListener("change", () => {
   const file = $("#insightFile").files[0];
-  $("#insightFileName").textContent = file ? `${file.name} · ${formatSize(file.size)}` : "Scanned pages are recognised automatically";
+  $("#insightFileName").textContent = file ? `${file.name} · ${formatSize(file.size)}` :
+    "PDF, DOCX, TXT, MD, CSV, or image · scanned pages use OCR";
   $("#insightDrop").classList.toggle("has-file", Boolean(file));
 });
 wireDrop($("#insightDrop"), (files) => {
@@ -583,12 +681,12 @@ wireDrop($("#insightDrop"), (files) => {
   transfer.items.add(file);
   $("#insightFile").files = transfer.files;
   $("#insightFile").dispatchEvent(new Event("change"));
-  if (isPdf(file)) uploadInsightFile(file);
+  if (isInsightFile(file)) uploadInsightFile(file);
 });
 $("#insightUploadForm").addEventListener("submit", (event) => {
   event.preventDefault();
   const file = $("#insightFile").files[0];
-  if (!file) return setError("#insightError", "Choose a PDF first.");
+  if (!file) return setError("#insightError", "Choose a document first.");
   uploadInsightFile(file);
 });
 
@@ -625,11 +723,11 @@ function renderInsight(result, type) {
     const items = visible.map((point) => {
       const evidence = esc(point.evidence);
       const refs = point.page_refs.map(Number).map((n) =>
-        `<button type="button" class="pref" data-goto="${n}"${insights.url ? "" : " disabled"} title="${insights.url ? "Show this page in the preview" : "Preview unavailable after a reload"}">p. ${n}</button>`).join("");
+        `<button type="button" class="pref" data-goto="${n}" title="${isPdfDocument() ? "Open this page in the document preview" : "Page citation"}">p. ${n}</button>`).join("");
       return `<li class="pt"><span class="txt">${point.basis === "inference" ? '<span class="badge">Inference</span> ' : ""}${markText(esc(point.text))}</span>` +
         `<div class="meta">${refs}</div><blockquote>${markText(evidence)}</blockquote></li>`;
     }).join("");
-    return `<details class="sec" open data-s="${s}"><summary>${esc(section.title)}<span class="count">${visible.length} point${visible.length === 1 ? "" : "s"}</span></summary><ol class="pts">${items}</ol></details>`;
+    return `<details class="sec"${s === 0 ? " open" : ""} data-s="${s}"><summary>${esc(section.title)}<span class="count">${visible.length} point${visible.length === 1 ? "" : "s"}</span></summary><ol class="pts">${items}</ol></details>`;
   }).join("");
   const empty = (result.sections || []).length
     ? `<p class="banner banner-warn">No points match "${esc(insights.filter)}".</p>`
@@ -638,13 +736,14 @@ function renderInsight(result, type) {
   output.innerHTML =
     `<div class="out-head"><h3><span class="tag ${esc(type)}">${esc(label)}</span> ${esc(result.filename)}</h3>` +
     `<span class="muted">${esc(result.pages)} pages · ${esc(result.ocr_pages)} OCR page(s)</span></div>` +
-    `<div class="toolbar"><input type="search" id="insightSearch" placeholder="Filter points and source text…" value="${esc(insights.filter)}" aria-label="Filter insight points">` +
+    `<div class="toolbar"><input type="search" id="insightSearch" placeholder="Find in this insight…" value="${esc(insights.filter)}" aria-label="Filter insight points">` +
     `<label><input type="checkbox" id="evidenceToggle"${insights.evidence ? " checked" : ""}> Show source text</label>` +
-    `<button class="btn sm" type="button" id="expandAll">Expand all</button><button class="btn sm" type="button" id="collapseAll">Collapse all</button>` +
     `<button class="btn sm" type="button" id="copyInsight">${icon("copy")} Copy</button>` +
+    `<details class="toolbar-more"><summary>More</summary><div class="toolbar-more-actions">` +
+    `<button class="btn sm" type="button" id="expandAll">Expand all</button><button class="btn sm" type="button" id="collapseAll">Collapse all</button>` +
     `<button class="btn sm" type="button" id="saveInsight">${icon("download")} Save .txt</button>` +
     `<button class="btn sm" type="button" id="printInsight">${icon("print")} Print</button>` +
-    `<button class="btn sm" type="button" id="regenInsight">Regenerate</button></div>` +
+    `<button class="btn sm" type="button" id="regenInsight">Regenerate</button></div></details></div>` +
     `${sections || empty}`;
   const text = insightPlainText(result, label);
   $("#insightSearch").addEventListener("input", (event) => {
@@ -666,11 +765,23 @@ function renderInsight(result, type) {
     downloadText(`${(result.filename || "document").replace(/\.pdf$/i, "")}_${type}.txt`, text));
   $("#printInsight").addEventListener("click", () => window.print());
   $("#regenInsight").addEventListener("click", () => runInsight(type, true));
-  $$("[data-goto]", output).forEach((chip) => chip.addEventListener("click", () => {
-    if (!insights.url) return;
-    $("#insightPreviewBox").open = true;
-    $("#insightPreview").src = `${insights.url}#page=${Number(chip.dataset.goto)}`;
-    $("#insightPreviewBox").scrollIntoView({ behavior: "smooth", block: "nearest" });
+  $$("[data-goto]", output).forEach((chip) => chip.addEventListener("click", async () => {
+    try {
+      const previewBlob = await ensureDocumentPreview();
+      if (!previewBlob) return toast("Page citations are available, but this file type has no page preview.");
+      $("#insightPreviewBox").open = true;
+      const previewUrl = URL.createObjectURL(previewBlob);
+      const previousUrl = insights.url;
+      insights.url = previewUrl;
+      const preview = $("#insightPreview");
+      preview.addEventListener("load", () => {
+        if (previousUrl) URL.revokeObjectURL(previousUrl);
+      }, { once: true });
+      preview.src = `${previewUrl}#page=${Number(chip.dataset.goto)}`;
+      $("#insightPreviewBox").scrollIntoView({ behavior: "smooth", block: "nearest" });
+    } catch (error) {
+      setError("#insightError", error.message || "The document page preview could not be opened.");
+    }
   }));
 }
 
@@ -688,7 +799,11 @@ async function runInsight(type, force = false) {
   }
   $("#insightOutput").replaceChildren();
   $("#insightEmpty").classList.add("hidden");
-  $("#insightLoadingText").textContent = `Generating ${INSIGHT_LABELS[type]} from the cached document text…`;
+  const finishProgress = showProgressStatus(
+    "#insightLoading",
+    `Preparing ${INSIGHT_LABELS[type]} from the document…`,
+    `Still working on ${INSIGHT_LABELS[type].toLowerCase()}. Longer documents may take a little more time.`,
+  );
   $("#insightLoading").classList.remove("hidden");
   $("#insightSkeleton").classList.remove("hidden");
   $$(".insight-choice").forEach((choice) => { choice.disabled = true; });
@@ -709,6 +824,7 @@ async function runInsight(type, force = false) {
     $("#insightEmpty").classList.remove("hidden");
     setError("#insightError", error.message || "The selected insight could not be generated.");
   } finally {
+    finishProgress();
     $("#insightLoading").classList.add("hidden");
     $("#insightSkeleton").classList.add("hidden");
     $$(".insight-choice").forEach((choice) => { choice.disabled = false; });
@@ -717,6 +833,42 @@ async function runInsight(type, force = false) {
 $$(".insight-choice").forEach((button) => button.addEventListener("click", () => runInsight(button.dataset.insight)));
 $("#insightGuidance").addEventListener("input", (event) => {
   $("#insightGuidanceCount").textContent = `${event.target.value.length}/1000`;
+});
+$("#docChatForm").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const question = $("#docChatInput").value.trim();
+  if (!question || !activeDocument?.doc_id || !insights.chatReady || insights.chatBusy) return;
+  insights.chatMessages.push({ role: "user", content: question });
+  insights.chatMessages = insights.chatMessages.slice(-5);
+  $("#docChatInput").value = "";
+  renderChat();
+  insights.chatBusy = true;
+  updateChatControls();
+  const finishProgress = showProgressStatus(
+    "#docChatStatus",
+    "Searching the document and preparing an answer…",
+    "The document is still being searched. Longer files may take a little more time.",
+  );
+  try {
+    const result = await api(`/api/advocate/documents/${encodeURIComponent(activeDocument.doc_id)}/chat`, {
+      method: "POST",
+      json: {
+        workspace_token: workspaceToken,
+        messages: insights.chatMessages.map(({ role, content }) => ({ role, content })),
+      },
+    });
+    insights.chatMessages.push({ role: "assistant", content: result.answer, sources: result.sources || [] });
+    insights.chatMessages = insights.chatMessages.slice(-5);
+    renderChat();
+    setChatStatus(`${result.messages_kept} recent messages used. Chat history is not saved.`);
+  } catch (error) {
+    setChatStatus(error.message || "Document chat could not be completed.", true);
+  } finally {
+    finishProgress();
+    insights.chatBusy = false;
+    updateChatControls();
+    $("#docChatInput").focus();
+  }
 });
 
 // ---------------------------------------------------------------- start

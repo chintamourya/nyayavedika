@@ -33,20 +33,34 @@ function mixLine(m) {
     (m.synthetic ? ` <span class="hint">- counts below include the synthetic demo cases.</span>` : "");
 }
 
+// Flags in plain words (the code stays in the tooltip and in the filters' values).
+const FLAG_LABEL = { UNDERTRIAL_RELEASE_ELIGIBLE: "Past Sec. 479 limit", UNDERTRIAL_NEARING_THRESHOLD: "Near Sec. 479 limit",
+  CUSTODY_DATE_MISSING: "Custody date missing", CUSTODY_UNKNOWN: "Custody unknown", TIME_BOUND_LAW: "Time-bound law",
+  DECADE_OLD: "10+ years old", NEEDS_REVIEW: "Needs review", CHRONIC_ADJOURNMENT: "Often adjourned", DORMANT: "Not heard recently" };
+const flagLabel = (f) => esc(FLAG_LABEL[f] || String(f ?? "").replace(/_/g, " ").toLowerCase());
+
 // ---------------------------------------------------------------- shell
 function showTab(name) {
+  const switching = !$(`#tab-${name}`)?.classList.contains("active");
   $$(".tabs .tab[data-tab]").forEach((t) => t.classList.toggle("active", t.dataset.tab === name));
   $$("main .panel").forEach((p) => p.classList.toggle("active", p.id === "tab-" + name));
+  if (switching && window.scrollY > 0) window.scrollTo({ top: 0 });  // a new screen starts at its top, not mid-page
   ({ today: loadToday, docket: loadDocket, undertrial: loadAlerts, insights: loadInsights }[name] || (() => {}))();
 }
 $$(".tabs .tab[data-tab]").forEach((t) => t.addEventListener("click", () => showTab(t.dataset.tab)));
 
+const ROLE_NAME = { staff: "Court staff", lawyer: "Lawyer", citizen: "Citizen" };
+function signedIn(on) {  // signed in: show who you are + "Switch user"; signed out: the token field and Sign in
+  $("#signinForm").classList.toggle("hidden", on);
+  $("#signedIn").classList.toggle("hidden", !on);
+}
 async function whoami() {
   try {
     const me = await api("/api/whoami");
     ROLE = me.role;
-    $("#who").textContent = `${me.role} (${me.actor})`;
+    $("#who").textContent = `Signed in · ${ROLE_NAME[me.role] || me.role} (${me.actor})`;
     const roleAllowed = ADVOCATE_DOOR ? ROLE === "lawyer" : ["staff", "lawyer"].includes(ROLE);
+    signedIn(roleAllowed);
     if (!roleAllowed) {
       $("#portalAccessMessage").textContent = ADVOCATE_DOOR
         ? "This is the Advocate portal. Enter a lawyer access token to continue; the current token does not have the lawyer role."
@@ -67,8 +81,11 @@ async function whoami() {
       picked.forEach((p) => { p.reason = checkFile(p.file); });
       renderFiles();
     }).catch((e) => { limitsError = e.message; renderFiles(); });
-    loadToday();
+    // show a screen again: a signed-out first load hides every panel, and signing in used to leave the page blank
+    const active = $(".tabs .tab.active[data-tab]");
+    showTab(active && !active.classList.contains("hidden") ? active.dataset.tab : "today");
   } catch (e) {
+    signedIn(false);
     $("#who").textContent = "not signed in";
     $("#portalAccessMessage").textContent = ADVOCATE_DOOR
       ? "Enter a lawyer access token to use the Advocate portal."
@@ -79,6 +96,12 @@ async function whoami() {
   }
 }
 tokenBox($("#demoToken"), whoami);
+$("#signinForm").addEventListener("submit", (e) => {  // Enter or the Sign in button
+  e.preventDefault();
+  setToken($("#demoToken").value);
+  whoami();
+});
+$("#tokenChange").addEventListener("click", () => { signedIn(false); $("#demoToken").select(); $("#demoToken").focus(); });
 whoami();
 
 // ---------------------------------------------------------------- TODAY
@@ -336,34 +359,64 @@ function setDocketFilters(f) {
   $("#fReview").checked = !!f.needs_review; $("#fCustody").checked = !!f.custody; $("#fPast").checked = !!f.past_deadline;
   $("#fNotListed").checked = !!f.not_listed; $("#fType").value = f.case_type || ""; $("#fQ").value = f.q || "";
 }
+let docketSeq = 0;
+function docketBands(byBand, active) {  // one chip per band with its count; click to filter, click again to clear
+  if (!byBand) return "";
+  return `<span class="hint">Triage bands:</span> ${Object.entries(byBand).map(([b, n]) =>
+    `<button type="button" class="band-chip ${active === b ? "on" : ""}" data-band="${esc(b)}" aria-pressed="${active === b}">${band(b)} <b>${esc(n)}</b></button>`).join("")}
+    ${active ? `<button type="button" class="btn ghost small" data-band="">Show all bands</button>` : ""}`;
+}
 async function loadDocket() {
   const p = new URLSearchParams({ band: $("#fBand").value, case_type: $("#fType").value, flag: $("#fFlag").value, q: $("#fQ").value });
   [["deferred3", "#fDef"], ["needs_review", "#fReview"], ["custody", "#fCustody"], ["past_deadline", "#fPast"], ["not_listed", "#fNotListed"]]
     .forEach(([k, s]) => { if ($(s).checked) p.set(k, "true"); });
+  // the less-used filters live under "More filters": count the ones switched on, and open the panel when a Today
+  // number turned one on, so it is clear why the list is shorter
+  const hiddenOn = ["#fDef", "#fReview", "#fCustody", "#fPast", "#fNotListed"].filter((s) => $(s).checked).length + ($("#fFlag").value ? 1 : 0);
+  $("#filterCount").textContent = `${hiddenOn} on`;
+  $("#filterCount").classList.toggle("hidden", !hiddenOn);
+  if (hiddenOn) $("#moreFilters").open = true;
+  const seq = ++docketSeq;  // rapid filter changes: only the newest answer is drawn
+  $("#docketTable").setAttribute("aria-busy", "true");
+  $("#docketCount").textContent = "Loading the docket…";
   try {
     const d = await api(`/api/docket?${p}`);
+    if (seq !== docketSeq) return;
     if ($("#fType").options.length <= 1) $("#fType").innerHTML += d.types.map((t) => `<option value="${esc(t)}">${pretty(t)}</option>`).join("");
+    // band counts ignore the band filter itself (server side), so the other bands stay visible as one-click switches
+    $("#docketBands").innerHTML = docketBands(d.by_band, $("#fBand").value);
+    $$("#docketBands [data-band]").forEach((c) => c.addEventListener("click", () => {
+      $("#fBand").value = $("#fBand").value === c.dataset.band ? "" : c.dataset.band; loadDocket();
+    }));
     const display = capSyntheticExamples(d.rows);
     const synth = display.rows.filter((r) => r.source === "synthetic").length;
     $("#docketCount").innerHTML = `${d.total} pending case(s) match${d.total > display.rows.length ? `; showing ${display.rows.length} example(s)` : ""}.`
       + ` Of those shown: ${synth} synthetic, ${display.rows.length - synth} from uploads or imports.`
-      + syntheticLimitNote(display.omitted);
+      + " " + syntheticLimitNote(display.omitted);
     $("#docketTable tbody").innerHTML = display.rows.map((r) => `<tr class="clickable" tabindex="0" data-case="${esc(r.case_id)}">
       <td><b>${esc(r.case_id)}</b> ${srcBadge(r.source)}${r.data_quality === "needs_review" ? ' <span class="flag">⚠ needs review</span>' : ""}</td>
       <td>${band(r.band)}</td><td class="num">${esc(r.score)}${scoreBar(r.score, r.band)}</td><td>${pretty(r.case_type)}<br><span class="hint">${pretty(r.stage || "stage missing")}</span></td>
-      <td>${(r.flags || []).map((f) => `<span class="flag">${pretty(f)}</span>`).join("")}</td>
+      <td>${(r.flags || []).map((f) => `<span class="flag" title="${esc(f)}">${flagLabel(f)}</span>`).join("")}</td>
       <td>${r.deferred ? `${esc(r.deferred)}×${r.must_list ? ' <span class="must">must-list</span>' : ""}` : "-"}</td>
       <td>${esc(r.sla_due_on || "-")}${r.sla_due_on && r.sla_due_on < todayIso() ? ' <span class="flag">late</span>' : ""}</td>
-      <td>${esc(r.next_hearing_date || "-")}${r.listed_on ? `<br><span class="hint">on ${esc(r.listing_status)} list ${esc(r.listed_on)}</span>` : ""}</td></tr>`).join("");
+      <td>${esc(r.next_hearing_date || "-")}${r.listed_on ? `<br><span class="hint">on ${esc(r.listing_status)} list ${esc(r.listed_on)}</span>` : ""}</td></tr>`).join("")
+      || `<tr><td colspan="8" class="empty-row">No pending case matches these filters. <button type="button" class="btn ghost small" id="docketClear">Clear filters</button></td></tr>`;
+    $("#docketClear")?.addEventListener("click", () => { setDocketFilters({}); loadDocket(); });
     $$("#docketTable tr[data-case]").forEach((tr) => {
       tr.addEventListener("click", () => openDrawer(tr.dataset.case));
       tr.addEventListener("keydown", (e) => { if (e.key === "Enter") openDrawer(tr.dataset.case); });
     });
-  } catch (e) { $("#docketCount").textContent = e.message; }
+  } catch (e) {
+    if (seq === docketSeq) $("#docketCount").innerHTML = `<span class="error">${esc(e.message)}</span>`;
+  } finally {
+    if (seq === docketSeq) $("#docketTable").removeAttribute("aria-busy");
+  }
 }
 $("#fApply").addEventListener("click", loadDocket);
 $$("#docketFilters select, #docketFilters input[type=checkbox]").forEach((el) => el.addEventListener("change", loadDocket));
-$("#fQ").addEventListener("keydown", (e) => { if (e.key === "Enter") loadDocket(); });
+let docketTyping = null;  // search as you type (short pause), Enter searches at once
+$("#fQ").addEventListener("input", () => { clearTimeout(docketTyping); docketTyping = setTimeout(loadDocket, 350); });
+$("#fQ").addEventListener("keydown", (e) => { if (e.key === "Enter") { clearTimeout(docketTyping); loadDocket(); } });
 function todayIso() { const d = new Date(), p = (n) => String(n).padStart(2, "0"); return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`; }
 
 let current = null;
@@ -402,7 +455,7 @@ function drawerTab(tab) {
     const p = c.priority, q = c.queue || {};
     body.innerHTML = `<p>${band(p.band)} <b>${esc(p.score)}</b> · ${esc(p.route || "")} <span class="hint">(${esc(p.rules_version || "")})</span></p>
       ${scoreBreakdown(p)}
-      <p>${p.flags.map((f) => `<span class="flag">${pretty(f)}</span>`).join("")}</p>
+      <p>${p.flags.map((f) => `<span class="flag" title="${esc(f)}">${flagLabel(f)}</span>`).join("")}</p>
       <h3>In the scheduling queue</h3>
       <p class="hint">Deferred ${esc(q.consecutive_deferrals || 0)}× in a row · aging boost +${esc(q.aging_boost || 0)} · due by ${esc(q.sla_due_on || "-")}
         ${q.must_list ? " · <b>must-list</b> in the next draft" : ""}. ${RULES ? `Effective score = ${esc(RULES.schedule.effective_score)}.` : ""}</p>
@@ -550,6 +603,19 @@ function renderCauseList() {
   ];
   const k = (v, l, why) => `<div class="kpi"><b>${esc(v)}</b><span>${esc(l)}</span><small class="why">${esc(why)}</small></div>`;
   const row = (label, a, z, better) => `<tr><td>${esc(label)}</td><td><b>${esc(a)}</b></td><td>${esc(z)}</td><td>${better ? "✓ better" : ""}</td></tr>`;
+  const elsewhere = p.already_listed || [];
+  // the whole week on one screen: bench x day, share of the sitting time planned, and how many matters
+  const benchIds = (p.calendar[0]?.benches || []).map((x) => x.bench_id);
+  const loadLevel = (u) => (u > 95 ? "full" : u > 75 ? "high" : u > 40 ? "mid" : u > 0 ? "low" : "none");
+  const loadGrid = `<div class="table-wrap"><table class="load-grid" aria-label="Bench time planned per day">
+    <thead><tr><th scope="col">Bench</th>${p.calendar.map((d) => `<th scope="col">${esc(weekday(d.date).slice(0, 3))} <span class="hint">${esc(d.date.slice(5))}</span></th>`).join("")}</tr></thead>
+    <tbody>${benchIds.map((id) => `<tr><th scope="row">${esc(id)}</th>${p.calendar.map((d) => {
+      const x = d.benches.find((y) => y.bench_id === id) || {};
+      if (x.open === false) return `<td class="load closed" title="Closed (judge on leave)">closed</td>`;
+      const u = x.utilisation_percent || 0;
+      return `<td class="load ${loadLevel(u)}" title="${esc(x.cases?.length || 0)} matter(s), ${esc(x.expected_minutes || 0)} of ${esc(x.minutes_per_day || 0)} min">${esc(Math.round(u))}%<small>${esc(x.cases?.length || 0)} case${(x.cases?.length || 0) === 1 ? "" : "s"}</small></td>`;
+    }).join("")}</tr>`).join("")}</tbody></table></div>
+    <p class="hint">Each cell: share of the bench's sitting time planned (expected minutes, allowing for likely adjournments) and the number of matters.</p>`;
   $("#clView").innerHTML = `<div class="card">
     <h3>2. Check the draft <span class="hint">· draft #${esc(cl.id)} · ${esc(cl.status)}</span></h3>
     <div class="kpis">
@@ -557,7 +623,10 @@ function renderCauseList() {
       ${k(`${m.must_list_listed}/${m.must_list_total}`, "must-list cases fitted", "urgent, or deferred 3+ times")}
       ${k(m.cases_carried_over, "carried to a later week", "reasons at the bottom")}
       ${k(`${m.avg_bench_utilisation_percent}%`, "bench time used", "average over the week")}
+      ${elsewhere.length ? k(elsewhere.length, "already listed elsewhere", "kept on their existing slot - not listed twice") : ""}
     </div>
+    <details class="compare-box" open><summary>Week at a glance - bench load</summary>
+      ${m.balance_note ? `<p class="hint"><b>${m.balanced ? "⚖ Balanced week." : "▤ Packed week."}</b> ${esc(m.balance_note)}</p>` : ""}${loadGrid}</details>
     ${problems.length ? `<div class="banner-bad"><b>Check before approving:</b><br>${problems.map(esc).join("<br>")}</div>`
       : `<div class="banner-ok">✓ All checks pass: every must-list case fits, no advocate is in two courts at once, no bench runs over time.</div>`}
     ${syntheticLimitNote(allCaseExamples.omitted)}
@@ -584,6 +653,9 @@ function renderCauseList() {
     ${p.unscheduled.length ? `<details class="day"><summary><b>Carried to a later week</b> · ${p.unscheduled.length} case(s)</summary>
         <p class="hint">Each of these is deferred +1 when the list is published, so it climbs in next week's draft.</p>
       <ul>${unscheduledDisplay.map((u) => `<li>${band(u.band)} ${esc(u.case_id)} ${u.source && u.source !== "synthetic" ? srcBadge(u.source) : ""} - ${esc(REASON[u.reason] || u.reason)}${u.must_list ? ' <span class="must">must-list</span>' : ""}</li>`).join("")}</ul></details>` : ""}
+    ${elsewhere.length ? `<details class="day"><summary><b>Already listed elsewhere this week</b> · ${elsewhere.length} case(s)</summary>
+        <p class="hint">These cases already hold a slot on another list for these dates (an accepted fast-lane slot, a published list or another draft), so this draft does not list them again.</p>
+      <ul>${capSyntheticExamples(elsewhere).rows.map((u) => `<li>${band(u.band)} ${esc(u.case_id)} ${u.source && u.source !== "synthetic" ? srcBadge(u.source) : ""} - ${esc(u.day)} ${esc((u.slot || "").split("-")[0])} on ${esc(u.bench_id)} <span class="hint">(${esc(u.listing_status)}, list #${esc(u.cause_list_id)})</span></li>`).join("")}</ul></details>` : ""}
   </div>
   <div class="card">
     <h3>3. Approve and publish</h3>
@@ -689,6 +761,8 @@ async function loadAlerts() {
   $("#utRole").textContent = ROLE === "lawyer" ? "You are signed in as a legal-aid lawyer: you approve or dismiss."
     : "You can read these; a legal-aid lawyer approves or dismisses.";
   try {
+    // both lists load at once; a failure of the missing-information list does not hide the alerts
+    const needP = api("/api/alerts/data-needed").catch((e) => ({ error: e.message, data_needed: [] }));
     const { alerts } = await api("/api/alerts?status=all");
     const decide = alerts.filter((a) => a.status === "pending");
     const progress = alerts.filter((a) => UT_NEXT[a.status]);
@@ -721,7 +795,8 @@ async function loadAlerts() {
     $$("[data-docx]", root).forEach((b) => b.addEventListener("click", () => busy(b, async () => {
       toast(`Downloaded ${await downloadFrom(`/api/alerts/${b.dataset.docx}/release.docx`, {}, "release_application.docx")}`);
     })));
-    const need = await api("/api/alerts/data-needed");
+    const need = await needP;
+    if (need.error) { $("#utNeeded").innerHTML = `<li class="error">${esc(need.error)}</li>`; return; }
     $("#utNeededH").textContent = `Missing information (${need.data_needed.length} case(s))`;
     const neededDisplay = capSyntheticExamples(need.data_needed);
     $("#utNeeded").innerHTML = neededDisplay.rows.map((d) => `<li><b>${esc(d.case_id)}</b> ${d.source === "synthetic" ? srcBadge(d.source) : ""}: missing ${d.missing.map(pretty).join(", ")} - ask ${esc(d.who_can_supply.join("; "))}</li>`).join("") || "<li>None.</li>";

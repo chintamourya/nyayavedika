@@ -5,6 +5,7 @@
 import base64
 import binascii
 import logging
+import mimetypes
 import os
 import re
 import threading
@@ -19,6 +20,7 @@ ROOT = Path(__file__).parent
 
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile  # noqa: E402
 from fastapi.responses import FileResponse, PlainTextResponse, Response  # noqa: E402
+from fastapi.middleware.gzip import GZipMiddleware  # noqa: E402
 from fastapi.staticfiles import StaticFiles  # noqa: E402
 from langgraph.types import Command  # noqa: E402
 from pydantic import BaseModel  # noqa: E402
@@ -48,6 +50,8 @@ async def lifespan(_app):
 
 
 app = FastAPI(title="NyayaVedika", version="2.0", lifespan=lifespan)
+# JSON (docket, cause-list drafts) and the JS/CSS bundles compress ~70-85%; small replies are left alone
+app.add_middleware(GZipMiddleware, minimum_size=1024)
 _worker_stop = threading.Event()
 _worker_thread: Optional[threading.Thread] = None
 
@@ -212,6 +216,24 @@ class AdvocateInsightIn(BaseModel):
     user_guidance: Optional[str] = None
 
 
+class AdvocateChatMessageIn(BaseModel):
+    role: Literal["user", "assistant"]
+    content: str
+
+
+class AdvocateChatIn(BaseModel):
+    workspace_token: str
+    messages: List[AdvocateChatMessageIn]
+
+
+class AdvocateChatPrepareIn(BaseModel):
+    workspace_token: str
+
+
+class AdvocateDocumentPreviewIn(BaseModel):
+    workspace_token: str
+
+
 class AdvocateStudioIn(BaseModel):
     operation: str
     files: List[Dict[str, Any]]
@@ -237,7 +259,16 @@ class FeedbackIn(BaseModel):
 def health():
     return {**llm.status(), "vector": vectorstore.status(), "web_search": websearch.available(),
             "ocr": ocr.capabilities(), "database": config.DATABASE_URL.split("://")[0],
-            "checkpointer": config.CHECKPOINTER, "cases_loaded": len(db.list_cases())}
+            "checkpointer": config.CHECKPOINTER, "cases_loaded": _case_count()}
+
+
+def _case_count() -> int:
+    """COUNT(*) instead of loading every case's JSON (the citizen page calls /api/health on every load)."""
+    try:
+        with store.connect() as s:
+            return s.count("cases")
+    except Exception:   # health must answer even if the table is not there yet
+        return len(db.list_cases())
 
 
 # ----------------------------------------------------------------------------- conversational agents
@@ -495,7 +526,8 @@ def cause_list_draft(body: DraftIn, principal: Principal = guard("POST /api/caus
         cid = cause_list.save_draft(s, plan, body.court_id or "DEMO-DC", f"Draft prepared by {principal.actor}")
         return {"cause_list_id": cid, "status": "draft", "metrics": plan["metrics"], "violations": plan["violations"],
                 "capacity_shortfall": plan["capacity_shortfall"], "deadline_alerts": plan["deadline_alerts"],
-                "unscheduled": plan["unscheduled"][:200], "calendar": plan["calendar"]}
+                "unscheduled": plan["unscheduled"][:200], "already_listed": plan.get("already_listed", [])[:200],
+                "calendar": plan["calendar"]}
     return _court_call(run)
 
 
@@ -599,6 +631,40 @@ def upload_advocate_document(body: AdvocateDocumentIn):
 def advocate_document_insight(doc_id: str, body: AdvocateInsightIn):
     try:
         return advocate.generate_insight(body.workspace_token, doc_id, body.insight_type, body.user_guidance)
+    except advocate.AdvocateError as exc:
+        raise HTTPException(exc.status, str(exc))
+
+
+@app.post("/api/advocate/documents/{doc_id}/preview",
+          dependencies=[guard("POST /api/advocate/documents/{doc_id}/preview")])
+def advocate_document_preview(doc_id: str, body: AdvocateDocumentPreviewIn):
+    try:
+        uploaded = advocate.get_document_file(body.workspace_token, doc_id)
+        media_type = mimetypes.guess_type(uploaded["filename"])[0] or "application/octet-stream"
+        return Response(
+            content=uploaded["data"],
+            media_type=media_type,
+            headers={"Content-Disposition": "inline"},
+        )
+    except advocate.AdvocateError as exc:
+        raise HTTPException(exc.status, str(exc))
+
+
+@app.post("/api/advocate/documents/{doc_id}/chat",
+          dependencies=[guard("POST /api/advocate/documents/{doc_id}/chat")])
+def advocate_document_chat(doc_id: str, body: AdvocateChatIn):
+    try:
+        messages = [message.model_dump() for message in body.messages]
+        return advocate.chat_with_document(body.workspace_token, doc_id, messages)
+    except advocate.AdvocateError as exc:
+        raise HTTPException(exc.status, str(exc))
+
+
+@app.post("/api/advocate/documents/{doc_id}/chat/prepare",
+          dependencies=[guard("POST /api/advocate/documents/{doc_id}/chat/prepare")])
+def advocate_document_chat_prepare(doc_id: str, body: AdvocateChatPrepareIn):
+    try:
+        return advocate.prepare_document_chat(body.workspace_token, doc_id)
     except advocate.AdvocateError as exc:
         raise HTTPException(exc.status, str(exc))
 
@@ -956,7 +1022,19 @@ def release_docx(alert_id: int):
                     headers={"Content-Disposition": f'attachment; filename="release_application_{slug}.docx"'})
 
 
-app.mount("/static", StaticFiles(directory=ROOT / "static"), name="static")
+class _CachedStatic(StaticFiles):
+    """Every page references its assets with a ?v= version, so a versioned asset can be cached by the browser for a
+    day; an unversioned request still revalidates. i18n.json is fetched with cache: "no-cache" and keeps working."""
+
+    async def get_response(self, path, scope):
+        response = await super().get_response(path, scope)
+        if response.status_code == 200:
+            versioned = b"v=" in (scope.get("query_string") or b"")
+            response.headers["Cache-Control"] = "public, max-age=86400" if versioned else "no-cache"
+        return response
+
+
+app.mount("/static", _CachedStatic(directory=ROOT / "static"), name="static")
 
 
 @app.get("/favicon.ico", include_in_schema=False)

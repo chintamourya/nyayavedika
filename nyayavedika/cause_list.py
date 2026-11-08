@@ -56,18 +56,30 @@ def score_changed(db, today: Optional[date] = None) -> int:
     today = today or date.today()
     rows = db.query("""SELECT case_id FROM cases c WHERE c.status IN ('pending', 'on_hold') AND (c.score IS NULL OR NOT EXISTS
                          (SELECT 1 FROM triage_scores t WHERE t.case_id = c.case_id AND t.scored_at >= c.updated_at))""")
+    if not rows:
+        return 0
     states = {r["case_id"]: r for r in db.select("case_queue_state")}
-    for r in rows:
-        case = store.get_case(r["case_id"], db=db)
-        probe = {**case, "first_eligible_on": (states.get(r["case_id"]) or {}).get("first_eligible_on")}
+    cases = store.get_cases([r["case_id"] for r in rows], db=db)   # one query, not one per case
+    _rescore_and_save(db, [cases[r["case_id"]] for r in rows if r["case_id"] in cases], states, today)
+    db.commit()
+    return len(rows)
+
+
+def _rescore_and_save(db, cases: List[Dict], states: Dict[str, Dict], today: date) -> List[Dict]:
+    """Score each case with the deterministic rules and write the rows + triage history in batched statements
+    (a remote Postgres pays one round trip per statement, so per-case writes made a full re-score take minutes)."""
+    rows, scores = [], []
+    for case in cases:
+        probe = {**case, "first_eligible_on": (states.get(case["case_id"]) or {}).get("first_eligible_on")}
         scored = extraction.provisional_score(probe, today)
         meta = {k: case.get(k) for k in ("source", "data_quality", "field_provenance")}
         clean = {k: v for k, v in case.items() if not k.startswith("_") and k not in meta}
-        store.upsert_case(clean, scored, source=meta["source"], data_quality=meta["data_quality"],
-                          field_provenance=meta["field_provenance"], db=db)
-        store.insert_triage_scores([scored], triage.RULES_VERSION, db=db)
-    db.commit()
-    return len(rows)
+        rows.append(store.case_row(clean, scored, meta["source"], meta["data_quality"], meta["field_provenance"]))
+        scores.append(scored)
+    if rows:
+        db.upsert("cases", rows, ["case_id"])
+        store.insert_triage_scores(scores, triage.RULES_VERSION, db=db)
+    return scores
 
 
 def rescore_custody(db, today: Optional[date] = None) -> int:
@@ -75,23 +87,21 @@ def rescore_custody(db, today: Optional[date] = None) -> int:
     must be refreshed daily; otherwise Today, the Docket and the planner disagree with the Undertrial watch."""
     today = today or date.today()
     states = {r["case_id"]: r for r in db.select("case_queue_state")}
-    changed = 0
+    stale = []
+    # only custody cases can cross a Sec. 479 mark by the calendar alone; the row already carries the case JSON,
+    # so no per-case SELECT is needed
     for row in db.select("cases", {"status": ["pending", "on_hold"]}):
-        case = store.get_case(row["case_id"], db=db)
-        if not case or not case.get("accused_in_custody") or not case.get("custody_since"):
+        case = store._case_out(row)
+        if not case.get("accused_in_custody") or not case.get("custody_since"):
             continue
         probe = {**case, "first_eligible_on": (states.get(row["case_id"]) or {}).get("first_eligible_on")}
         scored = extraction.provisional_score(probe, today)
         if scored["band"] == row["band"] and sorted(scored["flags"]) == sorted(row["flags"] or []):
             continue
-        meta = {k: case.get(k) for k in ("source", "data_quality", "field_provenance")}
-        clean = {k: v for k, v in case.items() if not k.startswith("_") and k not in meta}
-        store.upsert_case(clean, scored, source=meta["source"], data_quality=meta["data_quality"],
-                          field_provenance=meta["field_provenance"], db=db)
-        store.insert_triage_scores([scored], triage.RULES_VERSION, db=db)
-        changed += 1
+        stale.append(case)
+    _rescore_and_save(db, stale, states, today)
     db.commit()
-    return changed
+    return len(stale)
 
 
 def pending_results(db, court_id: Optional[str] = None) -> List[Dict]:
@@ -108,6 +118,30 @@ def pending_results(db, court_id: Optional[str] = None) -> List[Dict]:
     return out
 
 
+FIRM_LISTING = ("planned", "accepted", "published")   # a slot the case already holds; a fast-lane 'proposed' is not firm
+
+
+def already_listed(db, start: date, days: int, calendar: Optional[List[Dict]] = None) -> Dict[str, Dict]:
+    """Cases that already hold a firm slot inside the week being planned, on another list: an accepted fast-lane slot,
+    a published list, or another open draft whose dates overlap. The open weekly draft for the same Monday is ignored
+    because save_draft supersedes it. Listing these again would schedule the same case twice."""
+    calendar = calendar if calendar is not None else calendar_rows(db, start, days)
+    closed = sorted({c["day"] for c in calendar if c["kind"] in scheduler.CLOSED_KINDS and not c.get("bench_id")})
+    window = [d.isoformat() for d in scheduler.working_days(start, days, closed)]
+    if not window:
+        return {}
+    lists = {c["id"]: c for c in db.select("cause_lists", {"status": ["draft", "published"]})}
+    replaced = {i for i, c in lists.items() if c["status"] == "draft" and c["start_date"] == start.isoformat()
+                and not (c["plan"] or {}).get("fast_lane")}
+    out: Dict[str, Dict] = {}
+    for l in db.select("listings", {"status": list(FIRM_LISTING)}, order="day"):
+        if l["cause_list_id"] in replaced or l["cause_list_id"] not in lists or not (window[0] <= l["day"] <= window[-1]):
+            continue
+        out.setdefault(l["case_id"], {"day": l["day"], "bench_id": l["bench_id"], "slot": f"{l['slot_start']}-{l['slot_end']}",
+                                      "listing_status": l["status"], "cause_list_id": l["cause_list_id"]})
+    return out
+
+
 def prepare(db, start: date, days: int = 5, court_id: Optional[str] = None, aging: bool = True,
             results: Optional[List[Dict]] = None) -> Dict:
     """`results` lets the Registry Agent pass scores after its bounded AI review; otherwise they are read here."""
@@ -117,8 +151,10 @@ def prepare(db, start: date, days: int = 5, court_id: Optional[str] = None, agin
         triage.load_adjournment_rates(learned_rates(db))
         results = pending_results(db, court_id)
     state = {r["case_id"]: r for r in db.select("case_queue_state")}
-    plan = scheduler.plan_week(results, start, days, load_benches(db), state, calendar_rows(db, start, days),
-                               aging=aging, rules_version=triage.RULES_VERSION)
+    calendar = calendar_rows(db, start, days)
+    plan = scheduler.plan_week(results, start, days, load_benches(db), state, calendar,
+                               aging=aging, rules_version=triage.RULES_VERSION,
+                               already_listed=already_listed(db, start, days, calendar))
     plan["violations"] += [v for v in scheduler.check_plan(plan, {r["case_id"] for r in results}) if v not in plan["violations"]]
     plan["metrics"]["rescored"] = rescored
     sources = staff_api.case_sources(db)   # so the screen can mark synthetic vs uploaded cases
@@ -126,7 +162,7 @@ def prepare(db, start: date, days: int = 5, court_id: Optional[str] = None, agin
         for b in d["benches"]:
             for c in b["cases"]:
                 c["source"] = sources.get(c["case_id"])
-    for u in plan["unscheduled"]:
+    for u in plan["unscheduled"] + plan.get("already_listed", []):
         u["source"] = sources.get(u["case_id"])
     return plan
 
@@ -158,6 +194,15 @@ def save_draft(db, plan: Dict, court_id: str = "DEMO-DC", explanation: str = "")
                              "expected_minutes": int(round(c["expected_minutes"])), "band": c["band"], "score": c["score"],
                              "status": "planned"})
     db.insert("listings", rows)
+    # a fast-lane proposal (not yet accepted) for a case this draft now lists in the same week would become a second
+    # hearing if accepted later: the weekly slot takes over and the proposal is withdrawn
+    days = sorted({d["date"] for d in plan["calendar"]})
+    ids = sorted(listed)
+    for i in range(0, len(ids) if days else 0, 500):
+        stale = [l["id"] for l in db.select("listings", {"case_id": ids[i:i + 500], "status": "proposed"})
+                 if l["cause_list_id"] != cid and days[0] <= l["day"] <= days[-1]]
+        if stale:
+            db.update("listings", {"id": stale}, {"status": "dropped"})
     db.commit()
     return cid
 
@@ -223,21 +268,23 @@ def publish(db, cause_list_id: int, actor: str, role: str) -> Dict:
     db.update("listings", {"cause_list_id": cause_list_id, "status": "proposed"}, {"status": "dropped"})
     first_day: Dict[str, str] = {}
     for l in listings:
-        db.insert("hearings", [{"case_id": l["case_id"], "hearing_date": l["day"], "bench_id": l["bench_id"]}])
         first_day[l["case_id"]] = min(first_day.get(l["case_id"], l["day"]), l["day"])
-    db.update("listings", {"cause_list_id": cause_list_id, "status": ["planned", "accepted"]}, {"status": "published"})
     _longer_statement_timeout(db)
+    # one multi-row INSERT for every hearing instead of one statement per listing
+    db.insert("hearings", [{"case_id": l["case_id"], "hearing_date": l["day"], "bench_id": l["bench_id"]} for l in listings])
+    db.update("listings", {"cause_list_id": cause_list_id, "status": ["planned", "accepted"]}, {"status": "published"})
     plan = draft["plan"] or {}
     if plan.get("calendar"):
         _apply_queue(db, plan, cause_list_id, set(first_day))
+    cases = store.get_cases(first_day, db=db)
     for case_id, day in first_day.items():
-        case = store.get_case(case_id, db=db)
+        case = cases.get(case_id)
         if case:
             # only the date changes: one narrow UPDATE (column + the copy kept in `data`) instead of re-inserting the
             # whole row with every index - the full upsert is what hit "canceling statement due to statement timeout"
             data = {k: v for k, v in case.items() if not k.startswith("_") and k not in ("source", "data_quality", "field_provenance")}
             db.update("cases", {"case_id": case_id}, {"next_hearing_date": day, "data": {**data, "next_hearing_date": day}})
-        store.upsert_queue_state([{"case_id": case_id, "last_listed_on": day}], db=db)
+    store.upsert_queue_state([{"case_id": c, "last_listed_on": d} for c, d in first_day.items()], db=db)
     db.update("cause_lists", {"id": cause_list_id}, {"status": "published", "approved_by": actor, "decided_at": _now()})
     store.audit(actor, role, "cause_list_published", f"cause_list:{cause_list_id}", {"listings": len(listings)}, db=db)
     db.commit()
@@ -274,7 +321,7 @@ def _place_in_list(db, cause_list_id: int, case: Dict, band: str, score: float, 
     leave = {(c["day"], c["bench_id"]) for c in cal if c.get("bench_id")}
     rows = [r for r in db.select("listings", {"cause_list_id": cause_list_id}) if r["status"] in OPEN_LISTING]
     advs = case.get("advocate_ids") or []
-    others = {r["case_id"]: store.get_case(r["case_id"], db=db) or {} for r in rows} if advs else {}  # only needed for advocate clashes
+    others = store.get_cases([r["case_id"] for r in rows], db=db) if advs else {}  # only needed for advocate clashes; one query
     all_benches = load_benches(db)
     result = {"score": score, "band": band, "case": case, "estimated_minutes": triage.estimated_minutes(case),
               "adjournment_risk": triage.adjournment_risk(case)}
@@ -415,11 +462,10 @@ def record_outcome(db, hearing_id: int, outcome: str, actor: str, role: str, rea
 def _pipeline(db, pending: List[Dict], listed_ids) -> Dict:
     """How records move between the staff screens, as counts: Intake -> Docket -> Cause list -> hearing,
     with custody cases also checked by the Undertrial watch."""
-    lists = db.select("cause_lists", order="id DESC", limit=1)
-    alerts = db.select("alerts")
-    jobs = db.select("ingest_jobs", {"status": ["queued", "running"]})
+    lists = db.query("SELECT id, status, start_date FROM cause_lists ORDER BY id DESC LIMIT 1")
+    alerts = db.query("SELECT status FROM alerts")   # status only: the details JSON is not needed for counts
     return {
-        "intake_in_progress": len(jobs),
+        "intake_in_progress": db.count("ingest_jobs", {"status": ["queued", "running"]}),
         "docket_pending": len(pending),
         "docket_needs_review": sum(1 for c in pending if c["data_quality"] == "needs_review"),
         "listed_upcoming": len(listed_ids),
@@ -433,20 +479,23 @@ def _pipeline(db, pending: List[Dict], listed_ids) -> Dict:
 
 def today_counters(db, today: Optional[date] = None) -> Dict:
     today = today or date.today()
-    pending = db.select("cases", {"status": "pending"})
+    # the counters need six columns, not each case's full JSON document
+    pending = db.query("SELECT case_id, band, flags, data_quality, accused_in_custody, source FROM cases "
+                       "WHERE status = 'pending'", table="cases")
     states = {r["case_id"]: r for r in db.select("case_queue_state")}
     proposed = [l for l in db.select("listings", {"status": "proposed"}) if l["day"] >= today.isoformat()]
     listed_ids = {l["case_id"] for l in db.select("listings", {"status": list(OPEN_LISTING) + ["published"]})
                   if l["day"] >= today.isoformat()}
-    sources = {c["case_id"]: c.get("source") or (c.get("data") or {}).get("source")
-               for c in db.select("cases")}
+    sources = staff_api.case_sources(db) if proposed else {}   # two columns, only when there is something to label
     return {
         "critical_waiting": sum(1 for c in pending if c["band"] == "Critical" and c["case_id"] not in listed_ids),
         "release_eligible": sum(1 for c in pending if "UNDERTRIAL_RELEASE_ELIGIBLE" in (c["flags"] or [])),
         "past_deadline": sum(1 for c in pending if (states.get(c["case_id"]) or {}).get("sla_due_on")
                              and states[c["case_id"]]["sla_due_on"] < today.isoformat()),
         "needs_review": sum(1 for c in pending if c["data_quality"] == "needs_review"),
-        "uploaded_today": sum(1 for d in db.select("documents") if (d["created_at"] or "")[:10] == today.isoformat()),
+        # created_at only: selecting * here pulled every document's analysis JSON just to count today's uploads
+        "uploaded_today": sum(1 for d in db.query("SELECT created_at FROM documents")
+                              if str(d["created_at"] or "")[:10] == today.isoformat()),
         "fast_lane_proposals": [{"case_id": l["case_id"], "day": l["day"], "bench_id": l["bench_id"],
                                  "cause_list_id": l["cause_list_id"],
                                  "slot": f"{l['slot_start']}-{l['slot_end']}", "band": l["band"],

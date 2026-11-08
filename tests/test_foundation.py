@@ -47,7 +47,10 @@ class RoleMatrixTests(unittest.TestCase):
         "POST /api/legal-problem/chat": (403, 403, 200),
         "POST /api/advocate/workspaces": (403, 200, 403),
         "POST /api/advocate/documents": (403, 200, 403),
+        "POST /api/advocate/documents/{doc_id}/preview": (403, 200, 403),
         "POST /api/advocate/documents/{doc_id}/insights": (403, 200, 403),
+        "POST /api/advocate/documents/{doc_id}/chat": (403, 200, 403),
+        "POST /api/advocate/documents/{doc_id}/chat/prepare": (403, 200, 403),
         "POST /api/advocate/studio": (403, 200, 403),
         "POST /api/legal-aid/ask": (200, 200, 200),
         "POST /api/legal-aid": (200, 200, 200),
@@ -209,7 +212,10 @@ class ServerRoleTests(unittest.TestCase):
         for path, body in (
             ("/api/advocate/workspaces", {}),
             ("/api/advocate/documents", {}),
+            ("/api/advocate/documents/sample/preview", {}),
             ("/api/advocate/documents/sample/insights", {}),
+            ("/api/advocate/documents/sample/chat", {}),
+            ("/api/advocate/documents/sample/chat/prepare", {}),
             ("/api/advocate/studio", {}),
         ):
             self.assertEqual(c.post(path, json=body, headers=self.h("staff")).status_code, 403, path)
@@ -259,6 +265,18 @@ class ServerRoleTests(unittest.TestCase):
         self.assertEqual(self.client.get(
             f"/api/documents/{doc_id}/pages/1", headers=self.h("staff")
         ).status_code, 404)
+        preview = self.client.post(
+            f"/api/advocate/documents/{doc_id}/preview", headers=self.h("lawyer"),
+            json={"workspace_token": workspace},
+        )
+        self.assertEqual(preview.status_code, 200, preview.text)
+        self.assertEqual(preview.headers["content-type"], "application/pdf")
+        self.assertEqual(preview.content, b"%PDF-1.4 test")
+        unauthorized_preview = self.client.post(
+            f"/api/advocate/documents/{doc_id}/preview", headers=self.h("lawyer"),
+            json={"workspace_token": second.json()["workspace_token"]},
+        )
+        self.assertEqual(unauthorized_preview.status_code, 404)
         with mock.patch.object(server.advocate.llm, "available", return_value=True), \
                 mock.patch.object(server.advocate.summarise, "call") as generate:
             response = self.client.post(
@@ -267,6 +285,31 @@ class ServerRoleTests(unittest.TestCase):
             )
         self.assertEqual(response.status_code, 404)
         generate.assert_not_called()
+
+    def test_advocate_chat_accepts_assistant_source_metadata_from_previous_turns(self):
+        import server
+        payload = {
+            "workspace_token": "workspace-token",
+            "messages": [
+                {"role": "user", "content": "What happened?"},
+                {"role": "assistant", "content": "A hearing was scheduled.",
+                 "sources": [{"page": 2, "excerpt": "The matter was listed."}]},
+                {"role": "user", "content": "When?"},
+            ],
+        }
+        expected_messages = [
+            {"role": "user", "content": "What happened?"},
+            {"role": "assistant", "content": "A hearing was scheduled."},
+            {"role": "user", "content": "When?"},
+        ]
+        with mock.patch.object(server.advocate, "chat_with_document",
+                               return_value={"answer": "On 15 January [p. 2]."}) as chat:
+            response = self.client.post(
+                "/api/advocate/documents/document-id/chat", headers=self.h("lawyer"), json=payload
+            )
+
+        self.assertEqual(response.status_code, 200, response.text)
+        chat.assert_called_once_with("workspace-token", "document-id", expected_messages)
 
     def test_legal_aid_question_limits_and_followup_count(self):
         import server

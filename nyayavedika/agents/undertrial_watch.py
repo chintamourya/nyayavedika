@@ -124,7 +124,7 @@ def scan_candidates(db=None, court_id: Optional[str] = None, case_ids: Optional[
     today = today or date.today()
     now = _now()
     with store._session(db) as s:
-        store.prepare_database(s)
+        store.ensure_database(s)  # migrated at start-up; re-run only if the schema is gone
         alerts: Dict[str, List[dict]] = {}
         for a in s.select("alerts", {"kind": "undertrial_release"}):
             alerts.setdefault(a["case_id"], []).append(a)

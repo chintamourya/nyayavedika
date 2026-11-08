@@ -53,9 +53,9 @@ class RegressionTests(unittest.TestCase):
 class MigrationTests(unittest.TestCase):
     def test_runs_twice_and_creates_everything(self):
         url = _tmp_url()
-        with store.connect(url) as db:
+        with store.connect(url, migrate=False) as db:   # raw: this test checks the migration's own report
             first = store.prepare_database(db)
-        with store.connect(url) as db:
+        with store.connect(url, migrate=False) as db:
             second = store.prepare_database(db)
             self.assertTrue(set(SCHEMA) <= db.tables())
             names = {r["name"] for r in db.execute("SELECT name FROM sqlite_master WHERE type = 'index'")}
@@ -82,7 +82,7 @@ class MigrationTests(unittest.TestCase):
                          [("SC/2020/1", "undertrial_release", "pending")] * 2)
         conn.commit()
         conn.close()
-        with store.connect(url) as db:
+        with store.connect(url, migrate=False) as db:   # raw: the old tables must reach prepare_database as they are
             report = store.prepare_database(db)
             self.assertIn("cases.source", report["columns_added"])
             self.assertEqual(report["cases_backfilled"], 1)

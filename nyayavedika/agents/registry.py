@@ -59,7 +59,7 @@ def _odd(r: dict) -> bool:
 
 def triage_node(state: RegistryState) -> dict:
     with store.connect() as s:
-        store.prepare_database(s)
+        store.ensure_database(s)  # migrated at start-up; re-run only if the schema is gone
         rescored = cause_list.score_changed(s)
         triage.load_adjournment_rates(cause_list.learned_rates(s))
         results = cause_list.pending_results(s, state.get("court_id"))

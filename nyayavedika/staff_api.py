@@ -15,13 +15,18 @@ from typing import Dict, List, Optional
 from . import config, store
 
 BANDS = ("Critical", "High", "Medium", "Routine")
+DOCKET_COLUMNS = ("case_id, case_type, stage, band, score, flags, data_quality, source, next_hearing_date, "
+                  "accused_in_custody")
 
 
 def docket(db, band: str = "", case_type: str = "", flag: str = "", deferred3: bool = False, needs_review: bool = False,
            custody: bool = False, past_deadline: bool = False, q: str = "", limit: int = 200,
            not_listed: bool = False) -> Dict:
-    where = {"status": "pending", **({"band": band} if band else {}), **({"case_type": case_type} if case_type else {})}
-    rows = db.select("cases", where, order="score DESC")
+    # band is filtered below, after counting, so by_band shows every band for the other filters (one-click switching)
+    where = {"status": "pending", **({"case_type": case_type} if case_type else {})}
+    clause, params = db._where("cases", where)
+    # only the columns the table shows: SELECT * pulled every case's full JSON document on each filter change
+    rows = db.query(f"SELECT {DOCKET_COLUMNS} FROM cases{clause} ORDER BY score DESC", params, table="cases")
     states = {s["case_id"]: s for s in db.select("case_queue_state")}
     today = date.today().isoformat()
     upcoming = {l["case_id"]: l for l in db.select("listings", {"status": ["planned", "proposed", "accepted", "published"]})
@@ -49,7 +54,13 @@ def docket(db, band: str = "", case_type: str = "", flag: str = "", deferred3: b
                     "sla_due_on": st.get("sla_due_on"), "must_list": bool(st.get("must_list")),
                     "listed_on": (upcoming.get(r["case_id"]) or {}).get("day"),
                     "listing_status": (upcoming.get(r["case_id"]) or {}).get("status")})
-    return {"total": len(out), "rows": out[:limit],
+    by_band = {b: 0 for b in BANDS}
+    for r in out:
+        if r["band"] in by_band:
+            by_band[r["band"]] += 1
+    if band:
+        out = [r for r in out if r["band"] == band]
+    return {"total": len(out), "rows": out[:limit], "by_band": by_band,
             "types": sorted({r["case_type"] for r in rows if r["case_type"]})}
 
 
@@ -129,11 +140,13 @@ def alerts(db, status: str = "pending") -> Dict:
     rows = db.select("alerts", {"status": status} if status != "all" else None, order="id DESC", limit=200)
     sources = case_sources(db)
     today = date.today()
+    live_ids = [a["case_id"] for a in rows if a["status"] in ("pending", "approved", "filed", "heard")]
+    cases = store.get_cases(live_ids, db=db)   # one query for every alert, not one SELECT per card
     out = []
     for a in rows:
         rc = (a["details"] or {}).get("release_check") or {}
         if a["status"] in ("pending", "approved", "filed", "heard"):   # still in custody: count to today
-            case = store.get_case(a["case_id"], db=db)
+            case = cases.get(a["case_id"])
             live = triage.undertrial_release_check(case, today) if case else None
             if live:
                 rc = {**rc, **live}
@@ -217,7 +230,10 @@ def rules() -> Dict:
             "order": ["Must-list first: Critical / release-eligible cases, cases deferred "
                       f"{config.MUST_LIST_AFTER_DEFERRALS}+ times in a row, and cases past their deadline",
                       "Then everyone else by band, grouped by similar matters, highest effective score first",
-                      "Then short matters fill the gaps left in the day (backfill)"],
+                      "Then short matters fill the gaps left in the day (backfill)",
+                      "Balancing: when the week has spare time, High, Medium and Routine cases go to the least-busy day "
+                      "within their listing deadline instead of piling onto Monday; this is used only if it lists as "
+                      "many cases as packing would, otherwise the week is packed into the earliest slots"],
             "effective_score": f"score + min({config.AGING_CAP}, {scheduler.AGING_PER_DEFERRAL} x deferrals in a row + "
                                f"{scheduler.AGING_PER_WEEK_LATE} x weeks past the deadline)",
         },

@@ -80,6 +80,34 @@ def upsert_chunks(namespace: str, chunks: List[Dict], index_name: Optional[str] 
     return len(records)
 
 
+def _hit_mapping(raw_hit) -> Dict:
+    if isinstance(raw_hit, dict):
+        return raw_hit
+
+    hit = {}
+    for key in ("_id", "id", "_score", "score", "fields", "metadata"):
+        try:
+            value = getattr(raw_hit, key)
+        except AttributeError:
+            continue
+        if value is not None:
+            hit[key] = value
+    if hit.get("_id", hit.get("id")) is not None and hit.get("_score", hit.get("score")) is not None:
+        return hit
+
+    if hasattr(raw_hit, "to_dict"):
+        try:
+            converted = raw_hit.to_dict()
+        except (KeyError, TypeError, ValueError) as exc:
+            logger.debug("Pinecone hit to_dict() failed (%s); using available attributes", type(exc).__name__)
+        else:
+            if isinstance(converted, dict):
+                hit.update({key: value for key, value in converted.items() if key not in hit})
+    elif hasattr(raw_hit, "__dict__"):
+        hit.update({key: value for key, value in vars(raw_hit).items() if key not in hit})
+    return hit
+
+
 def search(namespace: str, query: str, top_k: int = 5, filter: Optional[Dict] = None,
            index_name: Optional[str] = None) -> List[Dict]:
     """Return [{"id", "score", "text", **metadata}] - empty list when Pinecone is not configured."""
@@ -90,10 +118,25 @@ def search(namespace: str, query: str, top_k: int = 5, filter: Optional[Dict] = 
     if filter:
         q["filter"] = filter
     res = index.search(namespace=namespace, query=q)
-    hits = res["result"]["hits"] if isinstance(res, dict) else res.result.hits
+    result = res.get("result", {}) if isinstance(res, dict) else res.result
+    hits = result.get("hits", []) if isinstance(result, dict) else result.hits
     out = []
-    for h in hits:
-        h = h if isinstance(h, dict) else (h.to_dict() if hasattr(h, "to_dict") else dict(h))
-        fields = dict(h.get("fields", {}))
-        out.append({"id": h["_id"], "score": round(h["_score"], 4), "text": fields.pop("chunk_text", ""), **fields})
+    for raw_hit in hits:
+        hit = _hit_mapping(raw_hit)
+        hit_id = hit.get("_id", hit.get("id"))
+        raw_score = hit.get("_score", hit.get("score"))
+        if hit_id is None or raw_score is None:
+            logger.warning("Skipping malformed Pinecone search hit (id or score missing)")
+            continue
+        try:
+            score = round(float(raw_score), 4)
+        except (TypeError, ValueError):
+            logger.warning("Skipping malformed Pinecone search hit (invalid score)")
+            continue
+        raw_fields = hit.get("fields", hit.get("metadata", {}))
+        fields = dict(raw_fields) if isinstance(raw_fields, dict) else {}
+        for key, value in hit.items():
+            if key not in {"_id", "id", "_score", "score", "fields", "metadata"}:
+                fields.setdefault(key, value)
+        out.append({"id": str(hit_id), "score": score, "text": fields.pop("chunk_text", ""), **fields})
     return out

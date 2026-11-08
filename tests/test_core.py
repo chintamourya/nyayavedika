@@ -127,6 +127,45 @@ class VectorstoreTests(unittest.TestCase):
             records=[{"_id": "doc-1", "chunk_text": "judgment text", "case_id": "case-1"}],
         )
 
+    def test_search_normalizes_id_score_and_metadata_shapes(self):
+        from unittest.mock import Mock, patch
+
+        index = Mock()
+        index.search.return_value = {"result": {"hits": [
+            {"id": "doc-1", "score": 0.91234,
+             "fields": {"chunk_text": "petition filed", "page": 3, "doc_id": "doc-1"}},
+            {"_id": "doc-2", "_score": 0.81234,
+             "metadata": {"chunk_text": "reply received", "page": 4}},
+            {"id": "broken", "fields": {"chunk_text": "missing score"}},
+        ]}}
+        with patch.object(vectorstore, "_get_index", return_value=index):
+            results = vectorstore.search("advocate-documents", "filing date")
+
+        self.assertEqual(results, [
+            {"id": "doc-1", "score": 0.9123, "text": "petition filed", "page": 3, "doc_id": "doc-1"},
+            {"id": "doc-2", "score": 0.8123, "text": "reply received", "page": 4},
+        ])
+
+    def test_search_uses_hit_attributes_when_to_dict_raises_key_error(self):
+        from unittest.mock import Mock, patch
+
+        class PineconeHit:
+            id = "doc-attribute"
+            score = 0.76543
+            fields = {"chunk_text": "hearing was scheduled", "page": 7}
+
+            def to_dict(self):
+                raise KeyError("_id")
+
+        index = Mock()
+        index.search.return_value = {"result": {"hits": [PineconeHit()]}}
+        with patch.object(vectorstore, "_get_index", return_value=index):
+            results = vectorstore.search("advocate-documents", "hearing")
+
+        self.assertEqual(results, [
+            {"id": "doc-attribute", "score": 0.7654, "text": "hearing was scheduled", "page": 7},
+        ])
+
 
 class LegalAidTests(unittest.TestCase):
     def test_income_ground(self):

@@ -450,6 +450,10 @@ $("#guideForm").addEventListener("submit", (e) => {
         if (!file.size) throw new Error(`${file.name}: ${t("empty_document")}`);
         return { filename: file.name, content_base64: await fileToBase64(file) };
       }));
+      // the explanation does not depend on the eligibility reply, so it starts at the same time (it is the slower,
+      // model-written part); it is drawn only after the result card exists
+      const explainP = question ? null : api("/api/legal-aid/explain", { json: prefill, noToken: true });
+      explainP?.catch(() => {});  // handled below; avoids an unhandled-rejection warning if the main call fails first
       const r = await api("/api/legal-aid", { json: prefill, noToken: true });
       renderResult(r, prefill, Boolean(question));
       if (question) {
@@ -462,7 +466,7 @@ $("#guideForm").addEventListener("submit", (e) => {
         setFollowupsUsed(answer.followups_used ?? followupsUsed + 1);
         renderQuestionAnswer(answer);
       } else {
-        api("/api/legal-aid/explain", { json: prefill, noToken: true })
+        explainP
           .then(renderExplanation)
           .catch((error) => { $("#explain").innerHTML = `<p class="error">Could not load explanation: ${esc(error.message)}</p>`; });
       }
@@ -670,6 +674,8 @@ $("#citizenSummaryForm").addEventListener("submit", (e) => {
 });
 
 // ---------------------------------------------------------------- start
+// the health check runs alongside the string table instead of after it; its note is shown once strings are ready
+const healthP = api("/api/health", { noToken: true }).catch(() => null);
 fetch("/static/i18n.json?v=2", { cache: "no-cache" }).then((r) => {
   if (!r.ok) throw new Error(`Translation request failed (${r.status})`);
   return r.json();
@@ -677,5 +683,5 @@ fetch("/static/i18n.json?v=2", { cache: "no-cache" }).then((r) => {
   console.error("Could not load citizen translations.", error);
 }).finally(() => {
   applyLang();
-  api("/api/health", { noToken: true }).then((h) => { if (!h.llm_enabled) $("#offlineNote").textContent = t("offline_note"); }).catch(() => {});
+  healthP.then((h) => { if (h && !h.llm_enabled) $("#offlineNote").textContent = t("offline_note"); });
 });

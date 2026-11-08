@@ -6,7 +6,7 @@
 <meta name="color-scheme" content="light dark">
 <title>NyayaVedika - Advocate</title>
 <link rel="icon" href="/static/favicon.svg?v=3" type="image/svg+xml">
-<link rel="stylesheet" href="/static/advocate.css?v=4">
+<link rel="stylesheet" href="/static/advocate.css?v=8">
 </head>
 <body class="adv">
 <svg width="0" height="0" style="position:absolute" aria-hidden="true">
@@ -259,21 +259,21 @@
     <div class="panel-head">
       <div>
         <h2 id="insightsHeading">AI Document Insights</h2>
-        <p class="hint">Upload a PDF once, then request one detailed insight at a time. Extracted text and OCR are reused for every later selection in this private workspace.</p>
+        <p class="hint">Upload a document to generate an insight or ask questions grounded in its text.</p>
       </div>
     </div>
 
     <div class="insight-grid">
       <aside class="insight-left">
         <form id="insightUploadForm" class="step" novalidate>
-          <div class="step-title"><span class="num">1</span> Upload the document</div>
+          <div class="step-title"><span class="num">1</span> Your document</div>
           <label class="drop" id="insightDrop" for="insightFile">
             <svg class="ic big"><use href="#i-upload"/></svg>
-            <b>Drop a legal PDF or <u>browse</u></b>
-            <span class="muted" id="insightFileName">Scanned pages are recognised automatically</span>
-            <input id="insightFile" type="file" accept="application/pdf,.pdf">
+            <b>Drop a document or <u>browse</u></b>
+            <span class="muted" id="insightFileName">PDF, DOCX, TXT, MD, CSV, or image · scanned pages use OCR</span>
+            <input id="insightFile" type="file" accept=".pdf,.docx,.txt,.md,.csv,.png,.jpg,.jpeg,.tif,.tiff,.bmp,.webp">
           </label>
-          <button id="insightUploadButton" class="btn primary wide" type="submit">Upload and extract pages</button>
+          <button id="insightUploadButton" class="btn primary wide" type="submit">Upload document</button>
         </form>
         <p id="insightUploadLoading" class="progress hidden" role="status" aria-live="polite"><span class="spinner"></span> Extracting document text and checking for scanned pages…</p>
         <p id="insightError" class="banner banner-bad hidden" role="alert"></p>
@@ -281,24 +281,25 @@
         <div id="insightDocument" class="doc-card hidden" aria-live="polite"></div>
 
         <div class="step">
-          <div class="step-title"><span class="num">2</span> Choose one insight</div>
+          <div class="step-title"><span class="num">2</span> Generate an insight</div>
           <div id="insightActions" class="insight-cards locked" role="group" aria-label="Choose one insight">
-            <button class="insight-choice ic-issues" type="button" data-insight="issues">
+            <button class="insight-choice ic-issues" type="button" data-insight="issues" title="Questions in dispute and matters to be decided">
               <svg class="ic"><use href="#i-issues"/></svg><span><b>Issues</b><em>Questions in dispute and matters to be decided</em></span><i class="done" aria-hidden="true"></i></button>
-            <button class="insight-choice ic-facts" type="button" data-insight="facts">
+            <button class="insight-choice ic-facts" type="button" data-insight="facts" title="Material facts, dates, parties and events">
               <svg class="ic"><use href="#i-facts"/></svg><span><b>Facts</b><em>Material facts, dates, parties and events</em></span><i class="done" aria-hidden="true"></i></button>
-            <button class="insight-choice ic-background" type="button" data-insight="background">
+            <button class="insight-choice ic-background" type="button" data-insight="background" title="Procedural history and how the matter arrived here">
               <svg class="ic"><use href="#i-background"/></svg><span><b>Case Background</b><em>Procedural history and how the matter arrived here</em></span><i class="done" aria-hidden="true"></i></button>
-            <button class="insight-choice ic-summary" type="button" data-insight="summary">
+            <button class="insight-choice ic-summary" type="button" data-insight="summary" title="A structured, source-grounded overview">
               <svg class="ic"><use href="#i-summary"/></svg><span><b>Summarization</b><em>A structured, source-grounded overview</em></span><i class="done" aria-hidden="true"></i></button>
-            <button class="insight-soon" type="button" disabled aria-disabled="true" title="Multi-document insights are not part of this release">Multi-document insights · Coming soon</button>
           </div>
-          <label class="insight-guidance" for="insightGuidance">
-            Optional extra guidance
-            <textarea id="insightGuidance" rows="3" maxlength="1000"
-              placeholder="For example: highlight unclear dates or organize the facts as a short chronology."></textarea>
-            <span class="hint">Adds focus to the selected insight; it cannot replace the system's source-grounding and accuracy rules. <span id="insightGuidanceCount" aria-live="polite">0/1000</span></span>
-          </label>
+          <details class="insight-options">
+            <summary>Focus this insight (optional)</summary>
+            <label class="insight-guidance" for="insightGuidance">
+              <textarea id="insightGuidance" rows="2" maxlength="1000"
+                placeholder="For example: highlight unclear dates or create a short chronology."></textarea>
+              <span class="hint">Your guidance cannot override document-grounding rules. <span id="insightGuidanceCount" aria-live="polite">0/1000</span></span>
+            </label>
+          </details>
         </div>
 
         <details id="insightPreviewBox" class="preview-box hidden">
@@ -310,12 +311,27 @@
       <div class="insight-right">
         <div id="insightEmpty" class="empty">
           <svg class="ic huge"><use href="#i-summary"/></svg>
-          <b>Your analysis appears here</b>
-          <span>Upload a document, then pick Issues, Facts, Case Background or Summarization. Every point cites its page and source text.</span>
+          <b>Your analysis will appear here</b>
+          <span>Upload a document, then choose an insight or ask a question below.</span>
         </div>
-        <p id="insightLoading" class="progress hidden" role="status" aria-live="polite"><span class="spinner"></span> <span id="insightLoadingText">Generating the selected insight…</span></p>
+        <p id="insightLoading" class="progress hidden" role="status" aria-live="polite" aria-busy="false"></p>
         <div id="insightSkeleton" class="skeleton hidden" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
         <div id="insightOutput" aria-live="polite"></div>
+        <section class="doc-chat" aria-labelledby="docChatHeading">
+          <div class="doc-chat-head">
+            <div><h3 id="docChatHeading">Chat with this document</h3>
+              <p class="hint">Ask follow-up questions · answers cite document pages · recent chat only</p></div>
+          </div>
+          <p id="docChatStatus" class="chat-status" role="status">Upload a document to start chatting.</p>
+          <div id="docChatMessages" class="chat-messages" role="log" aria-live="polite" aria-relevant="additions">
+            <p class="chat-empty">Your document answers will appear here with source passages.</p>
+          </div>
+          <form id="docChatForm" class="chat-form">
+            <label class="sr-only" for="docChatInput">Ask a question about this document</label>
+            <textarea id="docChatInput" rows="1" maxlength="1500" placeholder="Ask a question about this document…" disabled required></textarea>
+            <button id="docChatSend" class="btn primary" type="submit" disabled>Ask</button>
+          </form>
+        </section>
       </div>
     </div>
   </section>
@@ -324,6 +340,6 @@
 </main>
 <div id="toasts" class="toasts" role="status" aria-live="polite"></div>
 <script src="/static/common.js?v=10"></script>
-<script src="/static/advocate.js?v=4"></script>
+<script src="/static/advocate.js?v=9"></script>
 </body>
 </html>

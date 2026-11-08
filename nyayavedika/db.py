@@ -270,6 +270,15 @@ def get_advocate_document(workspace_hash: str, doc_id: str) -> Optional[Dict[str
     return dict(row._mapping) if row else None
 
 
+def advocate_documents_by_size(workspace_hash: str, size_bytes: int) -> List[Dict[str, Any]]:
+    with engine().connect() as conn:
+        rows = conn.execute(select(advocate_documents).where(
+            advocate_documents.c.workspace_hash == workspace_hash,
+            advocate_documents.c.size_bytes == size_bytes,
+        ).order_by(advocate_documents.c.created_at)).all()
+    return [dict(row._mapping) for row in rows]
+
+
 def is_advocate_document(doc_id: str) -> bool:
     with engine().connect() as conn:
         return conn.execute(

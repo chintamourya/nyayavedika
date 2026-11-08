@@ -204,6 +204,11 @@ def _metrics(triaged, calendar, unscheduled, day_list, benches) -> Dict:
 AGING_PER_DEFERRAL = config.AGING_PER_DEFERRAL   # aging boost per consecutive deferral (cap: config.AGING_CAP)
 AGING_PER_WEEK_LATE = config.AGING_PER_WEEK_LATE  # aging boost per full week past the listing deadline (SLA)
 CLOSED_KINDS = ("holiday", "vacation", "lok_adalat")  # no regular list that day (court-wide when bench_id is empty)
+# Week balancing: these bands go to the least-loaded day *within their listing deadline* (config.SLA_DAYS, working
+# days; ties: the earlier day) instead of the first day with room, so a week with spare bench time is not front-loaded
+# onto Monday while Tue-Fri sit idle. Must-list, Critical and release-eligible cases keep the earliest free slot.
+# If nothing fits before the deadline, later days are tried earliest-first (better than carrying the case over).
+BALANCE_BANDS = ("High", "Medium", "Routine")
 
 
 def add_working_days(start: date, n: int, closed: Iterable[str] = ()) -> date:
@@ -256,10 +261,44 @@ def _first_fit(busy: List[tuple], used: float, need: float, slot_len: float, lim
 
 def plan_week(triaged: List[Dict], start: date, days: int = 5, benches: Optional[List[Dict]] = None,
               state: Optional[Dict[str, Dict]] = None, calendar: Optional[List[Dict]] = None,
-              aging: bool = True, reserve: Optional[float] = None, rules_version: str = "") -> Dict:
-    """triaged: triage results (with "case"); state: case_queue_state rows by case_id; calendar: court_calendar rows."""
+              aging: bool = True, reserve: Optional[float] = None, rules_version: str = "",
+              already_listed: Optional[Dict[str, Dict]] = None, balance: bool = True) -> Dict:
+    """Plan the week. With balance=True both plans are built and the balanced week is used only when it costs
+    nothing: at least as many cases listed, no fewer must-list cases fitted, and no extra deadline alerts. Otherwise
+    the packed (earliest-slot) plan is used and metrics.balance_note says why. Same input -> same plan."""
+    args = (triaged, start, days, benches, state, calendar, aging, reserve, rules_version, already_listed)
+    packed = _plan_week(*args, balance=False)
+    if not balance:
+        packed["metrics"]["balance_note"] = "Earliest free slot for every case (balancing switched off)."
+        return packed
+    level = _plan_week(*args, balance=True)
+    pm, lm = packed["metrics"], level["metrics"]
+    costs = [what for what, worse in (
+        ("fewer cases listed", lm["cases_listed"] < pm["cases_listed"]),
+        ("fewer must-list cases fitted", lm["must_list_listed"] < pm["must_list_listed"]),
+        ("more deadline alerts", lm["deadline_alerts"] > pm["deadline_alerts"]),
+        ("rule violations", len(level["violations"]) > len(packed["violations"]))) if worse]
+    if costs:
+        pm["balanced"] = False
+        pm["balance_note"] = ("Packed into the earliest free slots: spreading this week would have meant "
+                              + ", ".join(costs) + ".")
+        return packed
+    lm["balance_note"] = ("Spread across the week: High, Medium and Routine cases go to the least-busy day within their "
+                          "listing deadline; Critical, must-list and release-eligible cases keep the earliest slot. "
+                          "Same cases listed as packing would.")
+    return level
+
+
+def _plan_week(triaged: List[Dict], start: date, days: int = 5, benches: Optional[List[Dict]] = None,
+               state: Optional[Dict[str, Dict]] = None, calendar: Optional[List[Dict]] = None,
+               aging: bool = True, reserve: Optional[float] = None, rules_version: str = "",
+               already_listed: Optional[Dict[str, Dict]] = None, balance: bool = True) -> Dict:
+    """triaged: triage results (with "case"); state: case_queue_state rows by case_id; calendar: court_calendar rows.
+    already_listed: case_id -> {day, bench_id, slot, status, cause_list_id} for cases that already hold a firm slot
+    (accepted / published / another draft) inside this week; they are not listed again (no duplicate scheduling)."""
     benches = benches or DEFAULT_BENCHES
     state = state or {}
+    already_listed = already_listed or {}
     reserve = config.MUST_LIST_RESERVE if reserve is None else reserve
     closed = {c["day"] for c in (calendar or []) if c["kind"] in CLOSED_KINDS and not c.get("bench_id")}
     leave = {(c["day"], c["bench_id"]) for c in (calendar or []) if c.get("bench_id")}
@@ -268,10 +307,13 @@ def plan_week(triaged: List[Dict], start: date, days: int = 5, benches: Optional
     minutes = {b["bench_id"]: b["minutes_per_day"] for b in benches}
 
     # 1. refresh: only pending cases that are not on hold
-    eligible, on_hold = [], []
+    eligible, on_hold, elsewhere = [], [], []
     for r in triaged:
         c, st = r["case"], state.get(r["case_id"], {})
         if (c.get("status") or "pending") not in ("pending", "on_hold"):
+            continue
+        if r["case_id"] in already_listed:
+            elsewhere.append({"case_id": r["case_id"], "band": r["band"], "score": r["score"], **already_listed[r["case_id"]]})
             continue
         hold = st.get("hold_until")
         if c.get("status") == "on_hold" or (hold and hold > start.isoformat()):
@@ -288,6 +330,23 @@ def plan_week(triaged: List[Dict], start: date, days: int = 5, benches: Optional
     adv_busy: Dict = {}
     placed: Dict[str, Dict] = {}
     why: Dict[str, str] = {}
+    batch_day: Dict[str, date] = {}   # batch key -> the day its first matter landed, so a batch stays together
+
+    def day_load(d) -> float:
+        open_keys = [k for k in busy if k[0] == d]
+        cap = sum(minutes[b] for _, b in open_keys)
+        return sum(used[k] for k in open_keys) / cap if cap else 9.0
+
+    def days_for(r: Dict, phase: str) -> List[date]:
+        """Earliest day first, except balanced bands: within the band's deadline the batch's day, then the
+        least-loaded day (ties: earliest); then any later day, earliest first."""
+        if not (balance and phase != "must" and not r.get("must_list") and r["band"] in BALANCE_BANDS
+                and "UNDERTRIAL_RELEASE_ELIGIBLE" not in r["flags"]):
+            return day_list
+        bk = _batch_key(r["case"])
+        window = max(1, int(config.SLA_DAYS.get(r["band"], len(day_list))))   # working days, day_list[0] = day 1
+        inside, after = day_list[:window], day_list[window:]
+        return sorted(inside, key=lambda d: (not (bk and batch_day.get(bk) == d), round(day_load(d), 2), d)) + after
 
     def try_place(r: Dict, phase: str) -> bool:
         case = r["case"]
@@ -296,7 +355,7 @@ def plan_week(triaged: List[Dict], start: date, days: int = 5, benches: Optional
         slot_len = max(need, 5)
         advs = case.get("advocate_ids", []) or []
         reasons = set()
-        for d in day_list:
+        for d in days_for(r, phase):
             specific = sorted((b for b in benches if _eligible(b, ctype) and "*" not in b["case_types"]
                                and (d, b["bench_id"]) in busy), key=lambda b: (used[(d, b["bench_id"])], b["bench_id"]))
             general = [b for b in benches if "*" in b["case_types"] and (d, b["bench_id"]) in busy]
@@ -316,6 +375,8 @@ def plan_week(triaged: List[Dict], start: date, days: int = 5, benches: Optional
                     adv_busy.setdefault((d, a), []).append((b["bench_id"], s, s + slot_len))
                 placed[r["case_id"]] = {"day": d, "bench_id": b["bench_id"], "start": s, "end": s + slot_len,
                                         "need": need, "phase": phase}
+                if _batch_key(case):
+                    batch_day.setdefault(_batch_key(case), d)
                 return True
         why[r["case_id"]] = ("no_bench" if not reasons else "advocate_conflict" if "advocate_conflict" in reasons
                              else "capacity")
@@ -387,15 +448,19 @@ def plan_week(triaged: List[Dict], start: date, days: int = 5, benches: Optional
     open_minutes = sum(minutes[b] for _, b in keys)
     metrics.update({
         "avg_bench_utilisation_percent": round(100 * sum(used.values()) / open_minutes, 1) if open_minutes else 0,
-        "pending_considered": len(eligible) + len(on_hold), "on_hold": len(on_hold),
+        "pending_considered": len(eligible) + len(on_hold) + len(elsewhere), "on_hold": len(on_hold),
+        "already_listed": len(elsewhere),
         "must_list_total": len(must), "must_list_listed": len(must) - len(unplaced_must),
         "backfilled": sum(1 for p in placed.values() if p["phase"] == "backfill"),
         "carried_over_by_reason": {k: sum(1 for u in unscheduled if u["reason"] == k) for k in ("capacity", "advocate_conflict", "no_bench")},
         "deadline_alerts": len(deadline_alerts), "aging": aging, "rules_version": rules_version,
+        "balanced": balance,
+        # share of each day's open bench time that is planned: shows whether the week is front-loaded
+        "daily_utilisation_percent": [round(100 * min(day_load(d), 1.0), 1) if day_load(d) < 9 else 0.0 for d in day_list],
     })
     custody_checks = [{"case_id": r["case_id"], "custody_since": r["case"].get("custody_since"), "flags": r["flags"],
                        "needs_review": r.get("needs_review", False)} for r in eligible if r["case"].get("accused_in_custody")]
-    plan = {"calendar": cal, "unscheduled": unscheduled, "on_hold": on_hold, "metrics": metrics,
+    plan = {"calendar": cal, "unscheduled": unscheduled, "on_hold": on_hold, "already_listed": elsewhere, "metrics": metrics,
             "capacity_shortfall": shortfall, "deadline_alerts": deadline_alerts, "deadline_watch": watch,
             "custody_checks": custody_checks, "closed_days": sorted(closed),
             "judge_leave": sorted(f"{d} {b}" for d, b in leave), "rules_version": rules_version,
@@ -411,7 +476,8 @@ def check_plan(plan: Dict, pending_ids: Optional[Set[str]] = None, benches: Opti
     listed_ids = [c["case_id"] for c in listed]
     carried = [u["case_id"] for u in plan["unscheduled"]]
     held = [h["case_id"] for h in plan.get("on_hold", [])]
-    everything = listed_ids + carried + held
+    elsewhere = [h["case_id"] for h in plan.get("already_listed", [])]
+    everything = listed_ids + carried + held + elsewhere
     if len(everything) != len(set(everything)):
         v.append("a case appears twice across listed / carried over / on hold")
     if pending_ids is not None and set(everything) != set(pending_ids):

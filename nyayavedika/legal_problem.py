@@ -1,6 +1,7 @@
 """Live, source-grounded research for a citizen's described legal problem."""
 import logging
 import re
+from concurrent.futures import Future, ThreadPoolExecutor
 from datetime import date
 from typing import Dict, List, Optional
 from urllib.parse import urlsplit, urlunsplit
@@ -200,9 +201,23 @@ def _answer_payload(answer: ResearchAnswer, sources: List[Dict]) -> Dict:
     return payload
 
 
+def _understand(description: str, language: str, jurisdiction: str) -> "ProblemUnderstanding":
+    safe_description = redact_pii(description)
+    user_input = f"Categories: {', '.join(CATEGORIES)}\nUser description:\n{safe_description}"
+    if jurisdiction:
+        user_input += f"\nLocation supplied by the user (use as jurisdiction context): {redact_pii(jurisdiction)}"
+    return llm.structured(
+        UNDERSTANDING_SYSTEM.format(language=language),
+        user_input,
+        ProblemUnderstanding,
+    )
+
+
 def research(description: str, language: str = "English", jurisdiction: str = "",
-             search_fn=None) -> Dict:
-    """Extract problem facts, request missing jurisdiction, then query live official sources twice."""
+             search_fn=None, understanding_future: Optional[Future] = None) -> Dict:
+    """Extract problem facts, request missing jurisdiction, then query live official sources twice.
+    `understanding_future`: the same understanding call, already started by chat_turn for this exact description,
+    so a research turn does not wait for it after the turn decision."""
     description = (description or "").strip()
     jurisdiction = (jurisdiction or "").strip()
     if not description:
@@ -214,15 +229,14 @@ def research(description: str, language: str = "English", jurisdiction: str = ""
     if not llm.available():
         raise ResearchUnavailable("Live legal-problem assistance needs the configured language model. No answer was generated.")
 
-    safe_description = redact_pii(description)
-    user_input = f"Categories: {', '.join(CATEGORIES)}\nUser description:\n{safe_description}"
-    if jurisdiction:
-        user_input += f"\nLocation supplied by the user (use as jurisdiction context): {redact_pii(jurisdiction)}"
-    understanding = llm.structured(
-        UNDERSTANDING_SYSTEM.format(language=language),
-        user_input,
-        ProblemUnderstanding,
-    )
+    understanding = None
+    if understanding_future is not None and not jurisdiction:
+        try:
+            understanding = understanding_future.result()
+        except Exception as exc:   # the early call failed: make it again in the normal order
+            logger.info("early understanding call failed (%s); retrying", type(exc).__name__)
+    if understanding is None:
+        understanding = _understand(description, language, jurisdiction)
     if understanding.category not in CATEGORIES:
         raise InvalidResearchOutput("The legal issue could not be classified safely. Please rephrase the description.")
     if jurisdiction:
@@ -244,20 +258,24 @@ def research(description: str, language: str = "English", jurisdiction: str = ""
     if search_fn is None:
         if not websearch.available():
             raise ResearchUnavailable("Live legal research is unavailable because the web-search service is not configured.")
-        search_fn = websearch.search
-    formulations = llm.structured(
+        def search_fn(query, **kwargs):   # only the result list is used here, not Tavily's own summary
+            return websearch.search(query, include_answer=False, **kwargs)
+    formulations = llm.structured(   # two short search strings: the fast deployment is enough and saves a round trip's worth
         FORMULATIONS_SYSTEM,
         understanding.model_dump_json(),
         SearchFormulations,
+        fast=True,
     )
     queries = _distinct_queries(formulations)
-    results = []
-    for query in queries:
-        result = search_fn(query, max_results=MAX_RESULTS_PER_QUERY, trusted_only=True)
+    # both searches run at the same time (each is a 1-3 s web call); results keep query order, and any failure still
+    # fails the whole answer - no partial answers
+    with ThreadPoolExecutor(max_workers=len(queries)) as pool:
+        results = list(pool.map(
+            lambda q: search_fn(q, max_results=MAX_RESULTS_PER_QUERY, trusted_only=True), queries))
+    for result in results:
         if result.get("error"):
             logger.warning("Citizen legal-problem search failed for a query: %s", result["error"])
             raise ResearchUnavailable("One of the live legal searches failed. No partial answer was generated; please try again.")
-        results.append(result)
     sources = _collect_sources(results[0], results[1])
     retrieved_on = date.today().isoformat()
     if not sources:
@@ -372,6 +390,19 @@ def _research_description(messages: List[Dict]) -> str:
     return text[-MAX_DESCRIPTION_CHARS:]
 
 
+_EARLY = ThreadPoolExecutor(max_workers=8, thread_name_prefix="lp-early")
+EARLY_RESEARCH_MIN_CHARS = 60
+
+
+def _likely_research(history: List[Dict], may_ask: bool) -> bool:
+    """Cheap guess (no model call) that this turn ends in research: the citizen is answering one of our questions,
+    asking a follow-up after an answer, we may not ask again, or the message is a real description."""
+    last_assistant = next((m for m in reversed(history[:-1]) if m["role"] == "assistant"), None)
+    if not may_ask or (last_assistant and last_assistant["kind"] in ("ask", "answer")):
+        return True
+    return len(history[-1]["content"]) >= EARLY_RESEARCH_MIN_CHARS
+
+
 def chat_turn(messages, language: str = "English", search_fn=None) -> Dict:
     """One conversational turn. Returns {type: ask|message|answer, reply, suggestions, result?, followups?}."""
     history = _clean_chat(messages)
@@ -381,6 +412,13 @@ def chat_turn(messages, language: str = "English", search_fn=None) -> Dict:
     may_ask = asked < MAX_CLARIFYING_QUESTIONS
     ask_rule = ("You may ask." if may_ask else
                 "You have already asked enough questions: do NOT choose \"ask\"; research with what is known.")
+    description = _research_description(history)
+    # Latency: when this turn will most likely research (a real description, or a reply to our question), start the
+    # understanding call now, alongside the turn decision, instead of after it. Greetings / one-liners do not trigger
+    # it, so tokens are only spent early where they will almost always be used.
+    early = None
+    if _likely_research(history, may_ask):
+        early = _EARLY.submit(_understand, description, language, "")
     decision = llm.structured_chat(
         TURN_SYSTEM.format(language=language, ask_rule=ask_rule),
         [{"role": m["role"], "content": redact_pii(m["content"])} for m in history],
@@ -395,7 +433,7 @@ def chat_turn(messages, language: str = "English", search_fn=None) -> Dict:
     if action == "reply" and text:
         return {"type": "message", "reply": text, "suggestions": []}
 
-    result = research(_research_description(history), language, "", search_fn=search_fn)
+    result = research(description, language, "", search_fn=search_fn, understanding_future=early)
     if result.get("needs_clarification"):
         return {"type": "ask", "reply": result.get("question") or "", "suggestions": []}
     followups = []

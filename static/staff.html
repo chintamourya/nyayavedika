@@ -5,17 +5,22 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>NyayaVedika - Staff</title>
 <link rel="icon" href="/static/favicon.svg?v=3" type="image/svg+xml">
-<link rel="stylesheet" href="/static/styles.css?v=5">
+<link rel="stylesheet" href="/static/styles.css?v=12">
 </head>
 <body class="staff-page">
 <header class="top">
   <div class="brand"><span class="logo" aria-hidden="true">⚖</span>
     <div><h1>NyayaVedika <span lang="hi">(न्यायवेदिका)</span> <span lang="te">(న్యాయవేదిక)</span> · <span id="portalKind">Staff</span></h1><p id="portalSubtitle">Registry and court operations</p></div></div>
-  <div class="row gap wrap">
+  <!-- signed out: one field and a Sign in button; signed in: who you are and a way to switch -->
+  <form class="row gap wrap signin" id="signinForm" autocomplete="off">
     <label id="tokenLabel" for="demoToken">Staff access token</label>
     <input id="demoToken" type="password" autocomplete="off" placeholder="Enter your staff token">
+    <button class="btn" type="submit" id="tokenGo">Sign in</button>
     <span class="hint" id="tokenHint">Use the staff token configured by your administrator.</span>
+  </form>
+  <div class="row gap wrap signed-in hidden" id="signedIn">
     <span id="who" class="pill">not signed in</span>
+    <button class="btn ghost small" type="button" id="tokenChange">Switch user</button>
   </div>
 </header>
 
@@ -31,22 +36,26 @@
 
 <main>
   <p id="portalAccessMessage" class="banner-warn hidden" role="status" aria-live="polite"></p>
-  <p class="legend" aria-label="Where data comes from">Where data comes from:
-    <span class="badge src-synth">Synthetic</span> generated demo cases
-    <span class="badge src-upload">Uploaded</span> from files you sent
-    <span class="badge src-ai">AI</span> written by the language model - check it
-    <span class="badge src-rules">Rules</span> fixed rules / template.
-    Lists show at most 10 synthetic examples per data kind; totals, stored records and real uploads/imports are unchanged.</p>
-  <!-- TODAY -->
+  <details class="legend-box" id="legendBox">
+    <summary>What the badges mean <span class="badge src-synth">Synthetic</span> <span class="badge src-upload">Uploaded</span>
+      <span class="badge src-ai">AI</span> <span class="badge src-rules">Rules</span></summary>
+    <p class="legend" aria-label="Where data comes from">
+      <span class="badge src-synth">Synthetic</span> generated demo cases
+      <span class="badge src-upload">Uploaded</span> from files you sent
+      <span class="badge src-ai">AI</span> written by the language model - check it
+      <span class="badge src-rules">Rules</span> fixed rules / template.
+      Lists show at most 10 synthetic examples per data kind; totals, stored records and real uploads/imports are unchanged.</p>
+  </details>
+  <!-- TODAY: what to do first, then the numbers, then how cases flow -->
   <section id="tab-today" class="panel active" aria-label="Today">
     <h2>Today</h2>
     <p class="purpose">What needs a person now. Every number is a link to the cases behind it.</p>
-    <div data-how="today"></div>
+    <div class="card do-next"><h3>Do next</h3><ol class="todo" id="todoList"><li class="hint">Sign in with your access token to load the board.</li></ol></div>
+    <div class="kpis" id="todayKpis"></div>
+    <p class="hint" id="todayMix"></p>
     <h3 class="sr-label">How cases move <span class="hint">· live counts, click a step to open it</span></h3>
     <div id="pipeline"></div>
-    <div class="card"><h3>Do next</h3><ol class="todo" id="todoList"><li class="hint">Enter your access token to load the board.</li></ol></div>
-    <p class="hint" id="todayMix"></p>
-    <div class="kpis" id="todayKpis"></div>
+    <div data-how="today"></div>
   </section>
 
   <!-- INTAKE -->
@@ -110,20 +119,29 @@
     <p class="purpose">Step 2. Every pending case, highest priority first. Click a row to see why it scored what it did,
       its facts with source pages, timeline and history.</p>
     <div data-how="docket"></div>
-    <div class="card row gap wrap" id="docketFilters">
-      <select id="fBand" aria-label="Band"><option value="">All bands</option><option>Critical</option><option>High</option><option>Medium</option><option>Routine</option></select>
-      <select id="fType" aria-label="Case type"><option value="">All types</option></select>
-      <select id="fFlag" aria-label="Flag"><option value="">Any flag</option><option>UNDERTRIAL_RELEASE_ELIGIBLE</option><option>UNDERTRIAL_NEARING_THRESHOLD</option>
-        <option>CUSTODY_DATE_MISSING</option><option>CUSTODY_UNKNOWN</option><option>TIME_BOUND_LAW</option><option>DECADE_OLD</option><option>NEEDS_REVIEW</option></select>
-      <label><input type="checkbox" id="fDef"> Deferred 3+</label>
-      <label><input type="checkbox" id="fReview"> Needs review</label>
-      <label><input type="checkbox" id="fCustody"> In custody</label>
-      <label><input type="checkbox" id="fPast"> Past deadline</label>
-      <label title="Not on any upcoming draft or published list"><input type="checkbox" id="fNotListed"> Not on a list yet</label>
-      <input id="fQ" placeholder="Search case number" aria-label="Search case number">
-      <button class="btn" id="fApply">Apply</button>
+    <div class="card docket-bar" id="docketFilters">
+      <div class="row gap wrap docket-main">
+        <input id="fQ" type="search" placeholder="Search case number" aria-label="Search case number">
+        <select id="fBand" aria-label="Band"><option value="">All bands</option><option>Critical</option><option>High</option><option>Medium</option><option>Routine</option></select>
+        <select id="fType" aria-label="Case type"><option value="">All types</option></select>
+        <button class="btn ghost" type="button" id="fApply" title="Load the docket again">Refresh</button>
+      </div>
+      <div class="band-chips" id="docketBands" aria-label="Cases per triage band"></div>
+      <details class="more-filters" id="moreFilters"><summary>More filters <span class="pill hidden" id="filterCount"></span></summary>
+        <div class="row gap wrap">
+          <select id="fFlag" aria-label="Flag"><option value="">Any flag</option><option value="UNDERTRIAL_RELEASE_ELIGIBLE">Past the Sec. 479 limit</option>
+            <option value="UNDERTRIAL_NEARING_THRESHOLD">Near the Sec. 479 limit</option><option value="CUSTODY_DATE_MISSING">Custody date missing</option>
+            <option value="CUSTODY_UNKNOWN">Custody unknown</option><option value="TIME_BOUND_LAW">Time-bound law</option>
+            <option value="DECADE_OLD">10+ years old</option><option value="NEEDS_REVIEW">Needs review</option></select>
+          <label><input type="checkbox" id="fDef"> Deferred 3+</label>
+          <label><input type="checkbox" id="fReview"> Needs review</label>
+          <label><input type="checkbox" id="fCustody"> In custody</label>
+          <label><input type="checkbox" id="fPast"> Past deadline</label>
+          <label title="Not on any upcoming draft or published list"><input type="checkbox" id="fNotListed"> Not on a list yet</label>
+        </div>
+      </details>
     </div>
-    <p class="hint" id="docketCount"></p>
+    <p class="hint" id="docketCount" role="status" aria-live="polite"></p>
     <div class="card table-wrap"><table id="docketTable"><thead><tr><th>Case</th><th title="Critical / High / Medium / Routine - follows from the score">Band</th>
       <th title="0-100: sum of the points in 'How this works'">Score</th><th>Type / stage</th>
       <th title="Facts that changed the score or need attention">Flags</th>
@@ -203,6 +221,6 @@
 
 <script src="/static/common.js?v=10"></script>
 <script src="/static/explain.js?v=2"></script>
-<script src="/static/staff.js?v=11"></script>
+<script src="/static/staff.js?v=17"></script>
 </body>
 </html>

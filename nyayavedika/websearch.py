@@ -33,16 +33,25 @@ def available() -> bool:
     return _get_client() is not None
 
 
-def search(query: str, max_results: int = config.WEBSEARCH_MAX_RESULTS, trusted_only: bool = True, topic: str = "general") -> Dict:
+SEARCH_TIMEOUT_SECONDS = 15   # the SDK default is ~60 s; a stuck search should fail fast and say so
+
+
+def search(query: str, max_results: int = config.WEBSEARCH_MAX_RESULTS, trusted_only: bool = True, topic: str = "general",
+           include_answer: bool = True) -> Dict:
+    """include_answer=False skips Tavily's own generated summary (an extra model pass on their side) for callers that
+    only read the result list, such as the citizen legal-problem research."""
     query = redact_pii(query)   # queries leave the system: mask phone / email / Aadhaar / PAN / card numbers first
     client = _get_client()
     if client is None:
         return {"answer": None, "results": [], "error": _disabled_reason}
-    kwargs = dict(search_depth=config.TAVILY_SEARCH_DEPTH, max_results=max_results, include_answer=True, topic=topic)
+    kwargs = dict(search_depth=config.TAVILY_SEARCH_DEPTH, max_results=max_results, include_answer=include_answer, topic=topic)
     if trusted_only:
         kwargs["include_domains"] = config.TRUSTED_DOMAINS
     try:
-        res = client.search(query, **kwargs)
+        try:
+            res = client.search(query, timeout=SEARCH_TIMEOUT_SECONDS, **kwargs)
+        except TypeError:   # an older tavily-python without the timeout argument
+            res = client.search(query, **kwargs)
     except Exception as exc:
         logger.warning("Tavily search failed: %s", exc)
         return {"answer": None, "results": [], "error": str(exc)}

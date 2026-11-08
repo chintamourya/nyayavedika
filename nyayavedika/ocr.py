@@ -76,6 +76,15 @@ def extract(data: bytes, filename: str) -> List[Dict]:
         from PIL import Image
         r = _ocr_image(Image.open(io.BytesIO(data)))
         return [{"page": 1, "text": r["text"], "source": "ocr", "confidence": r["confidence"]}]
+    if name.endswith(".docx"):
+        from docx import Document
+        document = Document(io.BytesIO(data))
+        parts = [paragraph.text for paragraph in document.paragraphs if paragraph.text.strip()]
+        parts.extend(
+            " | ".join(cell.text.strip() for cell in row.cells if cell.text.strip())
+            for table in document.tables for row in table.rows
+        )
+        return [{"page": 1, "text": "\n".join(parts), "source": "text", "confidence": None}]
     if not name.endswith(".pdf"):
         return [{"page": 1, "text": data.decode("utf-8", errors="replace"), "source": "text", "confidence": None}]
 

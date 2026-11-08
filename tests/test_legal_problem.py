@@ -60,9 +60,9 @@ class LegalProblemResearchTests(unittest.TestCase):
                 self.fail(f"Unexpected schema: {schema.__name__}")
             return schema.model_validate(payload)
 
-        def search(query, **kwargs):
+        def search(query, **kwargs):  # the two searches run concurrently: answer by query, not by call order
             search_calls.append((query, kwargs))
-            if len(search_calls) == 1:
+            if query.startswith("India Code"):
                 return {"results": [
                     {"title": "Official law", "url": "https://indiacode.nic.in/handle/123?tracking=1",
                      "content": "The official law includes Section 12.", "score": 0.9},

@@ -11,6 +11,7 @@ import json
 import logging
 import re
 import sqlite3
+import threading
 from contextlib import contextmanager
 from datetime import date, datetime, timezone
 from typing import Any, Dict, Iterable, List, Optional
@@ -78,6 +79,7 @@ class Database:
 
     def __init__(self, url: Optional[str] = None):
         url = url or config.DATABASE_URL
+        self.url = url
         if url.startswith("sqlite"):
             self.dialect = "sqlite"
             path = url.split(":///", 1)[1] if ":///" in url else ":memory:"
@@ -247,8 +249,22 @@ class Database:
         return int(self.execute(f"SELECT COUNT(*) AS n FROM {table}{clause}", params)[0]["n"])
 
 
-def connect(url: Optional[str] = None) -> Database:
-    return Database(url)
+def connect(url: Optional[str] = None, migrate: bool = True) -> Database:
+    """Open a connection. The first time this process opens a given database it is migrated (idempotent), so no
+    request path depends on start-up having run first: an app served without its lifespan (a test client, a worker
+    started on its own, a script) used to see the old narrow `cases` table that db.engine()'s create_all() makes,
+    and failed with "no such column: source". After the first open this costs nothing.
+    migrate=False opens the database exactly as it is (for inspecting or testing the migration itself)."""
+    db = Database(url)
+    if migrate and db.url not in _prepared:
+        try:
+            with _migrate_lock:
+                if db.url not in _prepared:
+                    prepare_database(db)
+        except Exception:
+            db.close()
+            raise
+    return db
 
 
 @contextmanager
@@ -322,6 +338,20 @@ def get_case(case_id: str, db: Optional[Database] = None) -> Optional[Dict]:
     with _session(db) as s:
         rows = s.select("cases", {"case_id": case_id})
     return _case_out(rows[0]) if rows else None
+
+
+def get_cases(case_ids: Iterable[str], db: Optional[Database] = None) -> Dict[str, Dict]:
+    """Many cases in one query (case_id -> case), so loops over listings / alerts do not issue one SELECT per row.
+    Chunked so the IN list stays well under driver parameter limits."""
+    ids = sorted({c for c in case_ids if c})
+    out: Dict[str, Dict] = {}
+    if not ids:
+        return out
+    with _session(db) as s:
+        for i in range(0, len(ids), 500):
+            for r in s.select("cases", {"case_id": ids[i:i + 500]}):
+                out[r["case_id"]] = _case_out(r)
+    return out
 
 
 def pending_cases(court_id: Optional[str] = None, limit: Optional[int] = None, db: Optional[Database] = None) -> List[Dict]:
@@ -404,12 +434,33 @@ def prepare_database(db: Optional[Database] = None) -> Dict:
     """Migrate (idempotent), insert missing reference rows, backfill promoted case columns."""
     from . import reference_data
     from .db_schema import migrate
-    with _session(db) as s:
+    # Database() directly (not connect()) so connect()'s first-open migration does not run the same work twice
+    with (_session(db) if db is not None else Database()) as s:
         report = migrate(s)
         report["reference_rows_added"] = reference_data.seed_reference(s)
         report["cases_backfilled"] = backfill_case_columns(s)
         s.commit()
+    if not _in_memory(s.url):   # every new in-memory connection is a fresh, empty database: never mark it done
+        _prepared.add(s.url)
     return report
+
+
+_prepared: set = set()
+_migrate_lock = threading.RLock()
+
+
+def _in_memory(url: Optional[str]) -> bool:
+    return not url or url in ("sqlite://", "sqlite:///", "sqlite:///:memory:") or url.endswith(":memory:")
+
+
+def ensure_database(db: Optional[Database] = None) -> None:
+    """prepare_database() once per process and database, for request paths (GET alerts / data-needed, registry run):
+    the full migration is ~15 round trips, and start-up already ran it. A schema that has since disappeared (a test
+    or dev reset of the file) is detected with one cheap query and migrated again."""
+    with _session(db) as s:
+        if getattr(s, "url", None) in _prepared and {"cases", "alerts", "case_queue_state"} <= s.tables():
+            return
+        prepare_database(s)
 
 
 # ============================================================================ audit
