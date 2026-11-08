@@ -2,7 +2,6 @@
 
 Modules:
     documents  - text extraction, chunking, PII redaction
-    llm        - Claude client with offline fallback
     offline_summary - judgment / case-file summarisation
     triage     - case prioritisation and disposal-route recommendation
     scheduler  - cause-list (court calendar) optimisation

@@ -14,7 +14,6 @@ dist/
 venv/
 *.zip
 .pytest_cache/
-.claude/
 .git/
 tests/
 
