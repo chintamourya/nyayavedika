@@ -21,7 +21,7 @@ Every figure below is tagged **Reported** (published by the named source), **Der
 
 Every pending case has at least two parties, plus families and witnesses, so the number of people affected is larger than the case count. One person can be in several cases, so we claim no exact number of people. "Entitled" means eligible by law, not in need in a given year. The live [National Judicial Data Grid](https://njdg.ecourts.gov.in/) dashboard updates daily and is the reference for today's count.
 
-## 2. Severity: the human suffering and the economic loss
+## 2. Severity: the human suffering, the economic loss and how the harm ripples
 
 ### Human suffering
 
@@ -64,7 +64,28 @@ The DAKSH survey is ten years old, so today's loss is likely higher. We have not
 
 Eligible people = pool × (1 − excluded share for death or life offences) × (1 − share with other cases). Direct custody cost = eligible people × months of delay × ₹4,195. **The excluded shares and the delay are our assumptions.** The cost covers only the average direct inmate spend, not lost wages, lost jobs or family costs. A pilot with real custody records will replace these assumptions.
 
-**Why this matters beyond the budget.** A missed release removes a household's earner, drives informal debt for lawyers and travel, and pulls children out of school. It adds to prison overcrowding and to court adjournments. These effects are not yet measured nationally, so we put no number on them.
+### How the harm ripples outward
+
+A missed release does not stay with one person. The cost travels in four stages, and each stage is a point where the chain can be cut.
+
+| Stage | What happens | Evidence | Where it can be cut |
+|---|---|---|---|
+| 1. Trigger | A person crosses the half or one-third threshold and nobody checks the date. Identification relies on manual ledger audits and quarterly committee sittings | NALSA Q4 2025: 209 identified under the half-sentence category in one quarter | Automated nightly threshold check |
+| 2. Direct harm | Continued custody without conviction | NALSA Q4 2025: 14,387 identified, 5,864 released (55% of 10,754 recommended) | A ready, reasoned application and a named reviewer |
+| 3. First-order spread | The household loses its earner, borrows for lawyers and travel, and may pull children out of school. The state keeps paying about ₹4,195 a month per inmate | NCRB spend (Derived); household effects are mechanism only | Earlier release and earlier counsel |
+| 4. System feedback | Overcrowding, less capacity for fair treatment, more adjournments, more pending cases | 120.8% occupancy in 2023 and 112.7% in 2024 (NCRB); over 5.6 crore pending (NJDG) | Cleaner listing and complete case papers |
+
+Two features make the chain **self-reinforcing**. First, the people who are not identified are the ones least able to reach a lawyer on their own: only 7.91% of undertrials used free legal aid in 2016–19. Second, each missed release adds to overcrowding, which makes the next review harder.
+
+| Who bears the ripple | How it spreads | Measured evidence | Not yet quantified |
+|---|---|---|---|
+| **Households** | Loss of earner income, informal debt, school withdrawal | The DAKSH survey shows litigants lose ₹50,387 crore a year in wages and business income across all case types (2015–16) | Income loss and debt per undertrial; effect on school dropout |
+| **Women and their dependants** | Women carry the burden of the household, and a jailed woman's dependants lose their carer | 1,049 women undertrials at the end of 2023 (NCRB). The Supreme Court directed on 19 November 2024 that eligible women prisoners be identified. In Q4 2025, 514 of 1,416 recommended women were released (NALSA) | Effect on dependants of jailed women |
+| **Society** | Unequal access to the law, and loss of trust when a legal right does not reach those who need it | A quarter of prisoners are uneducated and over 40% are below Class X (PSI 2023). Legal aid reached about 0.15% of those entitled in a year (Derived). A cash-bail scheme had ₹20 crore outlay, ₹28.67 lakh used and 144 prisoners helped | Public trust (no survey exists); whether low literacy changes bail outcomes |
+| **Prisons and courts** | Overcrowding, adjournments and a growing backlog | 75.81% of inmates are undertrials. Over 5.6 crore cases are pending, about 64 lakh for over ten years. Adjournments and summons took about 54% of civil and 33% of criminal sitting time in a four-court study (DAKSH 2016) | Share of adjournments caused by missing papers or advocate clashes; share of overcrowding caused by eligible people still held (our estimate: tens of thousands) |
+| **Economy** | Lost earnings, hearing costs and state custody spend | ₹50,387 crore a year of litigant loss and about ₹30,000 crore a year to attend hearings (2015–16); ₹2,669.88 crore direct spend on inmates in FY 2023–24 | Update to current prices; full institutional cost per inmate |
+
+The pattern in the last column is itself a finding. The largest costs, to households and to public trust, are the least measured. We therefore put **no number on the ripples** beyond the direct custody floor above. Avoidable custody is also a small part of the ₹50,387 crore litigant loss, so our claim is a targeted contribution to one part of that loss, not a fix for all of it. A pilot that records household outcomes after release (income resumed, debt taken, children back in school) would add more to the evidence than another national statistic. Section 4 has the slots for it.
 
 ## 3. Quality of the solution
 
@@ -79,17 +100,82 @@ Every legal rule (eligibility, Section 479 thresholds, urgency scores) is **dete
 | **Document Analyst** | OCRs only the scanned pages, writes a case brief, then verifies it. Every date and statute must appear in the source, and unsupported claims are rewritten (up to two repair rounds) | Output is reviewed by a lawyer |
 | **Registry Agent and Copilot** | Triage the whole docket with reasons, build a conflict-free cause list sized by adjournment risk | A registrar approves before publishing |
 
-```
-                       ┌─────────────── Nyaya Mitra (ReAct + interrupt) ───────────────┐
- citizen / paralegal → │ agent ⇄ tools: legal-aid eligibility · Sec.479 calc · search_law │
-                       │        (Pinecone) · web_search (Tavily, gov domains) · lookup_case│
-                       └──────────────────────────────────────────────────────────────────┘
- case file → Document Analyst: ocr → index(Pinecone) → plan ─┬─────────────→ synthesize → verify ─┬→ persist → handoff
-                                                             └→ map_part×N ↗        ↑    (fix ≤2x)┘   (re-score case,
-                                                                (Send fan-out)      └──────────────     alert Undertrial Watch)
- nightly  → Undertrial Watch: scan custody cases → draft×N (Send) → save alerts → [lawyer approves] → apply
- weekly   → Registry Agent:  triage → AI review (±10, logged) → schedule → explain → [registrar approves] → publish
- staff    → Registry Copilot (ReAct): priority_cases · lookup_case · draft_document · search_law · web_search
+```mermaid
+flowchart TB
+    subgraph Users["Three doors"]
+        C["Citizen or paralegal<br/>/citizen - no login<br/>English, Hindi, Telugu"]
+        A["Advocate<br/>/advocate"]
+        S["Court staff<br/>/staff"]
+    end
+
+    subgraph Agents["LangGraph agents"]
+        NM["Nyaya Mitra<br/>ReAct agent"]
+        DA["Document Analyst<br/>OCR, brief, verify"]
+        UW["Undertrial Watch<br/>runs nightly"]
+        RA["Registry Agent<br/>runs weekly"]
+        RC["Registry Copilot<br/>ReAct agent"]
+    end
+
+    subgraph Rules["Deterministic rules in code"]
+        R479["Section 479 engine<br/>half or one-third threshold"]
+        LAE["Legal-aid eligibility"]
+        TRI["Triage and urgency scores"]
+    end
+
+    subgraph Tools["Tools and services"]
+        PII["PII masking<br/>phone, email, Aadhaar, PAN"]
+        OCR["Tesseract OCR<br/>scanned pages only"]
+        PC["Pinecone<br/>statute search"]
+        TV["Tavily<br/>gov domains only"]
+        LLM["Azure OpenAI<br/>offline fallback if no key"]
+    end
+
+    subgraph Gates["Human approval - LangGraph interrupt"]
+        G1{{"Lawyer approves"}}
+        G2{{"Registrar approves"}}
+    end
+
+    subgraph Data["Storage and measurement"]
+        PG[("Postgres<br/>checkpoints, docket, alerts")]
+        IMP["Impact log<br/>/api/impact and CSV export"]
+        FB["Feedback wall<br/>/feedback"]
+        PR["pilot_report.py"]
+    end
+
+    C --> NM
+    A --> DA
+    A --> NM
+    S --> RC
+    S --> RA
+
+    NM --> LAE
+    NM --> R479
+    NM --> PC
+    NM --> TV
+    UW --> R479
+    RA --> TRI
+    RC --> TRI
+    RC --> PC
+    RC --> TV
+    DA --> OCR
+    DA --> PC
+
+    NM --> PII
+    DA --> PII
+    PII --> LLM
+    LLM -.explains and drafts only.-> Agents
+
+    DA -- "re-score case, alert" --> UW
+    UW -- "draft release application" --> G1
+    G1 -- "approved" --> FILE["Application filed by a human"]
+    RA -- "conflict-free cause list" --> G2
+    G2 -- "approved" --> PUB["Cause list published"]
+
+    Agents <--> PG
+    Agents --> IMP
+    C --> FB
+    FB --> IMP
+    IMP --> PR
 ```
 
 **Three doors:** `/citizen` for citizens (no login; English, Hindi and Telugu), `/advocate` for lawyers, `/staff` for court staff. A public feedback wall for field responses is at `/feedback`.
@@ -141,6 +227,10 @@ The Section 479 engine is pinned by 21 hand-derived cases in `tests/gold_479.jso
 | Custody days avoided | | |
 | Legal-aid applicants reached | | |
 | Advocate hours saved per case | | |
+| Household: income resumed after release (consented follow-up) | | |
+| Household: debt taken during custody | | |
+| Household: children back in school | | |
+| Adjournments caused by missing papers or clashes | | |
 
 **Field feedback:** _TO BE ADDED_ (aggregates from the public feedback wall: responses, average rating, share whose situation changed)
 
@@ -172,6 +262,9 @@ Open `/citizen`, `/advocate` or `/staff`. With no keys the app runs offline. Add
 - [Telangana Today / PTI: 5.64 crore cases pending, Rajya Sabha, 23 July 2026](https://telanganatoday.com/more-than-5-64-crore-cases-pending-across-indian-courts-rs)
 - [Law Ministry reply, Lok Sabha, 13 February 2026: 5.39 crore pending (via Moneylife)](https://www.moneylife.in/article/court-case-pendency-rises-to-539-crore-supreme-court-sees-11-percentage-jump-in-one-year-govt/79667.html)
 - [National Judicial Data Grid](https://njdg.ecourts.gov.in/)
+- [ThePrint on Prison Statistics India 2023](https://theprint.in/india/drop-in-inmates-additions-but-indian-prisons-120-full-delhi-jails-most-overcrowded-at-200-ncrb-data/2754893)
+- [Verdictum: Supreme Court order of 19 November 2024 on prolonged incarceration of undertrials](https://www.verdictum.in/court-updates/supreme-court/in-re-inhuman-conditions-in-1382-prisons-release-undertrial-prisoners-prolonged-incarceration-1559091)
+- [Millennium Post: Section 479 releases](https://www.millenniumpost.in/nation/govt-over-330-undertrial-prisoners-released-on-bail-under-bnss-section-479-604985)
 
 ## Licence
 
