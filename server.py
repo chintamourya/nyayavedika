@@ -404,7 +404,7 @@ def analyze_document(body: DocIn):
 def summarize_document(body: DocIn):
     """Summarize an uploaded/pasted document without saving it to a case or the document database."""
     pages, _ = _document_pages(body)
-    summary = summarise.summarise_pages(pages, language=body.language or "English")
+    summary = summarise.summarise_pages(pages, language=body.language or "English", audience="citizen")
     return {"filename": body.filename, "pages": len(pages), **summary}
 
 

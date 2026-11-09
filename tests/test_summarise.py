@@ -59,7 +59,8 @@ class RecordingBackend:
     def structured(self, model, system, messages, schema):
         content = messages[-1]["content"]
         kind = schema.__name__ + ("/reduce" if "<notes set=" in content else "")
-        self.calls.append({"kind": kind, "tokens": summarise.count_tokens(content), "sets": content.count("<notes set=")})
+        self.calls.append({"kind": kind, "tokens": summarise.count_tokens(content), "sets": content.count("<notes set="),
+                           "system": system})
         if schema.__name__ == "DocTypeGuess":
             return {"doc_type": "order"}
         if schema.__name__ == "ChunkNotes":
@@ -96,6 +97,14 @@ class LongDocumentTests(unittest.TestCase):
         self.assertFalse(out["analysis"]["triage_signals"]["compoundable_or_settleable"])
         self.assertIsNone(out["ai_fields"]["filing_date"]["value"])  # invented date dropped by grounding
         self.assertEqual(out["verification"]["unverified"], ["section BNS Section 103"])  # verifier still checks the brief
+
+    def test_citizen_summary_prompt_explains_personal_relevance_without_assumptions(self):
+        pages = [{"page": 1, "text": (SAMPLES / "order_02_adjournment.txt").read_text(encoding="utf-8"), "source": "text"}]
+        summarise.summarise_pages(pages, audience="citizen")
+        prompt = self.backend.calls[0]["system"]
+        self.assertIn("what it says for the person named", prompt)
+        self.assertIn("Distinguish an allegation or request from a court finding or order", prompt)
+        self.assertIn("Do not assume the reader is a party", prompt)
 
     def test_large_file_one_call_with_key_pages_under_the_token_cap(self):
         pages = long_pages(25)

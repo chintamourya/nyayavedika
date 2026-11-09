@@ -639,7 +639,9 @@ $("#citizenSummaryForm").addEventListener("submit", (e) => {
       const verification = result.verification || {};
       $("#citizenSummaryOut").innerHTML = `<div class="card">
         <h3>${esc(result.filename)} · ${esc(result.pages)} page(s) <span class="badge ${result.mode === "llm" ? "src-ai" : "src-rules"}">${esc(result.label || result.mode)}</span></h3>
+        <h4>${esc(t("summarize_result_heading"))}</h4>
         <p>${esc(result.plain || analysis.plain_language_summary || "No plain-language summary was produced.")}</p>
+        <p class="hint">${esc(t("summarize_reader_note"))}</p>
         <p class="hint">Document type: ${esc(result.doc_type || "unknown")} · ${verification.overall_grounded ? "Grounding checks passed" : "Some details need checking against the original"}</p>
         ${verification.unverified?.length ? `<p class="banner-warn">Check: ${verification.unverified.map(esc).join("; ")}</p>` : ""}
         ${result.low_confidence_pages?.length ? `<p class="banner-warn">Low OCR confidence on page(s): ${esc(result.low_confidence_pages.join(", "))}</p>` : ""}

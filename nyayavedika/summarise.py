@@ -234,6 +234,7 @@ class DocumentReading(BaseModel):
 
 READ_SYSTEM = """You read ONE Indian court document for the registry and for the litigant. Use ONLY the text given.
 Never invent facts, dates, sections or citations; leave a field empty when the text is silent.
+{audience_guidance}
 Return:
 - doc_type: fir | order | petition | bail_custody | other (from the first page).
 - analysis: the brief; document_type must be judgment, interim order, petition, charge sheet, FIR, bail order, or other
@@ -250,17 +251,25 @@ KEY_PAGE = re.compile(r"custody|arrest|remand|section|sec\.|u/s|order|direct|nex
                       r"sentence|charge|filed|instituted|fir no", re.I)
 
 
-def _read_system(language: str = "English") -> str:
+def _read_system(language: str = "English", audience: str = "general") -> str:
     from . import triage
-    return READ_SYSTEM.format(language=language or "English", triage_case_types=triage.CASE_TYPES,
+    citizen_guidance = ("For the plain-language summary, speak directly to the person reading this paper (use 'you' only "
+                        "when the document clearly addresses that person). Explain what kind of paper it is, what it says "
+                        "for the person named, and any action or deadline the document explicitly requires. Explain legal "
+                        "terms briefly. Distinguish an allegation or request from a court finding or order. Do not assume "
+                        "the reader is a party, predict the outcome, or invent advice or deadlines. If the paper does not "
+                        "say what happens next, say that it is not clear from this document. Do not include names or "
+                        "sensitive personal details.") if audience == "citizen" else ""
+    return READ_SYSTEM.format(language=language or "English", audience_guidance=citizen_guidance,
+                              triage_case_types=triage.CASE_TYPES,
                               triage_stages=list(triage.STAGE_MINUTES))
 
 
-def input_budget() -> Optional[int]:
+def input_budget(language: str = "English", audience: str = "general") -> Optional[int]:
     """Tokens the document may use in one call under the plan's per-minute cap (None = no cap known)."""
     if not config.LLM_TPM_LIMIT:
         return None
-    return int(config.LLM_TPM_LIMIT * 0.9) - config.DOC_COMPLETION_TOKENS - count_tokens(_read_system()) - 150
+    return int(config.LLM_TPM_LIMIT * 0.9) - config.DOC_COMPLETION_TOKENS - count_tokens(_read_system(language, audience)) - 150
 
 
 def key_pages(pages: List[Dict], budget: int) -> List[Dict]:
@@ -287,16 +296,16 @@ def key_pages(pages: List[Dict], budget: int) -> List[Dict]:
     return sorted(chosen, key=lambda p: p["page"])
 
 
-def read_document(pages: List[Dict], language: str = "English") -> Optional[Dict]:
+def read_document(pages: List[Dict], language: str = "English", audience: str = "general") -> Optional[Dict]:
     """ONE model call for the whole file: {'reading': DocumentReading dict, 'pages_read': [...], 'partial': bool}.
     None when the model refuses (too large for the plan, rate-limited, unusable reply): the caller then uses rules."""
-    budget = input_budget()
+    budget = input_budget(language, audience)
     chosen = pages if budget is None or count_tokens(_with_pages(pages)) <= budget else key_pages(pages, budget)
     if not chosen or (budget is not None and budget < 400):
         logger.warning("document too large for one call under LLM_TPM_LIMIT=%s; using rules", config.LLM_TPM_LIMIT)
         return None
     try:
-        out = call(_read_system(language),
+        out = call(_read_system(language, audience),
                    f"<document pages_total='{len(pages)}'>\n{_with_pages(chosen)}\n</document>",
                    DocumentReading, fast=True, max_tokens=config.DOC_COMPLETION_TOKENS)
     except Exception as exc:
@@ -410,14 +419,15 @@ def glance(a: Dict, structured: Dict, doc_type: str, today: Optional[date] = Non
     return [f"{base[0]} - {base[1].replace('Offence: ', '')}", status, base[2]]
 
 
-def summarise_pages(pages: List[Dict], doc_type: Optional[str] = None, language: str = "English") -> Dict:
+def summarise_pages(pages: List[Dict], doc_type: Optional[str] = None, language: str = "English",
+                    audience: str = "general") -> Dict:
     """Core outputs for one document (brief, plain, analysis, verification, and the model's case fields as `ai_fields`).
     With a model: exactly ONE call reads the file (type + brief + fields). Without one, or when the model refuses,
     the extractive summariser and the rules run and every output is labelled so. glance / structured are added later."""
     text = "\n\n".join(p["text"] for p in pages).strip()
     if not text:
         raise ValueError("No text to summarise")
-    got = read_document(pages, language) if llm.available() else None
+    got = read_document(pages, language, audience) if llm.available() else None
     ai_fields, note = None, ""
     if got:
         r = got["reading"]
