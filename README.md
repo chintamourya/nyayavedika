@@ -17,7 +17,7 @@ Three groups fall through the same gap:
 - **Advocates**, who lose hours assembling, paginating and reading very long case papers before a hearing can be useful.
 - **Courts and registries**, where triage, scheduling clashes and incomplete papers feed adjournments and a growing backlog.
 
-## What you built
+## What we built
 
 NyayaVedika is a set of AI agents and a lawyer workbench with three doors. Every legal rule (eligibility, Section 479 thresholds, urgency scores) is **deterministic code that shows its reasons**. The language model chooses tools, reads documents, explains and drafts. It never decides eligibility. **A human approves every step that has legal consequences.**
 
