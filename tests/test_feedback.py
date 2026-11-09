@@ -101,17 +101,29 @@ class FeedbackTests(unittest.TestCase):
 
 
 class LandingMarkupTests(unittest.TestCase):
-    def test_landing_has_wall_form_and_time_promise(self):
+    def test_landing_links_to_feedback_in_top_navigation_without_wall_section(self):
         html = (STATIC / "index.html").read_text(encoding="utf-8")
-        for marker in ('id="fbCards"', 'id="fbDetail"', 'id="fbFormDialog"', "under 5 min", "/static/feedback.js"):
-            self.assertIn(marker, html)
+        self.assertIn('class="landing-links"', html)
+        self.assertIn('href="/feedback"', html)
+        self.assertIn('href="/how-it-works"', html)
+        self.assertIn('href="/research-evidence"', html)
+        self.assertNotIn(">Learn more<", html)
+        self.assertNotIn('class="fb"', html)
+        self.assertNotIn('id="fbCards"', html)
+        self.assertNotIn("/static/feedback.js", html)
+        self.assertLess(html.index('class="landing-links"'), html.index('<span class="logo"'))
+
+    def test_feedback_form_is_available_on_community_page(self):
+        html = (STATIC / "feedback-wall.html").read_text(encoding="utf-8")
+        self.assertIn('data-open-feedback', html)
+        self.assertIn('id="fbFormDialog"', html)
+        self.assertIn('/static/feedback.js', html)
         js = (STATIC / "feedback.js").read_text(encoding="utf-8")
         self.assertIn("Takes under 5 minutes", js)
-        self.assertIn("Read full feedback", js)
-        self.assertIn("/api/field-feedback", js)
+        self.assertIn("feedbackSubmitted", (STATIC / "feedback-wall.js").read_text(encoding="utf-8"))
+        self.assertIn("api(\"/api/field-feedback\"", js)
         self.assertIn("/api/field-feedback/all", (ROOT / "server.py").read_text(encoding="utf-8"))
         self.assertIn("/api/field-feedback/all", (ROOT / "scripts" / "dev_api.py").read_text(encoding="utf-8"))
-        self.assertIn("New submissions appear here automatically", js)
         self.assertIn("Submitting publishes your feedback on this page", js)
         self.assertNotIn('name="consent_public"', js)
         self.assertNotIn("opts in", js)
@@ -127,6 +139,25 @@ class LandingMarkupTests(unittest.TestCase):
         self.assertIn("/api/field-feedback/all", js)
         self.assertIn('"/feedback": "feedback-wall.html"', (ROOT / "scripts" / "dev_api.py").read_text(encoding="utf-8"))
         self.assertIn('@app.get("/feedback")', (ROOT / "server.py").read_text(encoding="utf-8"))
+
+    def test_public_docs_routes_exist_in_both_servers(self):
+        source = (ROOT / "server.py").read_text(encoding="utf-8")
+        for path in ("/how-it-works", "/research-evidence"):
+            self.assertIn(f'@app.get("{path}"', source)
+        from scripts import dev_api
+        self.assertEqual(set(dev_api.DOCS), {"/how-it-works", "/research-evidence"})
+        from nyayavedika import public_docs
+        for path, slug in dev_api.DOCS.items():
+            page = public_docs.render_page(slug)
+            self.assertIn('class="doc-content"', page)
+            self.assertIn("<h1>", page)
+            self.assertIn("<table>", page)
+            self.assertNotIn("text/markdown", page)
+            if path == "/how-it-works":
+                self.assertIn("language-mermaid", page)
+                self.assertIn("/static/docs.js", page)
+            else:
+                self.assertNotIn("/static/docs.js", page)
 
 
 if __name__ == "__main__":

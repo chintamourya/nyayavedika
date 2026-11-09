@@ -774,6 +774,52 @@ body.landing-page .landing > .brand {
   background: linear-gradient(118deg, #102f2b 0%, #145445 58%, #24735c 100%);
   box-shadow: 0 18px 42px rgba(18, 60, 53, .16);
 }
+body.landing-page .landing-links {
+  position: absolute;
+  z-index: 1;
+  top: 18px;
+  right: 18px;
+  display: flex;
+  gap: 8px;
+}
+body.landing-page .landing-links a {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 36px;
+  padding: 7px 11px;
+  border: 1px solid rgba(255,255,255,.28);
+  border-radius: 999px;
+  color: #f5fbf7;
+  background: rgba(255,255,255,.09);
+  font-size: 12px;
+  font-weight: 650;
+  text-decoration: none;
+  transition: background .16s ease, border-color .16s ease;
+}
+body.landing-page .landing-links a:hover,
+body.landing-page .landing-links a:focus-visible {
+  border-color: rgba(255,255,255,.65);
+  outline: 0;
+  background: rgba(255,255,255,.18);
+}
+body.landing-page .landing-links a:first-child {
+  color: #102f2b;
+  border-color: #b6d2c6;
+  background: #d1eadc;
+}
+body.landing-page .landing-links a:first-child:hover,
+body.landing-page .landing-links a:first-child:focus-visible { background: #fff; }
+body.landing-page .landing-links svg {
+  width: 17px;
+  height: 17px;
+  flex: 0 0 17px;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.7;
+}
 body.landing-page .landing > .brand::after {
   position: absolute;
   z-index: -1;
@@ -928,9 +974,12 @@ body.landing-page .fb-cta small { margin-top: 3px; line-height: 1.5; }
     align-items: flex-start;
     gap: 13px;
     margin-bottom: 27px;
-    padding: 27px 19px;
+    padding: 70px 19px 27px;
     border-radius: 19px;
   }
+  body.landing-page .landing-links { top: 14px; right: 14px; }
+  body.landing-page .landing-links a { width: 38px; justify-content: center; padding: 8px; }
+  body.landing-page .landing-links a span { display: none; }
   body.landing-page .landing > .brand .logo {
     width: 46px;
     height: 46px;
@@ -1475,3 +1524,66 @@ body.landing-page .impact-land a { color: var(--accent); text-decoration: underl
 :root { color-scheme: light; }
 @media (prefers-color-scheme: dark) { :root { color-scheme: dark; } }
 .flag { text-transform: none; }
+
+/* Public Markdown documents */
+body.document-page { min-height: 100vh; background: var(--bg); }
+body.document-page .doc-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  max-width: 1080px;
+  margin: 0 auto;
+  padding: 18px 24px;
+}
+body.document-page .doc-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  color: var(--ink);
+  font-size: 16px;
+  text-decoration: none;
+}
+body.document-page .doc-brand span { color: var(--accent); font-size: 25px; }
+body.document-page .doc-back { color: var(--accent); font-size: 13px; font-weight: 650; text-decoration: none; }
+body.document-page .doc-back:hover, body.document-page .doc-back:focus-visible { text-decoration: underline; }
+body.document-page .doc-main { max-width: 1080px; margin: 0 auto; padding: 0 24px 48px; }
+body.document-page .doc-content {
+  overflow: hidden;
+  padding: clamp(22px, 5vw, 48px);
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: var(--card);
+  line-height: 1.7;
+}
+body.document-page .doc-content > :first-child { margin-top: 0; }
+body.document-page .doc-content h1, body.document-page .doc-content h2,
+body.document-page .doc-content h3, body.document-page .doc-content h4 { line-height: 1.3; }
+body.document-page .doc-content h1 { font-size: clamp(28px, 4vw, 40px); letter-spacing: -.035em; }
+body.document-page .doc-content h2 { margin: 34px 0 12px; padding-bottom: 7px; border-bottom: 1px solid var(--line); font-size: 24px; }
+body.document-page .doc-content h3 { margin: 25px 0 9px; font-size: 19px; }
+body.document-page .doc-content p, body.document-page .doc-content li { color: var(--ink); }
+body.document-page .doc-content a { color: var(--accent); overflow-wrap: anywhere; }
+body.document-page .doc-content li { margin: 5px 0; padding-left: 3px; }
+body.document-page .doc-content blockquote { margin: 16px 0; padding: 4px 16px; border-left: 3px solid var(--accent); color: var(--muted); }
+body.document-page .doc-content hr { margin: 28px 0; border: 0; border-top: 1px solid var(--line); }
+body.document-page .doc-content table { display: block; width: 100%; overflow-x: auto; border-collapse: collapse; }
+body.document-page .doc-content th, body.document-page .doc-content td { min-width: 100px; padding: 9px 11px; border: 1px solid var(--line); vertical-align: top; }
+body.document-page .doc-content th { position: static; color: var(--ink); background: var(--accent-soft); }
+body.document-page .doc-content pre { overflow-x: auto; padding: 16px; border: 1px solid var(--line); border-radius: 10px; background: var(--bg); line-height: 1.55; }
+body.document-page .doc-content code { padding: 2px 5px; border-radius: 4px; background: var(--bg); font-size: .9em; }
+body.document-page .doc-content pre code { padding: 0; background: transparent; font-size: 12.5px; }
+body.document-page .doc-diagram { margin: 20px 0; overflow-x: auto; }
+body.document-page .doc-diagram .mermaid { min-width: max-content; text-align: center; }
+body.document-page .doc-diagram .mermaid svg { display: block; max-width: none; height: auto; }
+body.document-page .doc-diagram-hint { margin: 0 0 8px; color: var(--muted); font-size: 12px; }
+body.document-page .doc-diagram-source { margin-top: 10px; }
+body.document-page .doc-diagram-source summary { color: var(--accent); cursor: pointer; font-size: 13px; }
+body.document-page .doc-diagram-source pre { max-height: 420px; }
+body.document-page .doc-diagram-error { color: var(--muted); font-size: 13px; }
+@media (max-width: 640px) {
+  body.document-page .doc-top { padding: 14px; }
+  body.document-page .doc-main { padding: 0 12px 28px; }
+  body.document-page .doc-content { padding: 20px 16px; border-radius: 13px; }
+  body.document-page .doc-content h2 { font-size: 21px; }
+}

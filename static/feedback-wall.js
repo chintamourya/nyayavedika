@@ -146,5 +146,6 @@
   $("#wallRole").addEventListener("change", renderCards);
   $("#wallSort").addEventListener("change", renderCards);
   $("#wallRefresh").addEventListener("click", load);
+  document.addEventListener("feedbackSubmitted", load);
   load();
 })();

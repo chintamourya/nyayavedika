@@ -17,9 +17,22 @@ Three groups fall through the same gap:
 - **Advocates**, who lose hours assembling, paginating and reading very long case papers before a hearing can be useful.
 - **Courts and registries**, where triage, scheduling clashes and incomplete papers feed adjournments and a growing backlog.
 
+### Why all three doors, not one
+
+The backlog is a chain, and it breaks at a different link for each group. A citizen who does not know they qualify for legal aid never reaches a lawyer. A lawyer who cannot read or assemble the record in time cannot make a hearing useful. A registry that cannot see which cases are urgent lists the wrong matters. Fixing one link only moves the bottleneck to the next. NyayaVedika therefore equips **citizens, advocates and court staff together**, on the same deterministic rules (Section 479, legal-aid eligibility, triage) and the same audit trail, so what one door produces is something the next door can act on. In Version 1 the doors share rules, data model and audit log. Linking one person's journey across the three doors as a single case record is planned for Version 2 (see HOW_IT_WORKS.md, Section 3.7).
+
 ## What we built
 
 NyayaVedika is a set of AI agents and a lawyer workbench with three doors. Every legal rule (eligibility, Section 479 thresholds, urgency scores) is **deterministic code that shows its reasons**. The language model chooses tools, reads documents, explains and drafts. It never decides eligibility. **A human approves every step that has legal consequences.**
+
+**How the track's four focus areas map to the three doors.** Each focus area is served at every level, not by one door alone.
+
+| Track focus | Citizen | Advocate | Court staff |
+|---|---|---|---|
+| **Case triage** | Understand a legal problem sorts a situation into a category and points to the right law and office | Insights surface the issues and facts in a file | Priority scores with reasons; Undertrial Watch flags Section 479 cases |
+| **Document summarisation** | Understand a court document gives a plain-language brief | Insights and page-cited chat on the lawyer's own file | Intake summaries and field extraction, verified against the source |
+| **Legal aid access** | Eligibility check and a drafted application | Insights give a lawyer the facts and issues for a legal-aid or release application | Alerts for people held past the Section 479 threshold, with a drafted application for a lawyer to approve |
+| **Scheduling efficiency** | Knowing what an order says and what to do next | Studio produces paper-books that are ready on time | Conflict-free cause list sized by adjournment risk |
 
 | Door | Feature | What it does | What it eases | How impact is measured |
 |---|---|---|---|---|

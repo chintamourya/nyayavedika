@@ -21,13 +21,13 @@
   const stars = (n) => `<span class="fb-stars" role="img" aria-label="${n} out of 5">${"★".repeat(n)}<span class="off">${"★".repeat(5 - n)}</span></span>`;
   const who = (i) => [i.name, i.place].filter(Boolean).map(esc).join(" · ");
   const wall = $("#fbCards");
-  if (!wall) return;
   let data = { summary: {}, items: [] };
   let filter = "all";
 
   // ------------------------------------------------------------------ wall
   const pctText = (v) => (v == null ? "–" : `${v}%`);
   function renderStats() {
+    if (!$("#fbStats")) return;
     const s = data.summary || {};
     const responses = s.responses ?? 0;
     const rows = [
@@ -40,6 +40,7 @@
   }
 
   function renderFilters() {
+    if (!$("#fbFilters")) return;
     const counts = {};
     data.items.forEach((i) => { counts[i.role] = (counts[i.role] || 0) + 1; });
     const roles = Object.keys(LABELS.role).filter((r) => counts[r]);
@@ -51,6 +52,7 @@
 
   function renderCards() {
     const list = $("#fbCards");
+    if (!list) return;
     const items = data.items.filter((i) => filter === "all" || i.role === filter);
     if (!data.items.length) {
       list.innerHTML = `<div class="fb-empty"><b>No feedback published yet.</b>
@@ -67,6 +69,7 @@
   }
 
   async function loadWall() {
+    if (!wall) return;
     try {
       data = await api("/api/field-feedback", { noToken: true });
     } catch (e) {
@@ -221,6 +224,7 @@
         <p>Your feedback is now on this page.</p>
         <p class="hint">It helps us show what is working and fix what is not.</p>
         <button type="button" class="btn" data-close>Done</button>`;
+      document.dispatchEvent(new CustomEvent("feedbackSubmitted"));
       loadWall();
     } catch (e) {
       fail(e.message || "Could not send. Please try again.");
@@ -259,16 +263,16 @@
   }
 
   // ------------------------------------------------------------------ events
-  $("#fbFilters").addEventListener("click", (e) => {
+  $("#fbFilters")?.addEventListener("click", (e) => {
     const b = e.target.closest("[data-role]");
     if (!b) return;
     filter = b.dataset.role; renderFilters(); renderCards();
   });
-  $("#fbCards").addEventListener("click", (e) => { const c = e.target.closest(".fb-card"); if (c) openDetail(c.dataset.id); });
+  wall?.addEventListener("click", (e) => { const c = e.target.closest(".fb-card"); if (c) openDetail(c.dataset.id); });
   $$("[data-open-feedback]").forEach((b) => b.addEventListener("click", openForm));
   document.addEventListener("click", (e) => {
     if (e.target.closest("[data-close]")) e.target.closest("dialog")?.close();
     else if (e.target.tagName === "DIALOG") e.target.close();          // click on the backdrop
   });
-  loadWall();
+  if (wall) loadWall();
 })();

@@ -14,7 +14,10 @@
     <span class="logo" aria-hidden="true">⚖</span>
     <span><b>NyayaVedika</b><small>Timely justice, together</small></span>
   </a>
-  <a class="btn ghost" href="/">← Back to home</a>
+  <div class="row gap wall-actions">
+    <button type="button" class="btn" data-open-feedback>Give feedback</button>
+    <a class="btn ghost" href="/">← Back to home</a>
+  </div>
 </header>
 
 <main class="wall-main">
@@ -64,7 +67,9 @@
     <span>⚖</span><p>Built for a more accessible justice system.</p><a href="/">Explore NyayaVedika</a>
   </footer>
 </main>
+<dialog id="fbFormDialog" aria-labelledby="fbFormTitle"></dialog>
 <script src="/static/common.js"></script>
 <script src="/static/feedback-wall.js"></script>
+<script src="/static/feedback.js"></script>
 </body>
 </html>

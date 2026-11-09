@@ -26,7 +26,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 # nyayavedika.config reads .env on import.
 from nyayavedika import (advocate, auth, cause_list, feedback, config, db, demo_seed, document_studio, impact, intake, jobs, legal_aid, legal_aid_kb, legal_problem, ocr, staff_api,  # noqa: E402
-                   store, summarise, worker)
+                   store, summarise, worker, public_docs)
 from nyayavedika.agents import undertrial_watch  # noqa: E402
 from nyayavedika.agents.front_door import FrontDoor, answer_kind  # noqa: E402
 from nyayavedika.docgen import legal_aid_docx  # noqa: E402
@@ -485,6 +485,7 @@ def routes():
 ROUTES = routes()
 PAGES = {"/": "index.html", "/staff": "staff.html", "/advocate": "advocate.html",
          "/citizen": "citizen.html", "/feedback": "feedback-wall.html"}
+DOCS = {"/how-it-works": "how-it-works", "/research-evidence": "research-evidence"}
 TYPES = {".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8", ".css": "text/css; charset=utf-8",
          ".json": "application/json; charset=utf-8", ".svg": "image/svg+xml", ".png": "image/png"}
 
@@ -510,6 +511,8 @@ class Handler(BaseHTTPRequestHandler):
     def _handle(self, method):
         url = urlparse(self.path)
         path = url.path
+        if method == "GET" and path in DOCS:
+            return self._send(200, public_docs.render_page(DOCS[path]).encode("utf-8"), TYPES[".html"])
         if method == "GET" and (path in PAGES or path.startswith("/static/")):
             f = STATIC / (PAGES.get(path) or path[len("/static/"):])
             if f.resolve().is_file() and STATIC.resolve() in f.resolve().parents:

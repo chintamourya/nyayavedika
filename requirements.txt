@@ -10,6 +10,7 @@ pg8000                           # pure-Python PostgreSQL driver
 fastapi
 uvicorn
 pydantic
+markdown-it-py
 python-multipart
 pypdf                            # native PDF text
 pypdfium2                        # render scanned pages for OCR

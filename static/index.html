@@ -5,11 +5,26 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>NyayaVedika</title>
 <link rel="icon" href="/static/favicon.svg?v=3" type="image/svg+xml">
-<link rel="stylesheet" href="/static/styles.css?v=12">
+<link rel="stylesheet" href="/static/styles.css?v=14">
 </head>
 <body class="landing-page">
 <div class="landing">
-  <div class="brand"><span class="logo" aria-hidden="true">⚖</span>
+  <div class="brand">
+    <nav class="landing-links" aria-label="Project links">
+      <a href="/feedback" aria-label="Community feedback" title="Community feedback">
+        <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M20 11.5a7.5 7.5 0 0 1-7.5 7.5H6l-3 2v-6a7.5 7.5 0 1 1 17-3.5Z"></path><path d="M8 11h8m-8 3h5"></path></svg>
+        <span>Feedback</span>
+      </a>
+      <a href="/how-it-works" aria-label="How NyayaVedika works" title="How NyayaVedika works">
+        <svg aria-hidden="true" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"></circle><path d="M12 11v5m0-8h.01"></path></svg>
+        <span>How it works</span>
+      </a>
+      <a href="/research-evidence" aria-label="Research and evidence" title="Research and evidence">
+        <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M6 3.75h8l4 4v12.5H6z"></path><path d="M14 3.75v4h4M9 12h6m-6 3.5h6"></path></svg>
+        <span>Evidence</span>
+      </a>
+    </nav>
+    <span class="logo" aria-hidden="true">⚖</span>
     <div><h1>NyayaVedika <span lang="hi">(न्यायवेदिका)</span> <span lang="te">(న్యాయవేదిక)</span></h1><p>Timely Justice — Legal Backlog</p>
       <p class="hint">One platform. Three doors. Timely justice.</p></div></div>
   <h2>Choose your door</h2>
@@ -43,31 +58,9 @@
     </div>
     <p class="hint">These are the mechanisms. Field outcomes are reported only from real pilot use, never from the demo data.</p>
   </section>
-  <section class="fb" aria-labelledby="fbHeading">
-    <div class="row between wrap gap">
-      <div>
-        <h2 id="fbHeading">What people say</h2>
-        <p class="hint">From advocates, lawyers, court staff and citizens who used it. Tap a card to read the full feedback.</p>
-        <a class="btn ghost" href="/feedback">Browse all feedback</a>
-      </div>
-      <button type="button" class="btn" data-open-feedback>Give feedback · under 5 min</button>
-    </div>
-    <div class="kpis" id="fbStats" aria-live="polite"></div>
-    <div class="fb-filters" id="fbFilters" role="group" aria-label="Filter feedback by who wrote it"></div>
-    <div class="fb-cards" id="fbCards"><p class="hint">Loading feedback…</p></div>
-    <div class="fb-cta">
-      <span aria-hidden="true">⏱</span>
-      <div><b>Used NyayaVedika? Tell us in under 5 minutes.</b>
-        <small>Most people finish in about 3. Only your role and a star rating are required. No login. We never show your phone number or case details.</small></div>
-      <button type="button" class="btn ghost" data-open-feedback>Start</button>
-    </div>
-  </section>
 </div>
 
-<dialog id="fbDetail" aria-labelledby="fbDetailTitle"><div class="fb-dialog-body" id="fbDetailBody"></div></dialog>
-<dialog id="fbFormDialog" aria-labelledby="fbFormTitle"></dialog>
 <script src="/static/common.js"></script>
-<script src="/static/feedback.js"></script>
 <script>demoBanner();</script>
 </body>
 </html>

@@ -19,7 +19,7 @@ ROOT = Path(__file__).parent
 # Settings: nyayavedika.config loads .env itself on import (nyayavedika/envfile.py); nothing to do here.
 
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile  # noqa: E402
-from fastapi.responses import FileResponse, PlainTextResponse, Response  # noqa: E402
+from fastapi.responses import FileResponse, HTMLResponse, PlainTextResponse, Response  # noqa: E402
 from fastapi.middleware.gzip import GZipMiddleware  # noqa: E402
 from fastapi.staticfiles import StaticFiles  # noqa: E402
 from langgraph.types import Command  # noqa: E402
@@ -27,7 +27,7 @@ from pydantic import BaseModel  # noqa: E402
 
 from nyayavedika import (advocate, audit, auth, cause_list, config, db, document_studio, documents, drafting, impact, intake, jobs, legal_problem,  # noqa: E402
                    legal_aid, llm, ocr, sample_data, scheduler, staff_api, store, offline_summary, summarise, triage, vectorstore,
-                   websearch)
+                   websearch, public_docs)
 from nyayavedika.agents import assistants, checkpoint, document_analyst, registry, undertrial_watch  # noqa: E402
 from nyayavedika.agents.context import clean_context  # noqa: E402
 from nyayavedika.agents.front_door import answer_kind  # noqa: E402
@@ -1046,6 +1046,16 @@ def favicon():
 def index():
     """Landing page for the three role-specific portals."""
     return FileResponse(ROOT / "static" / "index.html")
+
+
+@app.get("/how-it-works", include_in_schema=False)
+def how_it_works_page():
+    return HTMLResponse(public_docs.render_page("how-it-works"))
+
+
+@app.get("/research-evidence", include_in_schema=False)
+def research_evidence_page():
+    return HTMLResponse(public_docs.render_page("research-evidence"))
 
 
 @app.get("/advocate")
