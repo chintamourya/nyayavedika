@@ -198,42 +198,6 @@ Each feature answers a specific gap shown above, and each writes an event we can
 
 **Claims we do not make.** We do not claim releases secured, custody days avoided, hours saved or households helped. The figures in Sections 1 to 5 describe the problem, not our results.
 
-## 8. Measurement protocol for real evidence
-
-The aim is to produce honest field evidence quickly, in three tiers. Each tier is reported separately and labelled with its limits.
-
-### Tier 1: structured usability testing (days)
-
-- **Who.** Law students, paralegals, advocates and DLSA volunteers, reached through personal networks.
-- **What they do.** Use the live demo with sample or invented documents only, try every feature on their door, then submit the feedback wall form.
-- **What we collect.** Rating (1 to 5), what worked, what broke, and whether it would change anything for them. For lawyers: minutes to finish one task by hand and with the tool, on the same document.
-- **What it can support.** Usability findings, defect counts, an average rating and rough time comparisons. It **cannot** support claims about releases or custody days.
-
-### Tier 2: time-and-accuracy study with advocates (weeks)
-
-- **Design.** Each participant screens or prepares the same set of anonymised or invented cases twice, once by hand and once with the tool.
-- **Log.** One row per case in `pilot/pilot_log_template.csv`: `case_ref` (anonymised), `tool_status`, `lawyer_verdict`, `manual_minutes`, `tool_minutes`, `days_over_limit`, `application_filed`, `outcome`.
-- **Report.** `python scripts/pilot_report.py pilot/pilot_log.csv --write docs/PILOT_RESULTS.md` builds the table: agreement between tool and lawyer, minutes saved per case, and flagged cases.
-- **What it can support.** Accuracy of the Section 479 check against lawyer verdicts, and time saved per case on a measured baseline.
-
-### Tier 3: partner pilot with real records (months)
-
-- **Who.** A DLSA, jail legal-aid clinic or review committee that agrees to use Undertrial Watch on real custody records, with consent and a lawyer approving every output.
-- **What we collect.** People flagged who had not been listed, days from eligibility to application and to release, applications filed, releases secured, and (with consent) household follow-up at 30 and 90 days.
-- **What it can support.** The indicators in the README's Proven impact table, including custody days avoided.
-
-### Indicator definitions
-
-| Indicator | Definition | Unit | Source |
-|---|---|---|---|
-| People screened | Distinct cases run through the tool | Count | Impact log; pilot log |
-| Eligible people found that had not been listed | Flagged by the tool, confirmed by a lawyer, and absent from the committee's list | Count | Pilot log; partner list |
-| Days from eligibility to application | Eligibility date to filing date | Days | Pilot log |
-| Custody days avoided | Release date earlier than the counterfactual, with the counterfactual stated | Days | Pilot log; partner records |
-| Advocate hours saved per case | Manual minutes minus tool minutes, including the lawyer's check, on the same cases | Hours | Pilot log |
-| Legal-aid applicants reached | Applications drafted and, where partners report it, lawyer assigned | Count | `legal_aid_application`, `legal_aid_outcome` |
-| Household: income resumed, debt, school | Consented follow-up after release | Yes/no, amount | Follow-up survey |
-
 ### Ethics and data handling
 
 - Real case files are not uploaded to a hosted model without consent. Names and addresses are **not** masked, so only anonymised or invented documents go into the demo.

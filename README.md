@@ -99,18 +99,7 @@ The cycle reinforces itself. The people not identified are the least able to fin
 - **Built-in measurement.** Every feature writes counts-only events to `/api/impact` (CSV export), and `scripts/pilot_report.py` turns a per-case pilot log into the table below.
 - **Pilot and field feedback.** Testers use the live demo and the feedback wall, and lawyers time one task with and without the tool. The protocol is in the evidence file.
 
-**Pilot setting:** _TO BE ADDED_ (who used it, where, over what period)
 
-| Indicator | Before | After / result |
-|---|---|---|
-| People screened / eligible people found that had not been listed | | |
-| Days from eligibility to application and to release | | |
-| Applications filed / releases secured / custody days avoided | | |
-| Advocate hours saved per case | | |
-| Legal-aid applicants reached | | |
-| Household: income resumed, debt taken, children back in school (consented follow-up) | | |
-
-**Field feedback:** _TO BE ADDED_ (responses, average rating, share whose situation changed, from `/feedback`)
 
 ## Run it
 
