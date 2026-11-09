@@ -76,7 +76,7 @@ flowchart TB
     Doors --> IMP["Impact log + feedback wall"]
 ```
 
-**Stack.** Python 3.12, FastAPI and Uvicorn, Pydantic for typed model output, LangGraph for agent graphs and checkpoints, Azure OpenAI for the language model, Pinecone with hosted embeddings for retrieval, Tavily for web search, pypdf, pypdfium2 and Tesseract (English, Hindi, Telugu, Tamil, Kannada, Marathi, Bengali) for OCR, SQLAlchemy over SQLite for development and Postgres for deployment, Docker and docker-compose, and a GitHub Actions workflow that builds the image.
+**Stack.** Python 3.12, FastAPI and Uvicorn, Pydantic for typed model output, LangGraph for agent graphs and checkpoints, Azure OpenAI for the language model, Pinecone with hosted embeddings for retrieval, Tavily for web search, pypdf, pypdfium2 and Tesseract (English, Hindi, Telugu, Tamil, Kannada, Marathi, Bengali) for OCR, SQLAlchemy over SQLite for development and Postgres for deployment, Docker and docker-compose, and a GitHub Actions workflow that builds the image. The project was built in AgentFoundry (AF), the Code for a Billion IDE. AF is the build environment and not a component of the running product.
 
 ## 3. Shared foundations
 
@@ -381,3 +381,17 @@ Version 1 is a working base with the right safeguards. These are the directions 
 - Open APIs and an open dataset of de-identified, aggregated metrics so researchers can check outcomes.
 - A shared rules registry where State legal-aid authorities maintain their own income limits and procedures.
 - Independent evaluation of impact with a partner, published openly.
+
+## Appendix: where to find things
+
+| Topic | Location |
+|---|---|
+| Section 479 and triage rules | `nyayavedika/triage.py` |
+| Legal-aid eligibility and drafting | `nyayavedika/legal_aid.py`, `legal_aid_kb.py` |
+| Legal-problem research | `nyayavedika/legal_problem.py` |
+| Agents | `nyayavedika/agents/` (`undertrial_watch.py`, `registry.py`, `document_analyst.py`, `react.py`, `front_door.py`, `tools.py`) |
+| Summarising, extraction, intake, worker | `summarise.py`, `extraction.py`, `intake.py`, `worker.py` |
+| Cause-list planner and database side | `scheduler.py`, `cause_list.py` |
+| Advocate tools | `advocate.py`, `document_studio.py`, `static/advocate.*` |
+| Impact and feedback | `impact.py`, `feedback.py`, `pilot_metrics.py`, `scripts/pilot_report.py` |
+| Evidence behind the problem | `docs/RESEARCH_EVIDENCE.md` |

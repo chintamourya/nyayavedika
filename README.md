@@ -72,7 +72,20 @@ flowchart LR
 - **Privacy.** Phone, email, Aadhaar and PAN numbers are masked before text reaches any model, index or web search. Web search is limited to official domains. Advocate workspaces use random tokens stored only as SHA-256 hashes.
 - **Works without keys.** With no API key the app runs offline on rules.
 
-**How we used AgentFoundry (AF):** AF_SECTION_HERE
+## How we used AgentFoundry (AF)
+
+NyayaVedika was built in **AgentFoundry (AF)**, the official agentic IDE for Code for a Billion. The project was created in AF, the collaborators were invited into it, and the work ran on the free smart-code tokens every participant receives.
+
+| Stage | How AF was used |
+|---|---|
+| **Scaffolding** | Generating the FastAPI server, the three static doors (`/citizen`, `/advocate`, `/staff`) and the SQLAlchemy data model |
+| **Agents** | Building and iterating the four LangGraph agents (Nyaya Mitra, Document Analyst, Undertrial Watch, Registry), including their `interrupt()` human-approval pauses |
+| **Rules and drafting** | Writing the deterministic Section 479, legal-aid and triage engines, and the cause-list planner |
+| **Testing** | Writing and running the offline test suite (about 30 files) until it passed |
+| **Documentation** | Drafting this README, `HOW_IT_WORKS.md` and `docs/RESEARCH_EVIDENCE.md` |
+
+**Building with an AI IDE on a legal problem.** Code written with an agentic IDE should not be trusted on the IDE's say-so, least of all code that decides who may be eligible for release. So the legal rules are plain, readable functions that return their reasons. The 21 Section 479 cases in `tests/gold_479.json` were worked out by hand and not generated from the code they check. Every output with legal consequences still stops at a named human. The lawyer review of the rules is still pending, and the Known limits section says so.
+
 
 ## Scale & severity of the problem
 
@@ -137,4 +150,4 @@ Open `/citizen`, `/advocate` or `/staff`. Add `AZURE_OPENAI_*`, `PINECONE_API_KE
 
 ## Licence
 
-Open source under the [MIT licence](LICENSE). Built for the Code for a Billion hackathon by Code for India.
+Open source under the [MIT licence](LICENSE). Built for the Code for a Billion hackathon by Code for India, using AgentFoundry (AF) as the IDE.
