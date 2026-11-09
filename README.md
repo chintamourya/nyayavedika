@@ -1,7 +1,7 @@
 # NyayaVedika (న్యాయవేదిక): agentic AI for timely justice
 
 **Track:** Timely Justice, Legal Backlog (Code for a Billion, impact area 07)
-**Live demo:** DEMO_LINK_HERE · **Demo video (3 min):** https://youtu.be/D3xo-yJMhwg · **Licence:** MIT
+**Live demo:** [NYAYAVEDIKA](https://nyayavedika.delightfulmushroom-95327f3a.koreacentral.azurecontainerapps.io/) · **Demo video (3 min):** https://youtu.be/D3xo-yJMhwg · **Licence:** MIT
 **Detailed evidence and research:** [docs/RESEARCH_EVIDENCE.md](docs/RESEARCH_EVIDENCE.md)
 
 Figures are tagged **Reported** (published by the named source), **Derived** (our arithmetic on reported figures) or **Estimate** (our model, assumptions stated).
