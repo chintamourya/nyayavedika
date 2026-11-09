@@ -142,7 +142,8 @@ def scan_candidates(db=None, court_id: Optional[str] = None, case_ids: Optional[
             continue
         if ut["eligible"] or (ut["percent_of_threshold"] or 0) >= NEAR_THRESHOLD_PERCENT:
             out.append({**case, "release_check": ut})
-    out.sort(key=lambda c: -c["release_check"]["percent_of_threshold"])
+    out.sort(key=lambda c: (c.get("source") == "synthetic", -c["release_check"]["percent_of_threshold"]))
+    data_needed.sort(key=lambda c: c.get("source") == "synthetic")
     return {"candidates": out, "data_needed": data_needed}
 
 

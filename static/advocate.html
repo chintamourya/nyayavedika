@@ -45,7 +45,8 @@
   </div>
   <div class="auth">
     <label for="demoToken">Lawyer access token</label>
-    <input id="demoToken" type="password" autocomplete="off" placeholder="Enter your lawyer token">
+    <input id="demoToken" type="text" autocomplete="off" placeholder="Enter your lawyer token" aria-describedby="lawyerTokenHint">
+    <span id="lawyerTokenHint" class="muted">Demo lawyer token: mourya</span>
     <span id="who" class="pill">not signed in</span>
     <button id="themeToggle" class="icon-btn" type="button" aria-label="Toggle light or dark theme" title="Toggle theme"><svg class="ic"><use href="#i-moon"/></svg></button>
   </div>
@@ -340,6 +341,6 @@
 </main>
 <div id="toasts" class="toasts" role="status" aria-live="polite"></div>
 <script src="/static/common.js?v=10"></script>
-<script src="/static/advocate.js?v=9"></script>
+<script src="/static/advocate.js?v=10"></script>
 </body>
 </html>

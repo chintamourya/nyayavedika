@@ -60,6 +60,7 @@ def docket(db, band: str = "", case_type: str = "", flag: str = "", deferred3: b
             by_band[r["band"]] += 1
     if band:
         out = [r for r in out if r["band"] == band]
+    out.sort(key=lambda r: (r["source"] == "synthetic", -(r["score"] or 0)))
     return {"total": len(out), "rows": out[:limit], "by_band": by_band,
             "types": sorted({r["case_type"] for r in rows if r["case_type"]})}
 
@@ -155,7 +156,7 @@ def alerts(db, status: str = "pending") -> Dict:
                     "release_status": rc.get("status"), "basis": rc.get("basis"), "release_notes": rc.get("needs_review") or [],
                     "source": sources.get(a["case_id"]) or ("citizen" if a["kind"] == "release_review_request" else None),
                     "draft_engine": (a["details"] or {}).get("draft_engine") or "template"})
-    out.sort(key=lambda a: -a["days_over_limit"])
+    out.sort(key=lambda a: (a["source"] == "synthetic", -a["days_over_limit"]))
     return {"alerts": out}
 
 

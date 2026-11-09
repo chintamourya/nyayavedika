@@ -16,10 +16,11 @@
     <label id="tokenLabel" for="demoToken">Staff access token</label>
     <input id="demoToken" type="password" autocomplete="off" placeholder="Enter your staff token">
     <button class="btn" type="submit" id="tokenGo">Sign in</button>
-    <span class="hint" id="tokenHint">Use the staff token configured by your administrator.</span>
+    <span class="hint" id="tokenHint">Demo staff token: mourya</span>
   </form>
   <div class="row gap wrap signed-in hidden" id="signedIn">
     <span id="who" class="pill">not signed in</span>
+    <span class="hint" id="signedInTokenHint">Demo staff token: mourya</span>
     <button class="btn ghost small" type="button" id="tokenChange">Switch user</button>
   </div>
 </header>
@@ -116,7 +117,8 @@
   <!-- DOCKET -->
   <section id="tab-docket" class="panel" aria-label="Docket">
     <h2>Docket</h2>
-    <p class="purpose">Step 2. Every pending case, highest priority first. Click a row to see why it scored what it did,
+    <p class="purpose">Step 2. Uploaded and imported cases appear first, with highest priority first within each group, followed by synthetic examples.
+      Click a row to see why it scored what it did,
       its facts with source pages, timeline and history.</p>
     <div data-how="docket"></div>
     <div class="card docket-bar" id="docketFilters">
@@ -175,7 +177,7 @@
   <section id="tab-undertrial" class="panel" aria-label="Undertrial">
     <h2>Undertrial Watch</h2>
     <p class="purpose">Custody cases from the Docket are checked every day against Sec. 479 BNSS. Anyone past the
-      limit gets an alert with a ready release application for a legal-aid lawyer.</p>
+      limit gets an alert with a ready release application for a legal-aid lawyer. Uploaded and imported cases appear before synthetic examples.</p>
     <div data-how="undertrial"></div>
     <div class="card">
       <p>Each alert moves through:</p>
@@ -221,6 +223,6 @@
 
 <script src="/static/common.js?v=10"></script>
 <script src="/static/explain.js?v=2"></script>
-<script src="/static/staff.js?v=17"></script>
+<script src="/static/staff.js?v=19"></script>
 </body>
 </html>

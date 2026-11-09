@@ -12,6 +12,7 @@ if (ADVOCATE_DOOR) {
   $("#tokenLabel").textContent = "Lawyer access token";
   $("#demoToken").placeholder = "Enter your lawyer token";
   $("#tokenHint").textContent = "Use the lawyer token configured by your administrator.";
+  $("#signedInTokenHint").classList.add("hidden");
   $("#portalTabs").setAttribute("aria-label", "Advocate screens");
 }
 
@@ -95,7 +96,13 @@ async function whoami() {
     $$("main .panel").forEach((panel) => panel.classList.remove("active"));
   }
 }
-tokenBox($("#demoToken"), whoami);
+const tokenInput = $("#demoToken");
+tokenBox(tokenInput, whoami);
+if (!ADVOCATE_DOOR) {
+  tokenInput.type = "text";
+  tokenInput.value = "mourya";
+  setToken("mourya");
+}
 $("#signinForm").addEventListener("submit", (e) => {  // Enter or the Sign in button
   e.preventDefault();
   setToken($("#demoToken").value);

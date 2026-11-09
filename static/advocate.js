@@ -872,7 +872,10 @@ $("#docChatForm").addEventListener("submit", async (event) => {
 });
 
 // ---------------------------------------------------------------- start
-tokenBox($("#demoToken"), initialize);
+const lawyerTokenInput = $("#demoToken");
+tokenBox(lawyerTokenInput, initialize);
+lawyerTokenInput.value = "mourya";
+setToken("mourya");
 renderMetrics();
 updateStudioOperation();
 $("#studioOperation").value = "merge";

@@ -279,6 +279,10 @@ class FriendlyUiMarkupTests(unittest.TestCase):
         self.assertIn('id="signinForm"', html)
         self.assertIn('id="tokenGo"', html)
         self.assertIn('$("#signinForm").addEventListener("submit"', js)
+        self.assertIn('tokenInput.value = "mourya";', js)
+        self.assertIn('setToken("mourya");', js)
+        self.assertIn('$("#signedInTokenHint").classList.add("hidden");', js)
+        self.assertIn('id="signedInTokenHint">Demo staff token: mourya', html)
         # the old success path only loaded Today's data and left every panel hidden after a signed-out first load
         self.assertIn('showTab(active && !active.classList.contains("hidden") ? active.dataset.tab : "today")', js)
 

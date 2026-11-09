@@ -52,8 +52,26 @@ class StaffApiTests(SeededDb):
         self.assertTrue(crit["rows"] and all(r["band"] == "Critical" for r in crit["rows"]))
         self.assertTrue(review["rows"] and all(r["data_quality"] == "needs_review" for r in review["rows"]))
         self.assertTrue(0 < custody["total"] < pending)
-        scores = [r["score"] for r in all_rows["rows"]]
-        self.assertEqual(scores, sorted(scores, reverse=True))
+        for source in dict.fromkeys(r["source"] for r in all_rows["rows"]):
+            scores = [r["score"] for r in all_rows["rows"] if r["source"] == source]
+            self.assertEqual(scores, sorted(scores, reverse=True))
+
+    def test_docket_shows_uploaded_cases_before_synthetic(self):
+        with store.connect() as db:
+            row = db.query("SELECT case_id, score, source FROM cases WHERE status = 'pending' ORDER BY score ASC LIMIT 1")[0]
+            original = {"source": row["source"], "score": row["score"]}
+            try:
+                db.update("cases", {"case_id": row["case_id"]}, {"source": "upload", "score": -1})
+                docket = staff_api.docket(db)
+                sources = [case["source"] for case in docket["rows"]]
+                self.assertEqual(sources[0], "upload")
+                self.assertLess(sources.index("synthetic"), len(sources))
+                uploaded_scores = [case["score"] for case in docket["rows"] if case["source"] != "synthetic"]
+                synthetic_scores = [case["score"] for case in docket["rows"] if case["source"] == "synthetic"]
+                self.assertEqual(uploaded_scores, sorted(uploaded_scores, reverse=True))
+                self.assertEqual(synthetic_scores, sorted(synthetic_scores, reverse=True))
+            finally:
+                db.update("cases", {"case_id": row["case_id"]}, original)
 
     def test_case_drawer_and_source_page(self):
         data = (ROOT / "sample_docs" / "fir_01_theft.txt").read_bytes()
@@ -75,10 +93,21 @@ class StaffApiTests(SeededDb):
         from nyayavedika.agents import undertrial_watch
         undertrial_watch.run_scan()
         with store.connect() as db:
-            rows = staff_api.alerts(db)["alerts"]
+            alert = db.select("alerts", {"kind": "undertrial_release"}, order="id DESC", limit=1)[0]
+            case = db.select("cases", {"case_id": alert["case_id"]})[0]
+            original_source = case["source"]
+            try:
+                db.update("cases", {"case_id": alert["case_id"]}, {"source": "upload"})
+                rows = staff_api.alerts(db)["alerts"]
+                self.assertEqual(rows[0]["case_id"], alert["case_id"])
+            finally:
+                db.update("cases", {"case_id": alert["case_id"]}, {"source": original_source})
         self.assertTrue(rows)
-        over = [a["days_over_limit"] for a in rows]
-        self.assertEqual(over, sorted(over, reverse=True))
+        sources = [a["source"] for a in rows]
+        self.assertEqual(sources, sorted(sources, key=lambda source: source == "synthetic"))
+        for source in dict.fromkeys(sources):
+            over = [a["days_over_limit"] for a in rows if a["source"] == source]
+            self.assertEqual(over, sorted(over, reverse=True))
 
     def test_weekly_numbers(self):
         with store.connect() as db:
@@ -237,7 +266,11 @@ class StaticContentTests(unittest.TestCase):
         self.assertIn('id="docChatForm"', html)
         self.assertIn('id="docChatMessages"', html)
         self.assertIn('accept=".pdf,.docx,.txt,.md,.csv', html)
-        self.assertIn("advocate.js?v=9", html)
+        self.assertIn('id="demoToken" type="text"', html)
+        self.assertIn('id="lawyerTokenHint" class="muted">Demo lawyer token: mourya', html)
+        self.assertIn('lawyerTokenInput.value = "mourya";', script)
+        self.assertIn('setToken("mourya");', script)
+        self.assertIn("advocate.js?v=10", html)
         self.assertIn("advocate.css?v=8", html)
         self.assertIn(".chat-status {", style)
         self.assertIn("overflow: hidden;", style)
