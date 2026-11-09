@@ -14,7 +14,6 @@ venv/
 *.zip
 *.egg-info/
 .pytest_cache/
-
-# CasePDF reference (license unchecked)
-reference/*
-!reference/casepdf/PLACE_CASEPDF_HERE.txt
+.vscode/
+PROJECT_DOCUMENTATION.md
+SUBMISSION.md
