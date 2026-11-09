@@ -1,7 +1,7 @@
 # NyayaVedika (న్యాయవేదిక): agentic AI for timely justice
 
 **Track:** Timely Justice, Legal Backlog (Code for a Billion, impact area 07)
-**Live demo:** DEMO_LINK_HERE · **Demo video (2–3 min):** VIDEO_LINK_HERE · **Licence:** MIT
+**Live demo:** DEMO_LINK_HERE · **Demo video (3 min):** https://youtu.be/D3xo-yJMhwg · **Licence:** MIT
 **Detailed evidence and research:** [docs/RESEARCH_EVIDENCE.md](docs/RESEARCH_EVIDENCE.md)
 
 Figures are tagged **Reported** (published by the named source), **Derived** (our arithmetic on reported figures) or **Estimate** (our model, assumptions stated).
@@ -19,7 +19,7 @@ Three groups fall through the same gap:
 
 ### Why all three doors, not one
 
-The backlog is a chain, and it breaks at a different link for each group. A citizen who does not know they qualify for legal aid never reaches a lawyer. A lawyer who cannot read or assemble the record in time cannot make a hearing useful. A registry that cannot see which cases are urgent lists the wrong matters. Fixing one link only moves the bottleneck to the next. NyayaVedika therefore equips **citizens, advocates and court staff together**, on the same deterministic rules (Section 479, legal-aid eligibility, triage) and the same audit trail, so what one door produces is something the next door can act on. In Version 1 the doors share rules, data model and audit log. Linking one person's journey across the three doors as a single case record is planned for Version 2 (see HOW_IT_WORKS.md, Section 3.7).
+The backlog is a chain, and it breaks at a different link for each group. A citizen who does not know they qualify for legal aid never reaches a lawyer. A lawyer who cannot read or assemble the record in time cannot make a hearing useful. A registry that cannot see which cases are urgent lists the wrong matters. Fixing one link only moves the bottleneck to the next. NyayaVedika therefore equips **citizens, advocates and court staff together**, on the same deterministic rules (Section 479, legal-aid eligibility, triage) and the same audit trail, so what one door produces is something the next door can act on. In Version 1 the doors share rules, data model and audit log. Linking one person's journey across the three doors as a single case record is planned for Version 2 (see  docs/HOW_IT_WORKS.md, Section 3.7).
 
 ## What we built
 
@@ -84,7 +84,6 @@ NyayaVedika was built in **AgentFoundry (AF)**, the official agentic IDE for Cod
 | **Testing** | Writing and running the offline test suite (about 30 files) until it passed |
 | **Documentation** | Drafting this README, `HOW_IT_WORKS.md` and `docs/RESEARCH_EVIDENCE.md` |
 
-**Building with an AI IDE on a legal problem.** Code written with an agentic IDE should not be trusted on the IDE's say-so, least of all code that decides who may be eligible for release. So the legal rules are plain, readable functions that return their reasons. The 21 Section 479 cases in `tests/gold_479.json` were worked out by hand and not generated from the code they check. Every output with legal consequences still stops at a named human. The lawyer review of the rules is still pending, and the Known limits section says so.
 
 
 ## Scale & severity of the problem

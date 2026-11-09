@@ -1,5 +1,7 @@
 # NyayaVedika: research and evidence file
 
+Real users feedback link : https://nyayavedika.delightfulmushroom-95327f3a.koreacentral.azurecontainerapps.io/feedback
+
 This file holds the full evidence behind the README's claims about size, severity and impact. It is written for judges and partners who want to check the numbers. The README carries the short version.
 
 **How figures are tagged.** **Reported**: published by the named source. **Derived**: our arithmetic on reported figures, shown so it can be checked. **Estimate**: our model, with assumptions stated and changeable.
@@ -207,16 +209,8 @@ Each feature answers a specific gap shown above, and each writes an event we can
 - Household follow-up needs informed, voluntary consent and may be refused without any effect on help received.
 - Every output is legal information for a lawyer to review, and nothing is filed without a human decision.
 
-## 9. Limits of this evidence
 
-- **Secondary sources.** Several ministry replies are cited through press reports (Bar & Bench, PTI, ANI, Moneylife). They should be replaced with the primary Rajya Sabha and Lok Sabha answers where possible.
-- **Different dates.** Figures come from 2015–16 (DAKSH), 2023 and 2024 (NCRB), and 2025 and 2026 (NALSA, Law Ministry). They describe the problem at different times and are not added together.
-- **Different definitions.** LADC scheme counts, committee counts and NCRB counts use different definitions of who is counted.
-- **Model assumptions.** The avoidable-custody estimate depends on exclusion shares and delay that are our assumptions. The sensitivity table uses arbitrary reach shares.
-- **Unmeasured costs.** Household, trust and system effects are described by mechanism only.
-- **No field data yet.** Everything in Section 7's "does not show" column remains open until Tier 2 and Tier 3 produce data.
-
-## 10. Sources
+## 8. Sources
 
 - [NALSA, Functioning of the Under Trial Review Committees, October to December 2025](https://cdnbbsr.s3waas.gov.in/s32e45f93088c7db59767efef516b306aa/uploads/2026/02/20260211666479586.pdf)
 - [NCRB, Prison Statistics India 2023](https://www.ncrb.mha.gov.in/uploads/files/PSI-2023.pdf)
