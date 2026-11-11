@@ -122,7 +122,7 @@
   const starInput = (name) => `<div class="fb-starin" data-stars="${name}" role="radiogroup">${[1, 2, 3, 4, 5].map((n) =>
     `<label title="${RATING_WORD[n]}"><input type="radio" name="${name}" value="${n}"><span aria-hidden="true">★</span><span class="sr-only">${n} star${n > 1 ? "s" : ""}, ${RATING_WORD[n]}</span></label>`).join("")}<output class="hint" data-for="${name}"></output></div>`;
   const q = (label, body, hint = "") => `<fieldset class="fb-q"><legend>${label}</legend>${hint ? `<p class="hint">${hint}</p>` : ""}${body}</fieldset>`;
-  const num = (name, label, ph) => `<label class="fb-num">${esc(label)}<input type="number" name="${name}" min="0" inputmode="numeric" placeholder="${esc(ph)}"></label>`;
+  const num = (name, label, ph, max = null) => `<label class="fb-num">${esc(label)}<input type="number" name="${name}" min="0"${max ? ` max="${max}"` : ""} inputmode="numeric" placeholder="${esc(ph)}"></label>`;
 
   function formHtml() {
     return `
@@ -154,11 +154,17 @@
         ${q("Was what it told you correct and clear?", radios("accuracy", LABELS.accuracy))}
         ${q("What changed for you?", checks("outcomes", LABELS.outcomes), "Tick all that apply. “Nothing yet” is a useful answer too.")}
         ${q("Roughly how much time did it save you?", radios("time_saved", LABELS.timeSaved))}
+        <fieldset class="fb-fieldset"><legend>Optional: compare the same task before and with NyayaVedika</legend>
+          <p class="hint">Enter minutes only if you can make a reasonable comparison. These times are used in aggregate and are not shown on your public feedback card.</p>
+          <div class="grid2">${num("task_minutes_before", "Minutes before using NyayaVedika", "e.g. 45", 600)}
+            ${num("task_minutes_with_tool", "Minutes with NyayaVedika", "e.g. 20", 600)}</div>
+          ${q("How were these times obtained?", radios("timing_basis", { self_reported: "My estimate", observed: "Timed / observed" }))}
+        </fieldset>
         ${q("Would you recommend it to a colleague or neighbour?", radios("would_recommend", LABELS.recommend))}
       </div>
       <div class="fb-step" data-step="4" hidden>
         <h3>In your own words</h3>
-        <p class="hint">Submitting publishes your feedback on this page. Your role, rating, answers, optional first name and place, and any headline or comment you provide may be shown. We mask obvious phone numbers, email addresses, Aadhaar numbers and case numbers.</p>
+        <p class="hint">Submitting publishes your feedback on this page. Your role, rating, answers, optional first name and place, and any headline or comment you provide may be shown. Comparable task times are used only in aggregate and are not shown on your card. We mask obvious phone numbers, email addresses, Aadhaar numbers and case numbers.</p>
         <label>One line that sums it up <span class="hint">(optional, shown on the card)</span>
           <input name="headline" maxlength="120"></label>
         <label>What worked, what did not, what should we fix? <span class="hint">(optional)</span>
@@ -196,6 +202,11 @@
   function validate(n) {
     if (n === 1 && !val("role")) { fail("Please pick who you are, so we can show the right voice."); return false; }
     if (n === 3 && !val("rating")) { fail("Please give an overall star rating."); return false; }
+    if (n === 3) {
+      const before = val("task_minutes_before"), withTool = val("task_minutes_with_tool");
+      if (!!before !== !!withTool) { fail("For a useful comparison, enter both task times or leave both blank."); return false; }
+      if (before && !val("timing_basis")) { fail("Please say whether the task times were estimated or observed."); return false; }
+    }
     return true;
   }
 
@@ -208,6 +219,8 @@
       cost_types: many("cost_types"), days_lost: n("days_lost"), rupees_lost: n("rupees_lost"),
       rating: val("rating"), ease: val("ease") || null, accuracy: val("accuracy") || null,
       outcomes: many("outcomes"), time_saved: val("time_saved") || null, would_recommend: val("would_recommend") || null,
+      task_minutes_before: n("task_minutes_before"), task_minutes_with_tool: n("task_minutes_with_tool"),
+      timing_basis: val("timing_basis") || null,
       headline: val("headline"), comment: val("comment"),
     };
   }

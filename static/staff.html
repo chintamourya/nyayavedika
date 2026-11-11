@@ -32,7 +32,6 @@
   <button class="tab" data-tab="cause" role="tab" data-staff title="Step 3: build, check and publish the weekly hearing list">Cause list</button>
   <button class="tab" data-tab="summary" role="tab" data-court title="Read any one document without creating a case">Document summary</button>
   <button class="tab" data-tab="undertrial" role="tab" data-court title="People in custody past the Sec. 479 BNSS limit, and their release applications">Undertrial</button>
-  <button class="tab" data-tab="insights" role="tab" data-staff title="Weekly docket health and evidence of impact">Insights</button>
 </nav>
 
 <main>
@@ -193,19 +192,6 @@
       <p class="hint">Custody cases the watch cannot check yet, and who can supply the missing fact.</p><ul id="utNeeded"></ul></details>
   </section>
 
-  <!-- INSIGHTS -->
-  <section id="tab-insights" class="panel" aria-label="Insights">
-    <h2>Insights</h2>
-    <p class="purpose">Is the docket getting healthier, and what has the system done? Figures come from the database and
-      the impact log.</p>
-    <div data-how="insights"></div>
-    <h3>Docket health</h3>
-    <div class="kpis" id="weeklyKpis"></div>
-    <div id="beforeAfter"></div>
-    <h3>Impact so far</h3>
-    <div class="kpis" id="impactKpis"></div>
-    <button class="btn ghost" id="csvExport">Export impact log (CSV)</button>
-  </section>
 </main>
 
 <aside class="drawer" id="drawer" aria-label="Case details" aria-hidden="true">
@@ -221,8 +207,8 @@
 
 <dialog id="dialog"><div id="dialogBody"></div><div class="row gap" style="justify-content:flex-end;margin-top:12px"><button class="btn ghost" id="dialogClose">Close</button></div></dialog>
 
-<script src="/static/common.js?v=10"></script>
+<script src="/static/common.js?v=12"></script>
 <script src="/static/explain.js?v=2"></script>
-<script src="/static/staff.js?v=19"></script>
+<script src="/static/staff.js?v=20"></script>
 </body>
 </html>

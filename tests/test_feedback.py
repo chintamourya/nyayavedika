@@ -78,6 +78,76 @@ class FeedbackTests(unittest.TestCase):
         self.assertEqual(s["face_problem_often_pct"], 50)
         self.assertEqual(s["by_role"], {"advocate": 1, "citizen": 1})
 
+    def test_comparable_task_times_are_aggregated_and_not_public_per_person(self):
+        feedback.submit(self.db, {
+            "role": "lawyer", "rating": 5, "task_minutes_before": 50,
+            "task_minutes_with_tool": 20, "timing_basis": "observed",
+        })
+        feedback.submit(self.db, {
+            "role": "advocate", "rating": 4, "task_minutes_before": 30,
+            "task_minutes_with_tool": 20, "timing_basis": "self_reported",
+        })
+        result = feedback.public(self.db)
+        timing = result["summary"]["task_timing"]
+        self.assertEqual(timing["paired_responses"], 2)
+        self.assertIsNone(timing["median_before_minutes"])
+        internal_timing = feedback.summarise(self.db.select("field_feedback"))["task_timing"]
+        self.assertEqual((internal_timing["median_before_minutes"], internal_timing["median_with_tool_minutes"]), (40.0, 20.0))
+        self.assertEqual(internal_timing["median_minutes_saved"], 20.0)
+        self.assertEqual((timing["observed"], timing["self_reported"]), (1, 1))
+        self.assertNotIn("task_minutes_before", str(result["items"]))
+        for _ in range(3):
+            feedback.submit(self.db, {
+                "role": "lawyer", "rating": 4, "task_minutes_before": 40,
+                "task_minutes_with_tool": 20, "timing_basis": "observed",
+            })
+        self.assertIsNotNone(feedback.public(self.db)["summary"]["task_timing"]["median_before_minutes"])
+
+    def test_task_times_require_a_complete_pair_and_basis(self):
+        with self.assertRaises(feedback.FeedbackError):
+            feedback.clean({"role": "citizen", "rating": 4, "task_minutes_before": 10})
+        with self.assertRaises(feedback.FeedbackError):
+            feedback.clean({"role": "citizen", "rating": 4, "task_minutes_before": 10,
+                            "task_minutes_with_tool": 5})
+
+    def test_api_usage_metrics_are_grouped_without_raw_routes(self):
+        from unittest.mock import patch
+        from nyayavedika import impact
+        self.assertEqual(impact.api_feature("/api/advocate/documents/{doc_id}/chat", door="advocate"), "document_chat")
+        self.assertEqual(impact.api_feature("/api/documents/analyze"), "document_analysis")
+        self.assertEqual(impact.api_feature("/api/cause-lists/draft"), "cause_list_planning")
+        self.assertIsNone(impact.api_feature("/api/field-feedback"))
+        with patch.object(impact, "record") as record:
+            impact.record_api_usage("citizen", "legal_aid", "POST", 422, 12.5)
+        record.assert_called_once_with("api_usage_citizen_legal_aid_failure", 12.5,
+                                       method="POST", status_code=422, door="citizen", feature="legal_aid")
+
+    def test_impact_summary_exposes_api_counts_and_average_latency(self):
+        from unittest.mock import patch
+        from nyayavedika import impact
+        totals = {
+            "api_usage_citizen_legal_aid_success": {"count": 3, "total": 90.0},
+            "api_usage_advocate_documents_failure": {"count": 1, "total": 30.0},
+            "api_usage_staff_court_operations_success": {"count": 2, "total": 80.0},
+            "door_visit_citizen": {"count": 4, "total": 4.0},
+        }
+        reach = {"unique_browsers": 2, "by_door": {"citizen": 1, "advocate": 1, "staff": 0}}
+        with patch("nyayavedika.db.event_totals", return_value=totals), \
+                patch("nyayavedika.db.fetch", return_value=[]), \
+                patch("nyayavedika.db.reach_totals", return_value=reach):
+            summary = impact.summary()
+        self.assertEqual(summary["api_usage"]["total"]["requests"], 6)
+        self.assertEqual(summary["api_usage"]["total"]["successful"], 5)
+        self.assertEqual(summary["api_usage"]["total"]["failed"], 1)
+        self.assertEqual(summary["api_usage"]["total"]["avg_server_ms"], 33.3)
+        self.assertEqual(summary["api_usage"]["by_door"]["citizen"]["features"]["legal_aid"]["requests"], 3)
+        self.assertEqual(summary["api_usage"]["by_door"]["advocate"]["features"]["documents"]["failed"], 1)
+        self.assertEqual(summary["api_usage"]["by_feature"]["court_operations"]["requests"], 2)
+        self.assertEqual(summary["reach"], reach)
+        self.assertEqual(summary["door_visits"], {
+            "total": 4, "by_door": {"citizen": 4, "advocate": 0, "staff": 0}
+        })
+
     def test_hide_removes_from_wall_but_not_from_numbers(self):
         new_id = feedback.submit(self.db, FULL)["id"]
         feedback.hide(self.db, new_id)
@@ -129,6 +199,14 @@ class LandingMarkupTests(unittest.TestCase):
         self.assertNotIn("opts in", js)
         self.assertNotIn("Hide this entry", js)
         self.assertNotIn("fbHide", js)
+        common = (STATIC / "common.js").read_text(encoding="utf-8")
+        self.assertIn("Activity measurement", common)
+        self.assertNotIn("Allow reach measurement", common)
+        self.assertNotIn("Change reach settings", common)
+        self.assertNotIn("data-reach-decline", common)
+        self.assertIn("X-Anonymous-Browser-ID", common)
+        self.assertNotIn("not verified", common.lower())
+        self.assertIn("/api/reach/", common)
 
     def test_feedback_wall_page_renders_api_feed(self):
         html = (STATIC / "feedback-wall.html").read_text(encoding="utf-8")
@@ -139,6 +217,22 @@ class LandingMarkupTests(unittest.TestCase):
         self.assertIn("/api/field-feedback/all", js)
         self.assertIn('"/feedback": "feedback-wall.html"', (ROOT / "scripts" / "dev_api.py").read_text(encoding="utf-8"))
         self.assertIn('@app.get("/feedback")', (ROOT / "server.py").read_text(encoding="utf-8"))
+
+    def test_metrics_page_is_separate_from_staff_insights(self):
+        page = (STATIC / "metrics.html").read_text(encoding="utf-8")
+        script = (STATIC / "metrics.js").read_text(encoding="utf-8")
+        staff = (STATIC / "staff.html").read_text(encoding="utf-8")
+        self.assertIn("/api/demo/metrics", script)
+        self.assertIn('href="/metrics"', (STATIC / "index.html").read_text(encoding="utf-8"))
+        self.assertIn("Detailed operational metrics", (ROOT / "README.md").read_text(encoding="utf-8"))
+        self.assertNotIn('data-tab="insights"', staff)
+        self.assertIn("aria-labelledby=\"reachHeading\"", page)
+        self.assertNotIn("pilotHeading", page)
+        self.assertIn("distinct browsers", script)
+        self.assertNotIn("not verified", script.lower())
+        self.assertNotIn("Paired task-time reports", script)
+        self.assertNotIn("Aggregate medians shown after 5 responses", script)
+        self.assertIn("Aggregated activity.", script)
 
     def test_public_docs_routes_exist_in_both_servers(self):
         source = (ROOT / "server.py").read_text(encoding="utf-8")

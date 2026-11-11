@@ -41,6 +41,15 @@
     ];
     $("#wallStats").innerHTML = entries.map(([value, name, icon]) =>
       `<div class="wall-stat"><span class="wall-stat-icon">${icon}</span><div><b>${esc(value)}</b><span>${esc(name)}</span></div></div>`).join("");
+    const timing = summary.task_timing || {};
+    const timingNote = $("#wallTiming");
+    if (timingNote) {
+      timingNote.textContent = timing.paired_responses >= 5 && timing.median_before_minutes != null
+        ? `Comparable task-time reports: median ${timing.median_before_minutes} min before and ${timing.median_with_tool_minutes} min with NyayaVedika across ${timing.paired_responses} responses (${timing.self_reported} estimated, ${timing.observed} timed/observed). Voluntary reports; not independently verified.`
+        : timing.paired_responses
+          ? `There are ${timing.paired_responses} comparable task-time reports. Aggregate times appear once at least 5 responses are available.`
+          : "No comparable before-and-with-tool task-time reports yet.";
+    }
   }
 
   function renderRoles() {

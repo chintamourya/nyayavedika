@@ -12,6 +12,7 @@ import threading
 import unittest
 import urllib.error
 import urllib.request
+import uuid
 from datetime import date, timedelta
 from http.server import ThreadingHTTPServer
 from pathlib import Path
@@ -183,6 +184,35 @@ class DevServerTests(SeededDb):
                 self.assertEqual(self.call(src.decode())[0], 200, src)
         self.assertEqual(self.call("/static/../server.py")[0], 404)
 
+    def test_dev_api_counts_public_reach_and_distinct_feature_browsers(self):
+        first_id, second_id = str(uuid.uuid4()), str(uuid.uuid4())
+        from nyayavedika import db
+
+        for browser_id in (first_id, second_id):
+            req = urllib.request.Request(
+                self.base + "/api/reach/public",
+                method="POST",
+                data=json.dumps({"browser_id": browser_id}).encode(),
+                headers={"Content-Type": "application/json"},
+            )
+            with urllib.request.urlopen(req) as response:
+                self.assertEqual(response.status, 200)
+
+        before = db.browser_feature_totals()["by_door_feature"].get("citizen", {}).get("legal_aid_check", 0)
+        for browser_id in (first_id, first_id):
+            req = urllib.request.Request(
+                self.base + "/api/legal-aid/topics",
+                headers={"X-Anonymous-Browser-ID": browser_id},
+            )
+            with urllib.request.urlopen(req) as response:
+                self.assertEqual(response.status, 200)
+
+        self.assertEqual(db.reach_totals()["public_browsers"], 2)
+        self.assertEqual(
+            db.browser_feature_totals()["by_door_feature"]["citizen"]["legal_aid_check"],
+            before + 1,
+        )
+
     def test_three_portal_entry_points_and_advocate_role_gate(self):
         landing = (STATIC / "index.html").read_text(encoding="utf-8")
         self.assertIn('href="/citizen"', landing)
@@ -223,6 +253,16 @@ class DevServerTests(SeededDb):
 
 
 class StaticContentTests(unittest.TestCase):
+    def test_staff_portal_has_no_insights_section(self):
+        html = (STATIC / "staff.html").read_text(encoding="utf-8")
+        script = (STATIC / "staff.js").read_text(encoding="utf-8")
+        self.assertNotIn('data-tab="insights"', html)
+        self.assertNotIn('id="tab-insights"', html)
+        self.assertNotIn("weeklyKpis", html)
+        self.assertNotIn("loadInsights", script)
+        self.assertNotIn("/api/insights/weekly", script)
+        self.assertNotIn("/api/impact", script)
+
     def test_string_tables_complete(self):
         strings = json.loads((STATIC / "i18n.json").read_text(encoding="utf-8"))
         self.assertEqual(set(strings), {"en", "hi", "te"})

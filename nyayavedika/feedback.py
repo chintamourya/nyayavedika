@@ -6,13 +6,16 @@ criteria, so every answer maps to a number a reviewer can check:
   Size of the problem      problem_frequency, people_affected
   Severity of the problem  cost_types, days_lost, rupees_lost
   Quality of the solution  rating, ease, accuracy, would_recommend
-  Proven impact            outcomes, time_saved
+  Proven impact            outcomes, time_saved, optional paired task times
+
+Paired task times are summarized in aggregate only; individual before/with-tool durations are not returned to the public wall.
 
 Only the role and the star rating are required. New submissions are published by default. Free text is run through
 documents.redact_pii, and names are cut to a first name. Staff can hide an entry through the staff-only API.
 Used by both server.py and scripts/dev_api.py so the two servers behave the same.
 """
 import re
+import statistics
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
@@ -128,8 +131,17 @@ def clean(payload: Dict[str, Any]) -> Dict[str, Any]:
         "accuracy": _choice(p.get("accuracy"), ACCURACY, "accuracy"),
         "outcomes": _choices(p.get("outcomes"), OUTCOMES, "outcomes"),
         "time_saved": _choice(p.get("time_saved"), TIME_SAVED, "time_saved"),
+        "task_minutes_before": _count(p.get("task_minutes_before"), "task_minutes_before", 600),
+        "task_minutes_with_tool": _count(p.get("task_minutes_with_tool"), "task_minutes_with_tool", 600),
+        "timing_basis": _choice(p.get("timing_basis"), ("self_reported", "observed"), "timing_basis"),
         "language": _choice(p.get("language"), LANGUAGES, "language"),
     }
+    if (answers["task_minutes_before"] is None) != (answers["task_minutes_with_tool"] is None):
+        raise FeedbackError(400, "Provide both before and with-tool task times, or leave both blank")
+    if answers["task_minutes_before"] is not None and answers["timing_basis"] is None:
+        raise FeedbackError(400, "timing_basis is required when task times are provided")
+    if answers["task_minutes_before"] is None:
+        answers["timing_basis"] = None
     return {
         "role": role, "rating": rating,
         "name": first_name(p.get("name")), "place": _text(p.get("place"), 60),
@@ -168,7 +180,7 @@ def _pct(part: int, whole: int) -> Optional[int]:
     return round(100 * part / whole) if whole else None
 
 
-def summarise(rows: List[Dict]) -> Dict[str, Any]:
+def summarise(rows: List[Dict], suppress_small_timing_sample: bool = False) -> Dict[str, Any]:
     """Numbers over ALL responses (hidden ones included): the figures a reviewer can quote."""
     n = len(rows)
     ratings = [r["rating"] for r in rows if r.get("rating")]
@@ -180,6 +192,17 @@ def summarise(rows: List[Dict]) -> Dict[str, Any]:
     changed = [o for o in answered_outcome if any(x != "nothing_yet" for x in o)]
     freq = [(r.get("answers") or {}).get("problem_frequency") for r in rows]
     faced_often = [f for f in freq if f in ("often", "weekly")]
+    timings = []
+    for row in rows:
+        answers = row.get("answers") or {}
+        before, with_tool = answers.get("task_minutes_before"), answers.get("task_minutes_with_tool")
+        if isinstance(before, (int, float)) and isinstance(with_tool, (int, float)):
+            timings.append((before, with_tool, answers.get("timing_basis") or "self_reported"))
+    timing_deltas = [before - with_tool for before, with_tool, _ in timings]
+    median_before = statistics.median(before for before, _, _ in timings) if timings else None
+    median_with_tool = statistics.median(with_tool for _, with_tool, _ in timings) if timings else None
+    median_saved = statistics.median(timing_deltas) if timings else None
+    publish_timing = not suppress_small_timing_sample or len(timings) >= 5
     by_role: Dict[str, int] = {}
     for r in rows:
         by_role[r["role"]] = by_role.get(r["role"], 0) + 1
@@ -191,6 +214,16 @@ def summarise(rows: List[Dict]) -> Dict[str, Any]:
         "outcome_changed_pct": _pct(len(changed), len(answered_outcome)),
         "face_problem_often_pct": _pct(len(faced_often), len([f for f in freq if f])),
         "by_role": by_role,
+        "task_timing": {
+            "paired_responses": len(timings),
+            "self_reported": sum(1 for _, _, basis in timings if basis == "self_reported"),
+            "observed": sum(1 for _, _, basis in timings if basis == "observed"),
+            "median_before_minutes": median_before if publish_timing else None,
+            "median_with_tool_minutes": median_with_tool if publish_timing else None,
+            "median_minutes_saved": median_saved if publish_timing else None,
+            "median_time_saved_pct": round(100 * median_saved / median_before)
+            if publish_timing and median_before and median_saved is not None else None,
+        },
     }
 
 
@@ -206,6 +239,7 @@ def public(db, limit: Optional[int] = WALL_LIMIT) -> Dict[str, Any]:
         "rating": r["rating"], "short": short_text(r.get("headline") or "", r.get("comment") or ""),
         "headline": r.get("headline") or "", "comment": r.get("comment") or "",
         "features": r.get("features") or [], "would_recommend": r.get("would_recommend"),
-        "answers": r.get("answers") or {},
+        "answers": {k: v for k, v in (r.get("answers") or {}).items()
+                    if k not in ("task_minutes_before", "task_minutes_with_tool", "timing_basis")},
     } for r in wall]
-    return {"summary": summarise(rows), "items": items}
+    return {"summary": summarise(rows, suppress_small_timing_sample=True), "items": items}

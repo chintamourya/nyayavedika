@@ -153,6 +153,13 @@ SCHEMA: Dict[str, Dict] = {
                     ("answers", "json", ""), ("consent_public", "bool", "DEFAULT FALSE"),
                     ("published", "bool", "DEFAULT FALSE")],
         "pk": None, "indexes": [("ix_field_feedback_pub", "published, created_at", None, False, False)]},
+    "reach_visitors": {
+        "columns": [("visitor_hash", "text", ""), ("door", "text", ""), ("first_seen", "ts", NOW)],
+        "pk": ("visitor_hash", "door"), "indexes": []},
+    "browser_feature_activity": {
+        "columns": [("visitor_hash", "text", ""), ("door", "text", ""), ("feature", "text", ""),
+                    ("first_seen", "ts", NOW)],
+        "pk": ("visitor_hash", "door", "feature"), "indexes": []},
     "dlsa_directory": {
         "columns": [("id", "id", ""), ("state", "text", ""), ("district", "text", ""), ("office", "text", ""),
                     ("address", "text", ""), ("phone", "text", ""), ("email", "text", ""), ("source_url", "text", ""),

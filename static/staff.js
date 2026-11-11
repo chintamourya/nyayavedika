@@ -1,4 +1,4 @@
-// Staff app: Today, Intake, Docket (+ case drawer), Cause list, Undertrial, Insights.
+// Staff app: Today, Intake, Docket (+ case drawer), Cause list, Undertrial.
 // The server decides the role from the token and checks every call; tabs are only hidden for convenience.
 demoBanner();
 const ADVOCATE_DOOR = location.pathname === "/advocate";
@@ -46,7 +46,7 @@ function showTab(name) {
   $$(".tabs .tab[data-tab]").forEach((t) => t.classList.toggle("active", t.dataset.tab === name));
   $$("main .panel").forEach((p) => p.classList.toggle("active", p.id === "tab-" + name));
   if (switching && window.scrollY > 0) window.scrollTo({ top: 0 });  // a new screen starts at its top, not mid-page
-  ({ today: loadToday, docket: loadDocket, undertrial: loadAlerts, insights: loadInsights }[name] || (() => {}))();
+  ({ today: loadToday, docket: loadDocket, undertrial: loadAlerts }[name] || (() => {}))();
 }
 $$(".tabs .tab[data-tab]").forEach((t) => t.addEventListener("click", () => showTab(t.dataset.tab)));
 
@@ -815,33 +815,4 @@ $("#utScan").addEventListener("click", (e) => busy(e.target, async () => {
   toast(`Checked: ${out.new_release_alerts} new, ${out.data_needed} need information.`); loadAlerts();
 }));
 
-// ---------------------------------------------------------------- INSIGHTS
-async function loadInsights() {
-  try {
-    const [w, i] = await Promise.all([api("/api/insights/weekly"), api("/api/impact")]);
-    const k = (v, l, why) => `<div class="kpi"><b>${esc(v ?? "-")}</b><span>${esc(l)}</span><small class="why">${esc(why)}</small></div>`;
-    const mix = w.data_mix || {};
-    $("#weeklyKpis").innerHTML = k(`${mix.synthetic || 0} / ${(mix.upload || 0) + (mix.csv || 0)}`, "Synthetic / real cases",
-      "the docket figures below mix both; real = uploaded or imported")
-      + Object.entries(w.longest_wait_days).map(([bnd, d]) => k(`${d} days`, `Longest wait · ${bnd}`, "since ready to list (filing date for the seeded backlog)")).join("")
-      + k(`${w.deferred_3_plus_percent}%`, "Deferred 3+ times", "share of pending cases")
-      + k(w.past_deadline, "Past deadline", "not listed by band deadline")
-      + k(w.utilisation_percent != null ? `${w.utilisation_percent}%` : "-", "Bench utilisation", "latest draft / list")
-      + k(w.capacity_shortfall ? "yes" : "no", "Capacity shortfall", "latest draft / list");
-    const ba = w.vs_oldest_first || [];
-    $("#beforeAfter").innerHTML = ba.length ? `<div class="card"><h3>Before / after: latest list #${esc(w.latest_cause_list)} (${esc(w.latest_cause_list_status)}) vs listing oldest-first</h3>
-      <table class="rules"><tr><th>Measure</th><th class="num">This plan</th><th class="num">Oldest-first</th><th></th></tr>
-      ${ba.map((r) => { const good = r.better === "lower" ? r.this_plan < r.oldest_first : r.this_plan > r.oldest_first;
-        return `<tr><td>${esc(r.metric)}</td><td class="num"><b>${esc(r.this_plan)}</b></td><td class="num">${esc(r.oldest_first)}</td><td>${good ? "✓ better" : r.this_plan === r.oldest_first ? "same" : "worse"}</td></tr>`; }).join("")}</table>
-      <p class="hint">Same cases, same benches, same week - only the ordering rule differs.</p></div>`
-      : `<p class="hint">Prepare a cause list to see the before / after comparison.</p>`;
-    $("#impactKpis").innerHTML = k(i.people_reached, "Citizen sessions", "chats and eligibility forms (no login, so not unique people)")
-      + k(i.legal_aid.eligibility_checks, "Legal-aid checks", `${i.legal_aid.found_eligible} found eligible`)
-      + k(i.documents.analyzed, "Documents analysed", `${i.documents.pages} pages`)
-      + k(i.undertrials.flagged, "Undertrials flagged", `${i.undertrials.release_applications_approved} approved`)
-      + k(i.registry.cause_lists_published, "Cause lists published", `${i.registry.cases_listed} cases listed`)
-      + (i.note ? `<p class="hint">${esc(i.note)}</p>` : "");
-  } catch (e) { $("#weeklyKpis").innerHTML = `<p class="error">${esc(e.message)}</p>`; }
-}
-$("#csvExport").addEventListener("click", (e) => busy(e.target, () => downloadFrom("/api/impact/export.csv", {}, "impact.csv")));
 renderFiles();

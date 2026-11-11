@@ -9,6 +9,7 @@ import sys; sys.path.insert(0, os.path.dirname(os.path.abspath(__file__))); impo
 import sys
 import tempfile
 import unittest
+import uuid
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -191,6 +192,139 @@ class AgentFlowTests(unittest.TestCase):
         self.assertEqual(s["people_reached"], t["citizen_session"]["count"])   # checks inside a chat are not added again
         self.assertGreaterEqual(s["legal_aid"]["eligibility_checks"], 1)
         self.assertIn("not unique", s["note"])
+
+    def test_api_feature_usage_records_counts_and_server_time(self):
+        from nyayavedika import db, impact
+        before = db.event_totals().get("api_usage_citizen_legal_aid_success", {}).get("count", 0)
+        response = self.c.get("/api/legal-aid/topics", headers={"Authorization": f"Bearer {TOK['citizen']}"})
+        self.assertEqual(response.status_code, 200)
+        summary = impact.summary()
+        self.assertEqual(summary["api_usage"]["by_door"]["citizen"]["features"]["legal_aid_check"]["successful"], before + 1)
+        self.assertGreaterEqual(summary["api_usage"]["total"]["avg_server_ms"], 0)
+        self.assertIsNone(impact.api_feature("/api/impact/export.csv"))
+        self.assertEqual(impact.api_feature("/api/legal-aid/{request_id}/outcome"), "legal_aid_check")
+        self.assertEqual(impact.api_feature("/api/agent/chat", door="citizen"), "citizen_assistant")
+        self.assertEqual(impact.api_feature("/api/agent/chat", door="advocate"), "advocate_assistant")
+        self.assertEqual(impact.api_feature("/api/agent/chat", door="staff"), "staff_assistant")
+        self.assertEqual(impact.api_door("/api/legal-aid/topics", "GET", f"Bearer {TOK['citizen']}", None), "citizen")
+        self.assertEqual(impact.api_door("/api/advocate/documents", "POST", f"Bearer {TOK['lawyer']}", None), "advocate")
+        self.assertEqual(impact.api_door("/api/cases", "GET", f"Bearer {TOK['staff']}", None), "staff")
+        staff_summary = self.c.get("/api/impact", headers={"Authorization": f"Bearer {TOK['staff']}"})
+        self.assertEqual(staff_summary.status_code, 200)
+        self.assertIn("field_feedback", staff_summary.json())
+
+    def test_api_metrics_count_distinct_browsers_per_door_and_feature(self):
+        from nyayavedika import db, impact
+        before = db.browser_feature_totals()["by_door_feature"].get("citizen", {}).get("legal_aid_check", 0)
+        first_id, second_id = str(uuid.uuid4()), str(uuid.uuid4())
+        headers = {"Authorization": f"Bearer {TOK['citizen']}"}
+        for browser_id in (first_id, first_id, second_id):
+            response = self.c.get(
+                "/api/legal-aid/topics",
+                headers={**headers, "X-Anonymous-Browser-ID": browser_id},
+            )
+            self.assertEqual(response.status_code, 200)
+        metrics = impact.demo_summary()["api_usage"]
+        row = metrics["by_door"]["citizen"]["features"]["legal_aid_check"]
+        self.assertEqual(row["unique_browsers"], before + 2)
+        self.assertGreaterEqual(metrics["total"]["unique_browsers"], before + 2)
+        self.assertNotIn(first_id, str(metrics))
+        self.assertNotIn(second_id, str(metrics))
+
+    def test_public_demo_metrics_endpoint_returns_aggregates_without_auth(self):
+        response = self.c.get("/api/demo/metrics")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.headers["cache-control"], "no-store")
+        payload = response.json()
+        self.assertIn("reach", payload)
+        self.assertIn("door_visits", payload)
+        self.assertIn("by_door", payload["api_usage"])
+        self.assertIn("by_feature", payload["api_usage"])
+        self.assertIn("product", payload)
+        self.assertIn("feedback", payload)
+        self.assertIn("pilot_comparison", payload)
+        self.assertFalse(payload["pilot_comparison"]["available"])
+        self.assertIn("unique_browsers", payload["api_usage"]["total"])
+        self.assertIn("unique_browsers", payload["api_usage"]["by_door"]["citizen"])
+        self.assertIn("random persistent browser identifier", payload["disclaimer"])
+        self.assertNotIn("not verified", payload["disclaimer"].lower())
+        self.assertNotIn("visitor_hash", str(payload))
+        self.assertNotIn("comment", payload["feedback"])
+        self.assertNotIn("items", payload)
+        self.assertEqual(self.c.get("/api/impact").status_code, 401)
+        from scripts import dev_api
+        route = next(route for route in dev_api.ROUTES if route[1].match("/api/demo/metrics"))
+        self.assertIsNone(route[2])
+        self.assertEqual(dev_api.PAGES["/metrics"], "metrics.html")
+        page = self.c.get("/metrics")
+        self.assertEqual(page.status_code, 200)
+        self.assertIn('id="metricsContent"', page.text)
+        self.assertNotIn("Before / after pilot comparison", page.text)
+        self.assertNotIn('id="pilotCards"', page.text)
+        self.assertIn("/api/demo/metrics", (ROOT / "static" / "metrics.js").read_text(encoding="utf-8"))
+        template = self.c.get("/pilot/template.csv")
+        self.assertEqual(template.status_code, 200)
+        self.assertIn("text/csv", template.headers["content-type"])
+        self.assertIn("manual_status", template.text)
+
+    def test_demo_metrics_includes_anonymized_pilot_comparison_aggregates(self):
+        from unittest.mock import patch
+        from nyayavedika import impact
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "pilot_log.csv"
+            path.write_text(
+                "case_ref,manual_status,tool_status,lawyer_verdict,manual_minutes,tool_minutes,days_over_limit,application_filed,outcome\n"
+                "anon-1,eligible,eligible,eligible,40,20,0,no,none\n"
+                "anon-2,not_eligible,needs_review,not_eligible,30,20,0,no,none\n",
+                encoding="utf-8",
+            )
+            with patch.object(impact, "PILOT_LOG_PATH", path):
+                response = self.c.get("/api/demo/metrics")
+        pilot = response.json()["pilot_comparison"]
+        self.assertTrue(pilot["available"])
+        self.assertEqual(pilot["cases_screened"], 2)
+        self.assertEqual(pilot["precision"], 0.5)
+        self.assertEqual(pilot["manual_accuracy"], 1.0)
+        self.assertEqual(pilot["accuracy"], 0.5)
+        self.assertEqual(pilot["accuracy_comparison_cases"], 2)
+        self.assertEqual(pilot["median_minutes_saved"], 15.0)
+        self.assertNotIn("anon-1", str(response.json()))
+
+    def test_portal_page_visit_is_counted_without_visitor_identity(self):
+        from nyayavedika import db, impact
+        before = db.event_totals().get("door_visit_advocate", {}).get("count", 0)
+        response = self.c.get("/advocate")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(db.event_totals()["door_visit_advocate"]["count"], before + 1)
+        self.assertEqual(impact.summary()["door_visits"]["by_door"]["advocate"], before + 1)
+
+    def test_automatic_reach_counts_distinct_browsers_across_pages_and_portals(self):
+        from nyayavedika import db, impact
+        browser_id = str(uuid.uuid4())
+        payload = {"browser_id": browser_id}
+        self.assertEqual(self.c.post("/api/reach/public", json=payload).status_code, 200)
+        self.assertEqual(self.c.post("/api/reach/citizen", json=payload).status_code, 200)
+        self.assertEqual(self.c.post("/api/reach/citizen", json=payload).status_code, 200)
+        self.assertEqual(self.c.post("/api/reach/advocate", json=payload).status_code, 200)
+        reach = impact.summary()["reach"]
+        self.assertEqual(reach["unique_browsers"], 1)
+        self.assertEqual(reach["public_browsers"], 1)
+        self.assertEqual(reach["by_door"], {"citizen": 1, "advocate": 1, "staff": 0})
+        self.assertNotEqual(impact.reach_hash(browser_id), browser_id)
+        before_feature_visitors = db.browser_feature_totals()["by_door_feature"].get("citizen", {}).get("legal_aid_check", 0)
+        db.register_browser_feature(impact.reach_hash(browser_id), "citizen", "legal_aid_check")
+        self.assertEqual(self.c.request("DELETE", "/api/reach", json=payload).status_code, 200)
+        self.assertEqual(db.reach_totals(), {
+            "unique_browsers": 0, "public_browsers": 0, "by_door": {"citizen": 0, "advocate": 0, "staff": 0}
+        })
+        self.assertEqual(
+            db.browser_feature_totals()["by_door_feature"].get("citizen", {}).get("legal_aid_check", 0),
+            before_feature_visitors,
+        )
+
+    def test_reach_endpoint_rejects_non_uuid(self):
+        response = self.c.post("/api/reach/citizen", json={"browser_id": "not-an-id"})
+        self.assertEqual(response.status_code, 400)
 
 
 if __name__ == "__main__":

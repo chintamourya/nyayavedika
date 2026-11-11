@@ -102,6 +102,21 @@ impact_events = Table(
     Column("meta", JSON),
 )
 
+reach_visitors = Table(
+    "reach_visitors", metadata,
+    Column("visitor_hash", String(64), primary_key=True),
+    Column("door", String(16), primary_key=True),
+    Column("first_seen", DateTime(timezone=True), default=_now),
+)
+
+browser_feature_activity = Table(
+    "browser_feature_activity", metadata,
+    Column("visitor_hash", String(64), primary_key=True),
+    Column("door", String(16), primary_key=True),
+    Column("feature", String(64), primary_key=True),
+    Column("first_seen", DateTime(timezone=True), default=_now),
+)
+
 feedback = Table(
     "feedback", metadata,
     Column("id", Integer, primary_key=True, autoincrement=True),
@@ -290,3 +305,68 @@ def event_totals() -> Dict[str, Dict[str, float]]:
     q = select(impact_events.c.event, func.count(), func.sum(impact_events.c.value)).group_by(impact_events.c.event)
     with engine().connect() as conn:
         return {e: {"count": c, "total": float(t or 0)} for e, c, t in conn.execute(q)}
+
+
+def register_reach(visitor_hash: str, door: str) -> bool:
+    """Count a pseudonymous browser once per site or portal; duplicate visits are harmless."""
+    from sqlalchemy.exc import IntegrityError
+    try:
+        with engine().begin() as conn:
+            conn.execute(reach_visitors.insert().values(visitor_hash=visitor_hash, door=door))
+        return True
+    except IntegrityError:
+        return False
+
+
+def delete_reach(visitor_hash: str) -> None:
+    with engine().begin() as conn:
+        conn.execute(reach_visitors.delete().where(reach_visitors.c.visitor_hash == visitor_hash))
+        conn.execute(browser_feature_activity.delete().where(browser_feature_activity.c.visitor_hash == visitor_hash))
+
+
+def reach_totals() -> Dict[str, Any]:
+    with engine().connect() as conn:
+        rows = conn.execute(select(reach_visitors.c.visitor_hash, reach_visitors.c.door)).all()
+    all_browsers = {row.visitor_hash for row in rows}
+    by_door = {door: sum(1 for row in rows if row.door == door) for door in ("citizen", "advocate", "staff")}
+    public_browsers = len({row.visitor_hash for row in rows if row.door == "public"})
+    return {"unique_browsers": len(all_browsers), "public_browsers": public_browsers, "by_door": by_door}
+
+
+def register_browser_feature(visitor_hash: str, door: str, feature: str) -> bool:
+    """Count a browser once per portal feature without retaining its raw browser ID."""
+    from sqlalchemy.exc import IntegrityError
+    try:
+        with engine().begin() as conn:
+            conn.execute(browser_feature_activity.insert().values(
+                visitor_hash=visitor_hash, door=door, feature=feature,
+            ))
+        return True
+    except IntegrityError:
+        return False
+
+
+def browser_feature_totals() -> Dict[str, Any]:
+    with engine().connect() as conn:
+        rows = conn.execute(select(
+            browser_feature_activity.c.visitor_hash,
+            browser_feature_activity.c.door,
+            browser_feature_activity.c.feature,
+        )).all()
+    all_browsers = {row.visitor_hash for row in rows}
+    by_door: Dict[str, set] = {}
+    by_feature: Dict[str, set] = {}
+    by_door_feature: Dict[str, Dict[str, set]] = {}
+    for row in rows:
+        by_door.setdefault(row.door, set()).add(row.visitor_hash)
+        by_feature.setdefault(row.feature, set()).add(row.visitor_hash)
+        by_door_feature.setdefault(row.door, {}).setdefault(row.feature, set()).add(row.visitor_hash)
+    return {
+        "unique_browsers": len(all_browsers),
+        "by_door": {door: len(visitors) for door, visitors in by_door.items()},
+        "by_feature": {feature: len(visitors) for feature, visitors in by_feature.items()},
+        "by_door_feature": {
+            door: {feature: len(visitors) for feature, visitors in features.items()}
+            for door, features in by_door_feature.items()
+        },
+    }

@@ -25,6 +25,59 @@ const TOKEN_KEY = "nyayavedika_demo_token";
 const getToken = () => { try { return localStorage.getItem(TOKEN_KEY) || ""; } catch { return ""; } };
 const setToken = (t) => { try { localStorage.setItem(TOKEN_KEY, t.trim()); } catch { /* private window: this page only */ } };
 
+const REACH_BROWSER_KEY = "nyayavedika_reach_browser";
+let sessionBrowserId = "";
+
+function currentReachDoor() {
+  const path = window.location.pathname.replace(/\/+$/, "");
+  return { "/citizen": "citizen", "/advocate": "advocate", "/staff": "staff" }[path] || "public";
+}
+
+function browserActivityId() {
+  const valid = (value) => value && /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
+  try {
+    const saved = localStorage.getItem(REACH_BROWSER_KEY);
+    if (valid(saved)) return saved;
+  } catch { /* use a session-only identifier when browser storage is unavailable */ }
+  try {
+    const saved = sessionStorage.getItem(REACH_BROWSER_KEY);
+    if (valid(saved)) return saved;
+  } catch { /* use an in-memory identifier when browser storage is unavailable */ }
+  if (sessionBrowserId) return sessionBrowserId;
+  if (!globalThis.crypto?.getRandomValues) return "";
+  const bytes = new Uint8Array(16);
+  crypto.getRandomValues(bytes);
+  bytes[6] = (bytes[6] & 0x0f) | 0x40;
+  bytes[8] = (bytes[8] & 0x3f) | 0x80;
+  const hex = [...bytes].map((byte) => byte.toString(16).padStart(2, "0")).join("");
+  sessionBrowserId = `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+  try {
+    localStorage.setItem(REACH_BROWSER_KEY, sessionBrowserId);
+  } catch {
+    try { sessionStorage.setItem(REACH_BROWSER_KEY, sessionBrowserId); } catch { /* in-memory for this page only */ }
+  }
+  return sessionBrowserId;
+}
+
+function addUsageNotice() {
+  const target = document.querySelector("main, .landing");
+  if (!target || document.querySelector(".usage-notice")) return;
+  const notice = document.createElement("section");
+  notice.className = "card usage-notice";
+  notice.setAttribute("aria-label", "Activity measurement");
+  notice.innerHTML = `<b>Activity measurement</b>
+    <p class="hint">We measure page visits and feature use to understand activity. A random browser ID is used to count distinct browsers across portals; the server stores only its hash. Activity records do not include names, contact details, IP addresses, request text, or uploaded-document contents.</p>`;
+  target.prepend(notice);
+  const door = currentReachDoor();
+  const browserId = browserActivityId();
+  if (door && browserId) {
+    api(`/api/reach/${door}`, { method: "POST", json: { browser_id: browserId }, noToken: true })
+      .catch((error) => console.warn(`Browser reach could not be recorded: ${error.message}`));
+  }
+}
+if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", addUsageNotice, { once: true });
+else addUsageNotice();
+
 class ApiError extends Error {
   constructor(status, detail) {
     const msg = typeof detail === "string" ? detail
@@ -46,6 +99,8 @@ class ApiError extends Error {
 // api(path) GET; api(path, {method, json, form, raw}) - raw returns the Response (for file downloads)
 async function api(path, opts = {}) {
   const headers = {};
+  const browserId = path.startsWith("/api/") ? browserActivityId() : "";
+  if (browserId) headers["X-Anonymous-Browser-ID"] = browserId;
   const token = opts.noToken ? "" : getToken();
   if (token) {
     headers.Authorization = `Bearer ${token}`;

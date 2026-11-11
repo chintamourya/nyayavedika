@@ -53,13 +53,13 @@ class StatuteImportTests(unittest.TestCase):
 
 class PilotMetricsTests(unittest.TestCase):
     ROWS = [
-        {"tool_status": "eligible", "lawyer_verdict": "eligible", "manual_minutes": "40", "tool_minutes": "10",
+        {"manual_status": "eligible", "tool_status": "eligible", "lawyer_verdict": "eligible", "manual_minutes": "40", "tool_minutes": "10",
          "days_over_limit": "100", "application_filed": "yes", "outcome": "released"},
-        {"tool_status": "needs_review", "lawyer_verdict": "not_eligible", "manual_minutes": "30", "tool_minutes": "12",
+        {"manual_status": "not_eligible", "tool_status": "needs_review", "lawyer_verdict": "not_eligible", "manual_minutes": "30", "tool_minutes": "12",
          "days_over_limit": "20", "application_filed": "no", "outcome": "none"},
-        {"tool_status": "not_eligible", "lawyer_verdict": "eligible", "manual_minutes": "", "tool_minutes": "",
+        {"manual_status": "eligible", "tool_status": "not_eligible", "lawyer_verdict": "eligible", "manual_minutes": "", "tool_minutes": "",
          "days_over_limit": "0", "application_filed": "no", "outcome": "none"},
-        {"tool_status": "not_eligible", "lawyer_verdict": "not_eligible", "manual_minutes": "20", "tool_minutes": "8",
+        {"manual_status": "not_eligible", "tool_status": "not_eligible", "lawyer_verdict": "not_eligible", "manual_minutes": "20", "tool_minutes": "8",
          "days_over_limit": "", "application_filed": "yes", "outcome": "pending"},
     ]
 
@@ -69,8 +69,13 @@ class PilotMetricsTests(unittest.TestCase):
         self.assertEqual(m["flagged_for_release"], 2)
         self.assertEqual(m["precision"], 0.5)      # 1 of 2 flagged confirmed
         self.assertEqual(m["recall"], 0.5)         # 1 of 2 qualifying flagged
+        self.assertEqual(m["accuracy"], 0.5)       # 2 of 4 matched tool results agree with the lawyer
+        self.assertEqual(m["manual_accuracy"], 1.0)  # 4 of 4 manual results agree with the lawyer
+        self.assertEqual(m["accuracy_comparison_cases"], 4)
         self.assertEqual(m["median_manual_minutes"], 30.0)
         self.assertEqual(m["median_tool_minutes"], 10.0)
+        self.assertEqual(m["median_minutes_saved"], 18.0)
+        self.assertEqual(m["median_time_saved_pct"], 60)
         self.assertEqual(m["cases_with_timing"], 3)
         self.assertEqual((m["people_held_past_limit"], m["days_over_limit_total"]), (2, 120))
         self.assertEqual((m["applications_filed"], m["released"], m["pending"]), (2, 1, 1))
@@ -79,7 +84,11 @@ class PilotMetricsTests(unittest.TestCase):
         m = pilot_metrics.summarise([])
         self.assertEqual(m["cases_screened"], 0)
         self.assertIsNone(m["precision"])
+        self.assertIsNone(m["accuracy"])
+        self.assertIsNone(m["manual_accuracy"])
+        self.assertEqual(m["accuracy_comparison_cases"], 0)
         self.assertIsNone(m["median_tool_minutes"])
+        self.assertIsNone(m["median_minutes_saved"])
         self.assertIn("n/a", pilot_metrics.to_markdown(m))
 
 

@@ -14,6 +14,7 @@ import json
 import re
 import sys
 import threading
+import time
 import uuid
 from datetime import date, datetime, timezone
 from email import policy
@@ -295,6 +296,20 @@ def routes():
                     "undertrials": {"flagged": 0, "release_applications_approved": 0}, "registry": {"cause_lists_published": 0, "cases_listed": 0}}
             return {**zero, "note": "impact log unavailable on dev_api (needs SQLAlchemy)"}
 
+    @r("GET", "/api/demo/metrics")
+    def demo_metrics(h, m, q, b, p):
+        return impact.demo_summary()
+
+    @r("POST", r"/api/reach/(?P<door>public|citizen|advocate|staff)")
+    def record_reach(h, m, q, b, p):
+        try:
+            body = json.loads(b or b"{}")
+            visitor_hash = impact.reach_hash(body.get("browser_id", ""))
+        except (json.JSONDecodeError, ValueError, AttributeError) as exc:
+            raise HttpError(400, "browser_id must be a UUID v4") from exc
+        db.register_reach(visitor_hash, m["door"])
+        return {"ok": True}
+
     @r("GET", r"/api/impact/export\.csv", "GET /api/impact/export.csv")
     def csv(h, m, q, b, p):
         return b"id,timestamp_utc,event,value,meta\n", "text/csv", "impact.csv"
@@ -484,7 +499,8 @@ def routes():
 
 ROUTES = routes()
 PAGES = {"/": "index.html", "/staff": "staff.html", "/advocate": "advocate.html",
-         "/citizen": "citizen.html", "/feedback": "feedback-wall.html"}
+         "/citizen": "citizen.html", "/feedback": "feedback-wall.html", "/metrics": "metrics.html"}
+DOWNLOADS = {"/pilot/template.csv": ROOT / "pilot" / "pilot_log_template.csv"}
 DOCS = {"/how-it-works": "how-it-works", "/research-evidence": "research-evidence"}
 TYPES = {".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8", ".css": "text/css; charset=utf-8",
          ".json": "application/json; charset=utf-8", ".svg": "image/svg+xml", ".png": "image/png"}
@@ -508,14 +524,35 @@ class Handler(BaseHTTPRequestHandler):
     def _json(self, status, obj):
         self._send(status, json.dumps(obj, default=str, ensure_ascii=False).encode(), "application/json")
 
+    def _record_api_activity(self, method, path, key, status, started, principal):
+        route_path = key.split(" ", 1)[1] if key else path
+        feature = impact.api_feature(route_path, method)
+        if not feature:
+            return
+        door = {"citizen": "citizen", "lawyer": "advocate", "staff": "staff"}.get(
+            getattr(principal, "role", "")
+        ) or impact.api_door(
+            route_path, method, self.headers.get("Authorization"), self.headers.get("X-Demo-Role")
+        )
+        feature = impact.api_feature(route_path, method, door)
+        impact.record_api_usage(door, feature, method, status, (time.perf_counter() - started) * 1000)
+        browser_id = self.headers.get("X-Anonymous-Browser-ID", "")
+        if browser_id:
+            impact.record_browser_activity(browser_id, door, feature)
+
     def _handle(self, method):
         url = urlparse(self.path)
         path = url.path
         if method == "GET" and path in DOCS:
             return self._send(200, public_docs.render_page(DOCS[path]).encode("utf-8"), TYPES[".html"])
+        if method == "GET" and path in DOWNLOADS:
+            return self._send(200, DOWNLOADS[path].read_bytes(), "text/csv; charset=utf-8",
+                              {"Content-Disposition": 'attachment; filename="pilot_log_template.csv"'})
         if method == "GET" and (path in PAGES or path.startswith("/static/")):
             f = STATIC / (PAGES.get(path) or path[len("/static/"):])
             if f.resolve().is_file() and STATIC.resolve() in f.resolve().parents:
+                if method == "GET" and path in ("/citizen", "/advocate", "/staff"):
+                    impact.record_door_visit(path.lstrip("/"))
                 return self._send(200, f.read_bytes(), TYPES.get(f.suffix, "application/octet-stream"))
             return self._json(404, {"detail": "Not found"})
         body = self.rfile.read(int(self.headers.get("Content-Length") or 0)) if method in ("POST", "PATCH") else b""
@@ -523,6 +560,9 @@ class Handler(BaseHTTPRequestHandler):
             mt = rx.match(path) if m_ == method else None
             if not mt:
                 continue
+            started = time.perf_counter()
+            status = 200
+            principal = None
             try:
                 principal = _guard(self, key) if key else None
                 out = fn(self, mt.groupdict(), parse_qs(url.query), body, principal)
@@ -531,9 +571,14 @@ class Handler(BaseHTTPRequestHandler):
                     return self._send(200, data, ctype, {"Content-Disposition": f'attachment; filename="{name}"'})
                 return self._json(200, out)
             except HttpError as exc:
+                status = exc.status
                 return self._json(exc.status, {"detail": exc.detail})
             except Exception as exc:  # pragma: no cover - surfaced to the UI as a toast
+                status = 500
                 return self._json(500, {"detail": f"{type(exc).__name__}: {exc}"})
+            finally:
+                if path.startswith("/api/"):
+                    self._record_api_activity(method, path, key, status, started, principal)
         self._json(404, {"detail": "Not found"})
 
     def do_GET(self):

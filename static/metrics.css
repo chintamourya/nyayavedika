@@ -1,0 +1,15 @@
+.metrics-main { max-width: 1080px; }
+.metrics-intro { padding: 18px 0 8px; }
+.metrics-intro h1 { margin: 8px 0; font-size: clamp(30px, 5vw, 46px); }
+.metrics-main section { margin: 28px 0; }
+.metrics-main section h2 { font-size: 21px; }
+.metrics-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(205px, 1fr)); gap: 12px; }
+.metrics-door { margin: 18px 0 26px; padding: 18px; border: 1px solid var(--line); border-radius: 12px; background: var(--card); }
+.metrics-door h3 { margin: 0 0 14px; font-size: 18px; }
+.metrics-door .metrics-grid { margin-top: 12px; }
+.metric-card { min-height: 112px; padding: 18px; border: 1px solid var(--line); border-radius: 12px; background: var(--card); }
+.metric-card b { display: block; font-size: 28px; line-height: 1.2; overflow-wrap: anywhere; }
+.metric-card span { display: block; margin-top: 8px; color: var(--muted); font-size: 13px; }
+.metric-card small { display: block; margin-top: 4px; color: var(--muted); }
+.metrics-disclaimer { padding: 14px; border-left: 4px solid var(--accent); background: var(--accent-soft); color: var(--ink); }
+.metrics-page .wall-status:empty { display: none; }

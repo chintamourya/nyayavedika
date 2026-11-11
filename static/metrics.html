@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#f6f4ef">
+<title>Live activity metrics · NyayaVedika</title>
+<link rel="icon" href="/static/favicon.svg?v=3" type="image/svg+xml">
+<link rel="stylesheet" href="/static/styles.css">
+<link rel="stylesheet" href="/static/metrics.css">
+</head>
+<body class="metrics-page">
+<header class="wall-top">
+  <a class="wall-brand" href="/" aria-label="NyayaVedika home">
+    <span class="logo" aria-hidden="true">⚖</span>
+    <span><b>NyayaVedika</b><small>Live activity metrics</small></span>
+  </a>
+  <nav class="row gap wrap" aria-label="Metrics links">
+    <button id="metricsRefresh" class="btn ghost" type="button">Refresh</button>
+    <a class="btn ghost" href="/">← Back to home</a>
+  </nav>
+</header>
+<main class="metrics-main">
+  <section class="metrics-intro">
+    <span class="wall-eyebrow">TRANSPARENT, AGGREGATED ACTIVITY</span>
+    <h1>NyayaVedika metrics</h1>
+    <p>Combined activity across Citizen, Advocate and Staff. Updated when you open or refresh this page.</p>
+    <p id="metricsUpdated" class="hint" aria-live="polite">Loading metrics…</p>
+  </section>
+  <div id="metricsStatus" class="wall-status" role="status" aria-live="polite">Loading live metrics…</div>
+  <div id="metricsContent" hidden>
+    <section aria-labelledby="reachHeading">
+      <h2 id="reachHeading">Reach &amp; visits</h2>
+      <div id="reachCards" class="metrics-grid"></div>
+    </section>
+    <section aria-labelledby="featureHeading">
+      <h2 id="featureHeading">Overall feature usage</h2>
+      <p class="hint">Distinct-browser feature counts start when browser activity tracking was enabled; earlier request totals cannot be assigned to browsers.</p>
+      <div id="featureCards" class="metrics-grid"></div>
+    </section>
+    <section aria-labelledby="doorToolsHeading">
+      <h2 id="doorToolsHeading">Tool usage by door</h2>
+      <p class="hint">Each section shows the combined usage for that door, then its individual tools and features.</p>
+      <div id="doorTools"></div>
+    </section>
+    <section aria-labelledby="productHeading">
+      <h2 id="productHeading">What the app has done</h2>
+      <p class="hint">These are recorded action totals, not unique-user counts. Browser IDs are not linked to case or outcome records; distinct-browser activity is shown separately above.</p>
+      <div id="productCards" class="metrics-grid"></div>
+    </section>
+    <section aria-labelledby="feedbackHeading">
+      <h2 id="feedbackHeading">Voluntary feedback</h2>
+      <div id="feedbackCards" class="metrics-grid"></div>
+    </section>
+    <p id="metricsDisclaimer" class="metrics-disclaimer"></p>
+  </div>
+</main>
+<script src="/static/common.js?v=12"></script>
+<script src="/static/metrics.js?v=4"></script>
+</body>
+</html>

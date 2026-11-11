@@ -9,6 +9,7 @@ import mimetypes
 import os
 import re
 import threading
+import time
 import uuid
 from contextlib import asynccontextmanager
 from datetime import date, datetime, timezone
@@ -18,10 +19,11 @@ from typing import Any, Dict, List, Literal, Optional
 ROOT = Path(__file__).parent
 # Settings: nyayavedika.config loads .env itself on import (nyayavedika/envfile.py); nothing to do here.
 
-from fastapi import FastAPI, File, Form, HTTPException, UploadFile  # noqa: E402
+from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile  # noqa: E402
 from fastapi.responses import FileResponse, HTMLResponse, PlainTextResponse, Response  # noqa: E402
 from fastapi.middleware.gzip import GZipMiddleware  # noqa: E402
 from fastapi.staticfiles import StaticFiles  # noqa: E402
+from starlette.concurrency import run_in_threadpool  # noqa: E402
 from langgraph.types import Command  # noqa: E402
 from pydantic import BaseModel  # noqa: E402
 
@@ -54,6 +56,35 @@ app = FastAPI(title="NyayaVedika", version="2.0", lifespan=lifespan)
 app.add_middleware(GZipMiddleware, minimum_size=1024)
 _worker_stop = threading.Event()
 _worker_thread: Optional[threading.Thread] = None
+
+
+@app.middleware("http")
+async def collect_api_usage(request: Request, call_next):
+    started = time.perf_counter()
+    status_code = 500
+    try:
+        response = await call_next(request)
+        status_code = response.status_code
+        return response
+    finally:
+        route = request.scope.get("route")
+        route_path = getattr(route, "path", "")
+        if request.method == "GET" and request.url.path in ("/citizen", "/advocate", "/staff"):
+            await run_in_threadpool(impact.record_door_visit, request.url.path.lstrip("/"))
+        feature = impact.api_feature(route_path, request.method) if request.url.path.startswith("/api/") else None
+        if feature:
+            duration_ms = (time.perf_counter() - started) * 1000
+            door = impact.api_door(
+                route_path, request.method, request.headers.get("authorization"),
+                request.headers.get("x-demo-role"),
+            )
+            feature = impact.api_feature(route_path, request.method, door)
+            await run_in_threadpool(
+                impact.record_api_usage, door, feature, request.method, status_code, duration_ms
+            )
+            browser_id = request.headers.get("x-anonymous-browser-id", "")
+            if browser_id:
+                await run_in_threadpool(impact.record_browser_activity, browser_id, door, feature)
 
 
 def _start_inline_worker():
@@ -252,6 +283,10 @@ class FeedbackIn(BaseModel):
     rating: int
     role: str = "citizen"      # ignored: the role recorded is the caller's (token)
     comment: str = ""
+
+
+class ReachIn(BaseModel):
+    browser_id: str
 
 
 # ----------------------------------------------------------------------------- health
@@ -931,9 +966,40 @@ def summarize_offline(body: DocIn):
 
 
 # ----------------------------------------------------------------------------- impact
+@app.post("/api/reach/{door}")
+def record_reach(door: Literal["public", "citizen", "advocate", "staff"], body: ReachIn):
+    try:
+        visitor_hash = impact.reach_hash(body.browser_id)
+    except (ValueError, AttributeError) as exc:
+        raise HTTPException(400, "browser_id must be a UUID v4") from exc
+    db.register_reach(visitor_hash, door)
+    return {"ok": True}
+
+
+@app.delete("/api/reach")
+def withdraw_reach(body: ReachIn):
+    try:
+        visitor_hash = impact.reach_hash(body.browser_id)
+    except (ValueError, AttributeError) as exc:
+        raise HTTPException(400, "browser_id must be a UUID v4") from exc
+    db.delete_reach(visitor_hash)
+    return {"ok": True}
+
+
 @app.get("/api/impact", dependencies=[guard("GET /api/impact")])
 def impact_summary():
-    return impact.summary()
+    report = impact.summary()
+    with store.connect() as s:
+        feedback_mod.ensure_table(s)
+        report["field_feedback"] = feedback_mod.summarise(s.select("field_feedback"))
+    return report
+
+
+@app.get("/api/demo/metrics")
+def demo_impact_metrics(response: Response):
+    """Public, aggregate-only metrics for hackathon demos; detailed impact data remains staff-only."""
+    response.headers["Cache-Control"] = "no-store"
+    return impact.demo_summary()
 
 
 @app.get("/api/impact/export.csv", response_class=PlainTextResponse,
@@ -1077,6 +1143,20 @@ def citizen_portal():
 @app.get("/feedback")
 def feedback_wall_page():
     return FileResponse(ROOT / "static" / "feedback-wall.html")
+
+
+@app.get("/metrics")
+def public_metrics_page():
+    return FileResponse(ROOT / "static" / "metrics.html")
+
+
+@app.get("/pilot/template.csv")
+def pilot_template_download():
+    return FileResponse(
+        ROOT / "pilot" / "pilot_log_template.csv",
+        media_type="text/csv",
+        filename="pilot_log_template.csv",
+    )
 
 
 @app.get("/legal-info")
