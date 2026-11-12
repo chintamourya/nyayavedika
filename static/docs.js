@@ -8,7 +8,7 @@
       mermaid.initialize({
         startOnLoad: false,
         securityLevel: "strict",
-        theme: window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "default",
+        theme: document.documentElement.dataset.theme === "dark" ? "dark" : "default",
         themeVariables: { fontSize: "18px" },
       });
 

@@ -9,6 +9,7 @@ import sys; sys.path.insert(0, os.path.dirname(os.path.abspath(__file__))); impo
 import sys
 import tempfile
 import unittest
+from datetime import datetime, timezone
 from pathlib import Path
 from unittest import mock
 
@@ -240,6 +241,34 @@ class ServerRoleTests(unittest.TestCase):
             json={},
         )
         self.assertEqual(lawyer.status_code, 200, lawyer.text)
+
+    def test_superintendent_letter_route_is_role_gated_and_returns_docx(self):
+        from nyayavedika import store
+
+        with store.connect() as db:
+            store.prepare_database(db)
+            alert_id = db.insert("alerts", [{
+                "case_id": "UT/HTTP",
+                "kind": "undertrial_release",
+                "status": "pending",
+                "created_at": datetime.now(timezone.utc).isoformat(),
+                "details": {"custody_since": "2023-01-12", "release_check": {
+                    "custody_days": 1383, "threshold_days": 851, "basis": "one-third (first-time offender)"}},
+                "draft": "",
+            }], returning="id")
+            db.commit()
+
+        self.assertEqual(
+            self.client.get(f"/api/alerts/{alert_id}/superintendent.docx?language=te").status_code, 401)
+        for language in ("hi", "te"):
+            response = self.client.get(
+                f"/api/alerts/{alert_id}/superintendent.docx?language={language}", headers=self.h("staff"))
+            self.assertEqual(response.status_code, 200, response.text)
+            self.assertEqual(response.headers["content-type"],
+                             "application/vnd.openxmlformats-officedocument.wordprocessingml.document")
+            self.assertIn(f"custody_record_review_request_UT_HTTP_{language}.docx",
+                          response.headers["content-disposition"])
+            self.assertTrue(response.content.startswith(b"PK"))
 
     def test_advocate_documents_are_workspace_scoped_and_hidden_from_staff_sources(self):
         import base64

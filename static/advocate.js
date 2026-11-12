@@ -2,7 +2,6 @@
 // nothing here is a security boundary. All server text is escaped with esc() before it reaches innerHTML.
 const WORKSPACE_KEY = "nyayavedika_advocate_workspace";
 const DOCUMENT_KEY = "nyayavedika_advocate_document";
-const THEME_KEY = "nyayavedika_advocate_theme";
 const INSIGHT_LABELS = { issues: "Issues", facts: "Facts", background: "Case Background", summary: "Summarization" };
 let workspaceToken = "";
 let activeDocument = null;
@@ -109,20 +108,7 @@ async function prepareRestoredDocumentChat(documentInfo) {
   }
 }
 
-// ---------------------------------------------------------------- theme, auth, tabs
-function applyTheme(theme) {
-  if (theme) document.documentElement.setAttribute("data-theme", theme);
-  else document.documentElement.removeAttribute("data-theme");
-}
-try { applyTheme(localStorage.getItem(THEME_KEY) || ""); } catch { /* follow the system theme */ }
-$("#themeToggle").addEventListener("click", () => {
-  const dark = document.documentElement.getAttribute("data-theme") === "dark"
-    || (!document.documentElement.getAttribute("data-theme") && matchMedia("(prefers-color-scheme: dark)").matches);
-  const next = dark ? "light" : "dark";
-  applyTheme(next);
-  try { localStorage.setItem(THEME_KEY, next); } catch { /* not persisted */ }
-});
-
+// ---------------------------------------------------------------- auth, tabs
 async function initialize() {
   showStatus("");
   try {

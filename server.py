@@ -185,6 +185,7 @@ class ResumeIn(BaseModel):
     thread_id: str
     answer: Any
     agent: str = "citizen"     # ignored, as above
+    language: str = ""
 
 
 class DocIn(BaseModel):
@@ -353,8 +354,13 @@ def _chat(body: "ChatIn", principal: Principal, batch_id: Optional[str] = None) 
     ctx = clean_context(body.context)   # bounded, plain types only: the browser is not trusted with the prompt
     try:
         if body.thread_id and not batch_id and _has_pending_question(graph, thread_id):
+            state_update = {}
             if ctx:   # a fresh guide result while a question is pending: store it, then answer the question
-                graph.update_state(_cfg(thread_id), {"context": ctx})
+                state_update["context"] = ctx
+            if body.language:
+                state_update["language"] = body.language
+            if state_update:
+                graph.update_state(_cfg(thread_id), state_update)
             out = graph.invoke(Command(resume=body.message), _cfg(thread_id))   # the person is answering the agent's question
         else:
             out = graph.invoke(new_turn(body.message, body.language, batch_id, ctx), _cfg(thread_id))
@@ -399,7 +405,9 @@ def agent_resume(body: ResumeIn, principal: Principal = guard("POST /api/agent/r
     _own_thread(body.thread_id, role)
     graph = _agent(role)
     if not _has_pending_question(graph, body.thread_id):
-        return _chat(ChatIn(message=str(body.answer), thread_id=body.thread_id), principal)
+        return _chat(ChatIn(message=str(body.answer), thread_id=body.thread_id, language=body.language), principal)
+    if body.language:
+        graph.update_state(_cfg(body.thread_id), {"language": body.language})
     out = graph.invoke(Command(resume=body.answer), _cfg(body.thread_id))
     return _agent_reply(out, body.thread_id)
 
@@ -1086,6 +1094,27 @@ def release_docx(alert_id: int):
     slug = re.sub(r"[^A-Za-z0-9]+", "_", rows[0]["case_id"] or "case").strip("_")
     return Response(content=docgen.build_release_docx(rows[0]), media_type=DOCX_TYPE,
                     headers={"Content-Disposition": f'attachment; filename="release_application_{slug}.docx"'})
+
+
+@app.get("/api/alerts/{alert_id}/superintendent.docx",
+         dependencies=[guard("GET /api/alerts/{alert_id}/superintendent.docx")])
+def superintendent_docx(alert_id: int, language: str = "en"):
+    """Word copy of the review-only custody-record request for a Section 479 alert."""
+    from nyayavedika.docgen import legal_aid_docx as docgen
+    if language not in ("en", "hi", "te"):
+        raise HTTPException(400, "language must be 'en', 'hi' or 'te'")
+    with store.connect() as s:
+        rows = s.select("alerts", {"id": alert_id})
+    if not rows:
+        raise HTTPException(404, f"No alert {alert_id}")
+    alert = rows[0]
+    if alert.get("kind") not in ("undertrial_release", "release_review_request"):
+        raise HTTPException(409, "This alert is not a Section 479 release review.")
+    case = store.get_case(alert.get("case_id") or "")
+    slug = re.sub(r"[^A-Za-z0-9]+", "_", alert.get("case_id") or "case").strip("_")
+    data = {**(case or {}), **alert}
+    return Response(content=docgen.build_superintendent_docx(data, language), media_type=DOCX_TYPE,
+                    headers={"Content-Disposition": f'attachment; filename="custody_record_review_request_{slug}_{language}.docx"'})
 
 
 class _CachedStatic(StaticFiles):

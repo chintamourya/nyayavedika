@@ -2,11 +2,11 @@
 
 Real users feedback link : https://nyayavedika.delightfulmushroom-95327f3a.koreacentral.azurecontainerapps.io/feedback
 
-This file holds the full evidence behind the README's claims about size, severity and impact. It is written for judges and partners who want to check the numbers. The README carries the short version.
+This file holds the full evidence behind the README's claims about size, severity and impact. It is written for judges, partners and reviewers who want to check the numbers. The README carries the short version, and this file reflects the repository's current evidence base and the guardrails around it.
 
 **How figures are tagged.** **Reported**: published by the named source. **Derived**: our arithmetic on reported figures, shown so it can be checked. **Estimate**: our model, with assumptions stated and changeable.
 
-**Status of impact evidence.** There is no real field deployment yet. Section 7 says what exists today, Section 8 gives the protocol for collecting real evidence, and nothing in this file is presented as field impact.
+**Status of impact evidence.** There is no real field deployment yet. Section 7 says what exists today, Section 8 gives the protocol for collecting real evidence, and nothing in this file is presented as field impact. The current codebase includes the instrumentation and review flows needed for that step, but not a yet-validated field outcome study.
 
 Contents: 1 Scale · 2 Severity · 3 Economic loss · 4 Avoidable custody model · 5 How the harm ripples · 6 From evidence gap to feature to indicator · 7 What is proven today · 8 Measurement protocol · 9 Limits of this evidence · 10 Sources
 

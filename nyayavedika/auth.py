@@ -77,6 +77,7 @@ POLICY = {
     "GET /api/legal-aid/topics": ALL_ROLES,
     "GET /api/legal-aid/state-fact": ALL_ROLES,
     "GET /api/alerts/{alert_id}/release.docx": COURT,
+    "GET /api/alerts/{alert_id}/superintendent.docx": COURT,
     "POST /api/agent/chat": ALL_ROLES,
     "POST /api/agent/chat/files": ALL_ROLES,
     "POST /api/agent/resume": ALL_ROLES,

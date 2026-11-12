@@ -52,6 +52,26 @@ class ExplainTests(unittest.TestCase):
         self.assertTrue(any(source["heading"] == "Free legal aid: who is eligible and how to get it"
                             for source in out["sources"]))
 
+    def test_selected_hindi_rewrites_the_explanation_and_next_steps(self):
+        prompts = []
+
+        class Backend:
+            def structured(self, _model, system, messages, schema, **_kw):
+                prompts.append(system)
+                if schema is legal_aid.Explanation:
+                    return {"answer": "You may get a free lawyer.", "next_steps": ["Visit the DLSA"], "used": [1]}
+                if schema is llm.LanguageRewrite:
+                    return {"translations": ["आपको निःशुल्क वकील मिल सकता है।", "डीएलएसए जाएँ।"]}
+                raise AssertionError(f"Unexpected schema: {schema.__name__}")
+
+        llm.set_backend(Backend())
+        out = legal_aid.explain(self.elig, language="Hindi", search=search)
+
+        self.assertIn("exclusively in the selected", prompts[0])
+        self.assertIn("Hindi", prompts[0])
+        self.assertEqual(out["answer"], "आपको निःशुल्क वकील मिल सकता है।")
+        self.assertEqual(out["next_steps"], ["डीएलएसए जाएँ।"])
+
     def test_model_failure_falls_back_to_template(self):
         class Busy:
             def structured(self, *a, **kw):

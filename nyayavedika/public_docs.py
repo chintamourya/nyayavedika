@@ -22,7 +22,7 @@ def render_page(document: str) -> str:
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="theme-color" content="#f3f7f5">
+<meta name="theme-color" content="#0866ff">
 <title>{safe_title} · NyayaVedika</title>
 <link rel="icon" href="/static/favicon.svg?v=3" type="image/svg+xml">
 <link rel="stylesheet" href="/static/styles.css?v=15">
@@ -31,10 +31,12 @@ def render_page(document: str) -> str:
 <header class="doc-top">
   <a class="doc-brand" href="/"><span aria-hidden="true">⚖</span><b>NyayaVedika</b></a>
   <a class="doc-back" href="/">← Back to home</a>
+  <button type="button" class="theme-toggle">Dark mode</button>
 </header>
 <main class="doc-main">
   <article class="doc-content">{content}</article>
 </main>
-{"<script src=\"/static/docs.js?v=1\" defer></script>" if "language-mermaid" in content else ""}
+<script src="/static/common.js?v=14"></script>
+{"<script src=\"/static/docs.js?v=2\" defer></script>" if "language-mermaid" in content else ""}
 </body>
 </html>"""

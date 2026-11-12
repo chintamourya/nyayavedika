@@ -21,9 +21,79 @@ function syntheticLimitNote(omitted) {
     : "";
 }
 
+function renderDocumentSummaryDetails(result, translate) {
+  const analysis = result.analysis || {};
+  const details = analysis.case_details || {};
+  const structured = result.structured || {};
+  const parties = [...(details.petitioners || []), ...(details.respondents || [])].filter(Boolean);
+  const outcome = analysis.outcome && analysis.outcome !== "outcome not found"
+    ? analysis.outcome
+    : translate("summary_not_found");
+  const facts = [
+    details.case_number && `<div><dt>${esc(translate("summary_case_number"))}</dt><dd>${esc(details.case_number)}</dd></div>`,
+    details.court_name && `<div><dt>${esc(translate("summary_court"))}</dt><dd>${esc(details.court_name)}</dd></div>`,
+    parties.length && `<div><dt>${esc(translate("summary_parties"))}</dt><dd>${parties.map(esc).join(" · ")}</dd></div>`,
+    structured.custody_since && `<div><dt>${esc(translate("summary_custody_since"))}</dt><dd>${esc(structured.custody_since)}</dd></div>`,
+  ].filter(Boolean);
+  const timeline = (analysis.timeline || []).map((item) => `<li class="summary-view-event">
+    <time>${esc(item.date || "")}</time><div>${esc(item.event || "")}
+      ${item.page ? `<span class="summary-view-page">${esc(translate("summary_page").replace("{page}", item.page))}</span>` : ""}
+    </div></li>`).join("");
+  const issues = (analysis.issues || []).map((item) => `<li>
+    ${esc(item.issue || "")}${item.decision ? `<p class="hint">${esc(item.decision)}</p>` : ""}
+  </li>`).join("");
+  const statutes = (analysis.statutes_cited || []).map((item) => `<span class="summary-view-tag">${esc(item)}</span>`).join("");
+  const directions = (analysis.directions_and_deadlines || []).map((item) => `<li>${esc(item)}</li>`).join("");
+  const nextDate = structured.next_hearing_date;
+  const hasDetails = facts.length || timeline || issues || statutes || directions || nextDate
+    || (analysis.outcome && analysis.outcome !== "outcome not found");
+
+  return `${hasDetails ? `<section class="summary-view-details" aria-label="${esc(translate("summary_case_details"))}">
+    ${facts.length ? `<div class="summary-view-facts"><h4>${esc(translate("summary_case_details"))}</h4><dl>${facts.join("")}</dl></div>` : ""}
+    <div class="summary-view-status"><b>${esc(translate("summary_outcome"))}</b><span>${esc(outcome)}</span>
+      ${nextDate ? `<span class="summary-view-next">${esc(translate("summary_next_hearing"))}: ${esc(nextDate)}</span>` : ""}
+    </div>
+    ${timeline ? `<section class="summary-view-section"><h4>${esc(translate("summary_timeline"))}</h4><ol class="summary-view-timeline">${timeline}</ol></section>` : ""}
+    ${issues ? `<section class="summary-view-section"><h4>${esc(translate("summary_issues"))}</h4><ul>${issues}</ul></section>` : ""}
+    ${statutes ? `<section class="summary-view-section"><h4>${esc(translate("summary_statutes"))}</h4><div class="summary-view-tags">${statutes}</div></section>` : ""}
+    ${directions ? `<section class="summary-view-section"><h4>${esc(translate("summary_directions"))}</h4><ul>${directions}</ul></section>` : ""}
+  </section>` : ""}
+  ${result.brief ? `<details class="summary-view-raw"><summary>${esc(translate("summary_show_brief"))}</summary><pre class="doc">${esc(result.brief)}</pre></details>` : ""}`;
+}
+
 const TOKEN_KEY = "nyayavedika_demo_token";
 const getToken = () => { try { return localStorage.getItem(TOKEN_KEY) || ""; } catch { return ""; } };
 const setToken = (t) => { try { localStorage.setItem(TOKEN_KEY, t.trim()); } catch { /* private window: this page only */ } };
+
+const THEME_KEY = "nyayavedika_theme";
+function applyTheme(theme) {
+  const selected = theme === "dark" ? "dark" : "light";
+  document.documentElement.setAttribute("data-theme", selected);
+  const dark = selected === "dark";
+  document.querySelectorAll(".theme-toggle").forEach((button) => {
+    button.textContent = dark ? "Light mode" : "Dark mode";
+    button.setAttribute("aria-label", `Switch to ${dark ? "light" : "dark"} mode`);
+    button.setAttribute("aria-pressed", String(dark));
+    button.title = `Switch to ${dark ? "light" : "dark"} mode`;
+  });
+  const themeColor = document.querySelector('meta[name="theme-color"]');
+  if (themeColor) themeColor.content = dark ? "#0c1422" : "#0866ff";
+}
+function initializeTheme() {
+  let saved = "";
+  try {
+    saved = localStorage.getItem(THEME_KEY) || localStorage.getItem("nyayavedika_advocate_theme") || "";
+  } catch { /* defaults to light when browser storage is unavailable */ }
+  applyTheme(saved);
+  document.querySelectorAll(".theme-toggle").forEach((button) => {
+    button.addEventListener("click", () => {
+      const next = document.documentElement.getAttribute("data-theme") === "dark" ? "light" : "dark";
+      applyTheme(next);
+      try { localStorage.setItem(THEME_KEY, next); } catch { /* theme stays active for this page */ }
+    });
+  });
+}
+initializeTheme();
 
 const REACH_BROWSER_KEY = "nyayavedika_reach_browser";
 let sessionBrowserId = "";

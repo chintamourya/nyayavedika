@@ -6,9 +6,10 @@ Tests swap in a scripted backend with `set_backend()`, so agent graphs run witho
 """
 import json
 import logging
+import re
 from typing import List, Optional, Type, TypeVar
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from . import config
 from .documents import redact_pii
@@ -21,6 +22,10 @@ PROVIDER = "azure_openai"
 
 class LLMUnavailable(RuntimeError):
     pass
+
+
+class LanguageRewrite(BaseModel):
+    translations: List[str] = Field(default_factory=list)
 
 
 class AzureOpenAIBackend:
@@ -200,6 +205,51 @@ def structured_chat(system_prompt: str, messages: List[dict], schema: Type[T], f
     if isinstance(result, dict):  # scripted test backends may return plain dicts
         result = schema.model_validate(result)
     return result
+
+
+def enforce_language(texts: List[str], language: str) -> List[str]:
+    """Rewrite visible response text in the selected language; retain the original if rewriting fails."""
+    originals = [str(text or "") for text in texts]
+    target = {"english": "English", "hindi": "Hindi", "telugu": "Telugu"}.get((language or "").strip().casefold())
+    if not target or not any(text.strip() for text in originals) or not available():
+        return originals
+
+    script = {"Hindi": re.compile(r"[\u0900-\u097f]"),
+              "Telugu": re.compile(r"[\u0c00-\u0c7f]")}.get(target)
+    if target == "English" and not any(re.search(r"[\u0900-\u097f\u0c00-\u0c7f]", text) for text in originals):
+        return originals
+
+    prompt = (
+        f"Rewrite every supplied text exclusively in {target}. The user's selected language is authoritative, "
+        "regardless of the language in which the user wrote. Do not code-switch, include a bilingual version, or "
+        "leave English sentences untranslated. Use the normal script for the selected language. Preserve meaning, "
+        "tone, list order, legal citations, section numbers, case numbers, URLs, phone numbers, and official names "
+        "or abbreviations when translating them would make them harder to identify. Return exactly one translation "
+        "for each input string, in the same order, with no commentary."
+    )
+    try:
+        result = structured(prompt, json.dumps(originals, ensure_ascii=False), LanguageRewrite,
+                           fast=True, max_tokens=config.LLM_MAX_COMPLETION_TOKENS)
+        translated = [text.strip() for text in result.translations]
+        if len(translated) != len(originals) or any(
+                source.strip() and not output for source, output in zip(originals, translated)):
+            raise ValueError("language rewrite returned an incomplete translation")
+        for source, output in zip(originals, translated):
+            if re.findall(r"\d+(?:[./-]\d+)*", source) != re.findall(r"\d+(?:[./-]\d+)*", output):
+                raise ValueError("language rewrite changed a number or citation")
+            if re.findall(r"https?://\S+|www\.\S+", source) != re.findall(r"https?://\S+|www\.\S+", output):
+                raise ValueError("language rewrite changed a URL")
+        if script:
+            letters = [char for text in translated for char in text if char.isalpha()]
+            target_letters = sum(bool(script.fullmatch(char)) for char in letters)
+            if letters and target_letters / len(letters) < 0.7:
+                raise ValueError("language rewrite did not use the selected language consistently")
+        elif any(re.search(r"[\u0900-\u097f\u0c00-\u0c7f]", text) for text in translated):
+            raise ValueError("English rewrite retained non-English script")
+        return translated
+    except Exception as exc:
+        logger.warning("Selected-language rewrite failed (%s); keeping the original response", type(exc).__name__)
+        return originals
 
 
 def extract_and_parse_json(llm_response: str):

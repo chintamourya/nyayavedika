@@ -4,6 +4,16 @@
 **Live demo:** [NYAYAVEDIKA](https://nyayavedika.delightfulmushroom-95327f3a.koreacentral.azurecontainerapps.io/) · **Demo video (3 min):** https://youtu.be/D3xo-yJMhwg · **Licence:** MIT
 **Detailed evidence and research:** [docs/RESEARCH_EVIDENCE.md](docs/RESEARCH_EVIDENCE.md)
 
+This repository now includes the full three-door product set: citizen legal-aid / problem-research flows, advocate document studio and grounded insight tools, and staff intake / triage / cause-list / undertrial-watch workflows. It also includes public impact metrics, a consent-based feedback wall, worker-driven ingestion and offline-safe fallback modes.
+
+Latest updates reflected in this branch:
+- public metrics page and aggregate activity API
+- feedback wall with outcome/time-saved reporting
+- legal-aid knowledge-base, draft application and explain flows
+- staff intake, docket, cause-list, alerts and review gates
+- advocate workspace isolation, studio tooling and page-grounded chat
+- offline-compatible rules engine and deterministic fallback behavior
+
 Figures are tagged **Reported** (published by the named source), **Derived** (our arithmetic on reported figures) or **Estimate** (our model, assumptions stated).
 
 ---
@@ -19,7 +29,7 @@ Three groups fall through the same gap:
 
 ### Why all three doors, not one
 
-The backlog is a chain, and it breaks at a different link for each group. A citizen who does not know they qualify for legal aid never reaches a lawyer. A lawyer who cannot read or assemble the record in time cannot make a hearing useful. A registry that cannot see which cases are urgent lists the wrong matters. Fixing one link only moves the bottleneck to the next. NyayaVedika therefore equips **citizens, advocates and court staff together**, on the same deterministic rules (Section 479, legal-aid eligibility, triage) and the same audit trail, so what one door produces is something the next door can act on. In Version 1 the doors share rules, data model and audit log. Linking one person's journey across the three doors as a single case record is planned for Version 2 (see  docs/HOW_IT_WORKS.md, Section 3.7).
+The backlog is a chain, and it breaks at a different link for each group. A citizen who does not know they qualify for legal aid never reaches a lawyer. A lawyer who cannot read or assemble the record in time cannot make a hearing useful. A registry that cannot see which cases are urgent lists the wrong matters. Fixing one link only moves the bottleneck to the next. NyayaVedika therefore equips **citizens, advocates and court staff together**, on the same deterministic rules (Section 479, legal-aid eligibility, triage) and the same audit trail, so what one door produces is something the next door can act on. The current repository already shares the rules, data model and audit trail across the three doors, and the system is designed so the same event stream can support a future single-case supervisor layer without forcing a rewrite of the working product.
 
 ## What we built
 

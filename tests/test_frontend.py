@@ -243,6 +243,25 @@ class DevServerTests(SeededDb):
         self.assertRegex(headers["Content-Disposition"], r'attachment; filename="legal_aid_application_Warangal_\d{4}-\d{2}-\d{2}\.docx"')
         self.assertTrue(body.startswith(b"PK"))
 
+    def test_superintendent_letter_downloads_in_english_hindi_and_telugu(self):
+        from nyayavedika.agents import undertrial_watch
+        undertrial_watch.run_scan(today=date.today())
+        with store.connect() as db:
+            alerts = db.select("alerts", {"kind": "undertrial_release"}, order="id DESC", limit=1)
+        self.assertTrue(alerts)
+        alert_id = alerts[0]["id"]
+
+        for language in ("en", "hi", "te"):
+            status, headers, body = self.call(
+                f"/api/alerts/{alert_id}/superintendent.docx?language={language}", token="t-staff")
+            self.assertEqual(status, 200)
+            self.assertEqual(headers["Content-Type"], self.mod.DOCX)
+            self.assertRegex(headers["Content-Disposition"], rf'attachment; filename="custody_record_review_request_{language}_.+\.docx"')
+            self.assertTrue(body.startswith(b"PK"))
+
+        self.assertEqual(self.call(
+            f"/api/alerts/{alert_id}/superintendent.docx?language=kn", token="t-staff")[0], 400)
+
     def test_chat_hand_over_and_actions(self):
         status, _, body = self.call("/api/agent/chat", "POST", {"message": "Can I get a free lawyer? I earn 12,000 a month."})
         r = json.loads(body)
@@ -253,6 +272,39 @@ class DevServerTests(SeededDb):
 
 
 class StaticContentTests(unittest.TestCase):
+    def test_advocate_and_staff_headers_link_home(self):
+        advocate_html = (STATIC / "advocate.html").read_text(encoding="utf-8")
+        advocate_style = (STATIC / "advocate.css").read_text(encoding="utf-8")
+        staff_html = (STATIC / "staff.html").read_text(encoding="utf-8")
+        staff_style = (STATIC / "styles.css").read_text(encoding="utf-8")
+        self.assertIn('<a class="home-link" href="/">Home</a>', advocate_html)
+        self.assertIn(".home-link {", advocate_style)
+        self.assertIn('<a class="portal-home" href="/">Home</a>', staff_html)
+        self.assertIn("body.staff-page > .top > .portal-home", staff_style)
+        self.assertIn("styles.css?v=15", staff_html)
+
+    def test_theme_is_light_by_default_and_manually_toggleable_on_every_page(self):
+        pages = ("index.html", "citizen.html", "staff.html", "advocate.html",
+                 "feedback-wall.html", "metrics.html", "classic.html")
+        for filename in pages:
+            html = (STATIC / filename).read_text(encoding="utf-8")
+            self.assertIn('class="theme-toggle"', html, filename)
+            self.assertIn('content="#0866ff"', html, filename)
+            self.assertIn('common.js?v=14', html, filename)
+
+        common = (STATIC / "common.js").read_text(encoding="utf-8")
+        styles = (STATIC / "styles.css").read_text(encoding="utf-8")
+        advocate_style = (STATIC / "advocate.css").read_text(encoding="utf-8")
+        docs_script = (STATIC / "docs.js").read_text(encoding="utf-8")
+        self.assertIn('theme === "dark" ? "dark" : "light"', common)
+        self.assertIn('applyTheme(saved)', common)
+        self.assertNotIn("prefers-color-scheme", styles + advocate_style + docs_script)
+        self.assertIn('dataset.theme === "dark"', docs_script)
+
+    def test_undertrial_alert_has_telugu_letter_button(self):
+        script = (STATIC / "staff.js").read_text(encoding="utf-8")
+        self.assertIn('data-language="te">నిర్బంధ కాల వివరాల పరిశీలన వినతి (తెలుగు)', script)
+
     def test_staff_portal_has_no_insights_section(self):
         html = (STATIC / "staff.html").read_text(encoding="utf-8")
         script = (STATIC / "staff.js").read_text(encoding="utf-8")
@@ -271,9 +323,34 @@ class StaticContentTests(unittest.TestCase):
         self.assertIn("summarize_result_heading", strings["en"])
         self.assertIn("summarize_reader_note", strings["en"])
         html = (STATIC / "citizen.html").read_text(encoding="utf-8") + (STATIC / "citizen.js").read_text(encoding="utf-8")
-        self.assertIn("citizen.js?v=16", html)
+        self.assertIn("citizen.js?v=17", html)
         used = set(re.findall(r'data-t[pa]?="([a-z_]+)"', html)) | set(re.findall(r'\bt\("([a-z_]+)"\)', html))
         self.assertFalse(used - set(strings["en"]), used - set(strings["en"]))
+
+    def test_citizen_document_summary_renders_structured_sections(self):
+        html = (STATIC / "citizen.html").read_text(encoding="utf-8")
+        script = (STATIC / "citizen.js").read_text(encoding="utf-8")
+        style = (STATIC / "styles.css").read_text(encoding="utf-8")
+        strings = json.loads((STATIC / "i18n.json").read_text(encoding="utf-8"))
+        self.assertIn("renderDocumentSummaryDetails(result, t)", script)
+        common_script = (STATIC / "common.js").read_text(encoding="utf-8")
+        self.assertIn("renderDocumentSummaryDetails(result, translate)", common_script)
+        self.assertIn("summary-view-timeline", common_script)
+        self.assertIn("summary-view-status", style)
+        self.assertIn("summary_timeline", strings["en"])
+        self.assertEqual(set(strings["en"]), set(strings["hi"]))
+        self.assertEqual(set(strings["en"]), set(strings["te"]))
+        self.assertIn("styles.css?v=15", html)
+
+    def test_staff_document_summary_uses_shared_structured_renderer(self):
+        html = (STATIC / "staff.html").read_text(encoding="utf-8")
+        script = (STATIC / "staff.js").read_text(encoding="utf-8")
+        self.assertIn("renderDocumentSummaryDetails(result, (key) => summaryLabels[key] || key)", script)
+        self.assertIn("summary-view-lead", script)
+        self.assertIn("verification.unverified?.length", script)
+        self.assertIn("result.low_confidence_pages?.length", script)
+        self.assertIn("common.js?v=14", html)
+        self.assertIn("staff.js?v=25", html)
 
     def test_citizen_has_four_capabilities_and_safe_legal_research_rendering(self):
         html = (STATIC / "citizen.html").read_text(encoding="utf-8")
@@ -313,8 +390,10 @@ class StaticContentTests(unittest.TestCase):
         self.assertIn('id="lawyerTokenHint" class="muted">Demo lawyer token: mourya', html)
         self.assertIn('lawyerTokenInput.value = "mourya";', script)
         self.assertIn('setToken("mourya");', script)
-        self.assertIn("advocate.js?v=10", html)
-        self.assertIn("advocate.css?v=8", html)
+        self.assertIn("advocate.js?v=11", html)
+        self.assertIn("advocate.css?v=10", html)
+        self.assertIn(".file-list { list-style: none; padding: 0; margin: 10px 0 0; display: grid; gap: 6px; width: 100%; min-width: 0; max-width: 100%; }", style)
+        self.assertIn(".auth { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; min-width: 0; max-width: 100%; }", style)
         self.assertIn(".chat-status {", style)
         self.assertIn("overflow: hidden;", style)
         self.assertIn("@keyframes progress-slide { from { transform: translateX(-100%); } to { transform: translateX(430%); } }", style)

@@ -205,6 +205,17 @@ class LegalProblemChatTests(unittest.TestCase):
         self.assertEqual(out["type"], "message")
         search.assert_not_called()
 
+    def test_selected_language_overrides_english_input(self):
+        with mock.patch.object(legal_problem.llm, "available", return_value=True), \
+                mock.patch.object(legal_problem.llm, "structured_chat",
+                                  return_value=legal_problem.TurnDecision(action="reply", message="Hello.")) as decision, \
+                mock.patch.object(legal_problem.llm, "enforce_language", return_value=["నమస్కారం."]) as rewrite:
+            out = legal_problem.chat_turn([{"role": "user", "content": "Hello, I need help."}], "Telugu")
+
+        self.assertIn("selected output language is Telugu", decision.call_args.args[0])
+        self.assertEqual(out["reply"], "నమస్కారం.")
+        rewrite.assert_called_once_with(["Hello."], "Telugu")
+
     def test_clarifying_questions_are_capped_then_research_runs(self):
         history = [{"role": "user", "content": "landlord problem"},
                    {"role": "assistant", "content": "What happened?", "kind": "ask"},

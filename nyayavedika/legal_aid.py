@@ -291,7 +291,9 @@ CRITICAL FORMATTING REQUIREMENTS:
 - Summarise the legal problem factually from the facts given; never invent facts
 - Leave [placeholders] for anything not provided (name, address, case number, date)
 - End with a prayer for assignment of a panel lawyer and a verification/signature block
-Write the application in {language}."""
+Write the entire application exclusively in the selected language {language}, regardless of the applicant's
+input language. Do not include an English translation or mix languages. Preserve case numbers, statutory citations,
+official names, and placeholders."""
 
 
 def draft_application(applicant: Dict, eligibility: Dict, problem: str, language: str = "English") -> Dict:
@@ -301,6 +303,7 @@ def draft_application(applicant: Dict, eligibility: Dict, problem: str, language
                      f"Court case number (if any): {applicant.get('case_number') or '[not provided]'}\n"
                      f"Problem described by applicant:\n{problem}")
             text = llm.text(APPLICATION_SYSTEM.replace("{language}", language), facts)
+            text = llm.enforce_language([text], language)[0]
             return {"engine": "llm", "application": text}
         except Exception as exc:
             logger.warning("LLM drafting failed: %s", exc)
@@ -330,10 +333,12 @@ I, [Name of applicant], do hereby verify that the contents of this application a
 Place: [place]
 Date: [date]                                                    Signature / Thumb impression of applicant
 """
+    text = llm.enforce_language([text], language)[0]
     return {"engine": "template", "application": text}
 
 
-EXPLAIN_SYSTEM = """You explain a free-legal-aid eligibility result to an ordinary person in {language}.
+EXPLAIN_SYSTEM = """You explain a free-legal-aid eligibility result to an ordinary person exclusively in the selected
+language {language}, regardless of the language in which the user wrote. Do not code-switch or include an English translation.
 The DECISION below was made by the rules of Section 12, Legal Services Authorities Act, 1987: never change it,
 never promise a lawyer, never predict a case. Use ONLY the decision facts and the numbered PASSAGES; cite passages
 you used as [1], [2]. Plain words, short sentences, no markdown headings.
@@ -347,7 +352,8 @@ class Explanation(BaseModel):
     used: List[int] = []
 
 
-QUESTION_SYSTEM = """Answer an Indian legal-information question in {language}, using ONLY the numbered sources.
+QUESTION_SYSTEM = """Answer an Indian legal-information question exclusively in the selected language {language},
+regardless of the language in which the user wrote, using ONLY the numbered sources. Do not code-switch or include an English translation.
 Do not invent laws, citations, dates or procedures. Do not promise outcomes or give personalized legal advice.
 Say clearly when sources do not answer the question; advise contacting the DLSA or helpline 15100 when needed.
 If an uploaded document is included, distinguish what it says from general legal information.
@@ -455,7 +461,8 @@ def answer_question(question: str, language: str = "English", document_text: str
                 QuestionAnswer, fast=True, max_tokens=900)
             used = [n for n in answer.used if 1 <= n <= len(sources)]
             if answer.answer.strip():
-                return {**out, "answer": answer.answer.strip(), "engine": "llm", "used": used}
+                localized = llm.enforce_language([answer.answer.strip()], language)[0]
+                return {**out, "answer": localized, "engine": "llm", "used": used}
         except Exception as exc:
             logger.warning("legal-aid question answer by LLM failed (%s); using retrieved sources", type(exc).__name__)
 
@@ -481,6 +488,7 @@ def answer_question(question: str, language: str = "English", document_text: str
     else:
         out["answer"] = ("I could not find a matching legal-aid guide or official web source for this question. "
                          "Please contact your District Legal Services Authority or call 15100.")
+    out["answer"] = llm.enforce_language([out["answer"]], language)[0]
     return out
 
 
@@ -533,8 +541,9 @@ def explain(eligibility: Dict, problem: str = "", language: str = "English", sea
                                f"<passages>\n{numbered or '(none found)'}\n</passages>", Explanation, fast=True, max_tokens=900)
             if e.answer.strip():
                 used = [n for n in e.used if 1 <= n <= len(sources)]
-                return {**out, "engine": "llm", "answer": e.answer.strip(), "next_steps": e.next_steps[:5] or eligibility["next_steps"],
-                        "used": used}
+                localized = llm.enforce_language([e.answer.strip(), *(e.next_steps[:5] or eligibility["next_steps"])],
+                                                 language)
+                return {**out, "engine": "llm", "answer": localized[0], "next_steps": localized[1:], "used": used}
         except Exception as exc:
             logger.warning("legal-aid explanation by LLM failed (%s); using the template", type(exc).__name__)
     lead = {"likely_eligible": "On what you told us, you are likely entitled to a free lawyer",
@@ -544,7 +553,9 @@ def explain(eligibility: Dict, problem: str = "", language: str = "English", sea
     answer = f"{lead}{(' (' + why + ')') if why else ''}. {eligibility.get('income_limit_note') or ''}".strip()
     if passages:
         answer += f" More: {passages[0].get('heading') or 'see source'} [1]."
-    return {**out, "answer": answer, "next_steps": eligibility.get("next_steps") or [], "used": [1] if passages else []}
+    next_steps = eligibility.get("next_steps") or []
+    localized = llm.enforce_language([answer, *next_steps], language)
+    return {**out, "answer": localized[0], "next_steps": localized[1:], "used": [1] if passages else []}
 
 
 FACTS_SYSTEM = """Write ONE short paragraph (3-5 sentences, first person, formal and simple English) stating the

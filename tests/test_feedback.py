@@ -244,6 +244,8 @@ class LandingMarkupTests(unittest.TestCase):
         for path, slug in dev_api.DOCS.items():
             page = public_docs.render_page(slug)
             self.assertIn('class="doc-content"', page)
+            self.assertIn('class="theme-toggle"', page)
+            self.assertIn('common.js?v=14', page)
             self.assertIn("<h1>", page)
             self.assertIn("<table>", page)
             self.assertNotIn("text/markdown", page)

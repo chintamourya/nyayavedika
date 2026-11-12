@@ -74,7 +74,7 @@ $("#chatForm").addEventListener("submit", async (e) => {
   addMsg("bot pending", "Thinking…");
   try {
     const r = awaitingAnswer
-      ? await api("/api/agent/resume", { thread_id: thread, answer: text })
+      ? await api("/api/agent/resume", { thread_id: thread, answer: text, language: $("#chatLang").value })
       : await api("/api/agent/chat", { message: text, thread_id: thread, language: $("#chatLang").value });
     thread = r.thread_id;
     document.querySelector(".msg.pending")?.remove();

@@ -271,6 +271,22 @@ def routes():
             raise HttpError(404, "No alert")
         return legal_aid_docx.build_release_docx(rows[0]), DOCX, _docx_name("release_application", rows[0]["case_id"])
 
+    @r("GET", r"/api/alerts/(?P<id>\d+)/superintendent\.docx", "GET /api/alerts/{alert_id}/superintendent.docx")
+    def superintendent(h, m, q, b, p):
+        rows = _db(lambda s: s.select("alerts", {"id": int(m["id"])}))
+        if not rows:
+            raise HttpError(404, "No alert")
+        language = (q.get("language") or ["en"])[0]
+        if language not in ("en", "hi", "te"):
+            raise HttpError(400, "language must be 'en', 'hi' or 'te'")
+        alert = rows[0]
+        if alert.get("kind") not in ("undertrial_release", "release_review_request"):
+            raise HttpError(409, "This alert is not a Section 479 release review.")
+        case = store.get_case(alert.get("case_id") or "")
+        data = {**(case or {}), **alert}
+        name = f"custody_record_review_request_{language}"
+        return legal_aid_docx.build_superintendent_docx(data, language), DOCX, _docx_name(name, alert["case_id"])
+
     @r("POST", r"/api/jobs/(?P<name>\w+)/run", "POST /api/jobs/{name}/run")
     def job(h, m, q, b, p):
         try:

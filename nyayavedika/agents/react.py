@@ -21,7 +21,7 @@ from typing import Annotated, Callable, Dict, List, Optional, TypedDict
 from .. import config, llm
 from ..models import AgentStep
 from .context import context_block, facts_from_context
-from .tools import Tool, capabilities, catalogue, observation_text
+from .tools import CITIZEN, Tool, capabilities, catalogue, observation_text
 
 logger = logging.getLogger(__name__)
 
@@ -72,7 +72,9 @@ Available tools:
 
 FRONT_DOOR_RULES = """
 Front-door rules:
-- Answer first, then the next step, in the user's language. Legal statements must come from a tool result or a
+- Answer first, then the next step, in the explicitly selected language; it overrides the language the user writes in.
+  If no language is selected, reply in the user's language. Do not mix languages or include a second-language version.
+  Legal statements must come from a tool result or a
   cited passage (name the source); web facts must show the date they were checked.
 - Never predict whether someone will win; explain options and legal aid instead.
 - Hand-over tools (marked) change records or need a person's decision: propose them, the system asks for a clear yes.
@@ -113,6 +115,9 @@ def build_react_agent(system_prompt: str, tools: List[Tool], checkpointer=None,
         if role:
             from .front_door import finalise
             answer = finalise(answer, _last_user(state), role, facts_from_context(state.get("context")))
+        language = state.get("language")
+        if role == CITIZEN and language:
+            answer = llm.enforce_language([answer], language)[0]
         return {"final": answer, "pending": None, "messages": [{"role": "assistant", "content": answer}], **(extra or {})}
 
     def _offline(state, note: str = "") -> dict:
@@ -193,7 +198,11 @@ def build_react_agent(system_prompt: str, tools: List[Tool], checkpointer=None,
                 return {**_finish(state, steps, "Write the final answer for the person now."), **update}
             return {**_final(state, answer), **update}
         if step.action == "ask_user":
-            return {"pending": {"type": "ask_user", "question": step.question_for_user or "Could you tell me more?",
+            question = step.question_for_user or "Could you tell me more?"
+            language = state.get("language")
+            if role == CITIZEN and language:
+                question = llm.enforce_language([question], language)[0]
+            return {"pending": {"type": "ask_user", "question": question,
                                 "thought": step.thought}, **update}
         if step.action not in by_name:
             if (step.final_answer or "").strip():  # an answer under an odd action name is still an answer

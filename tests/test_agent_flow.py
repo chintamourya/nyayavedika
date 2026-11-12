@@ -4,7 +4,9 @@ never leaks the model's reasoning, Yes/No is offered only for confirmations, ses
     python -m unittest tests.test_agent_flow
 """
 import importlib.util
+import json
 import os
+import re
 import sys; sys.path.insert(0, os.path.dirname(os.path.abspath(__file__))); import _testenv  # noqa: E402,F401  (offline settings, see tests/_testenv.py)
 import sys
 import tempfile
@@ -42,6 +44,10 @@ class Scripted:
         if schema.__name__ == "AgentStep":
             self.prompts.append(messages[-1]["content"])
             return self.q.pop(0)
+        if schema.__name__ == "LanguageRewrite":
+            sources = json.loads(messages[-1]["content"])
+            return {"translations": ["हिंदी में उत्तर। " + " ".join(re.findall(r"\d+(?:[./-]\d+)*", source))
+                                    for source in sources]}
         if schema.__name__ == "DocTypeGuess":
             return {"doc_type": "fir"}
         return {} if schema.__name__ != "IntentPick" else {"tools": []}
@@ -74,8 +80,8 @@ class AgentFlowTests(unittest.TestCase):
     def tearDown(self):
         llm.set_backend(None)
 
-    def chat(self, message, thread=None, role="citizen"):
-        return self.c.post("/api/agent/chat", json={"message": message, "thread_id": thread},
+    def chat(self, message, thread=None, role="citizen", language=""):
+        return self.c.post("/api/agent/chat", json={"message": message, "thread_id": thread, "language": language},
                            headers={"Authorization": f"Bearer {TOK[role]}"}).json()
 
     def attach(self, names, message="what does this say?", thread=None, role="citizen"):
@@ -130,6 +136,28 @@ class AgentFlowTests(unittest.TestCase):
         second = self.chat("about 80000 a year", first["thread_id"])        # plain /chat, not /resume
         self.assertIn("likely eligible", second["reply"])
         self.assertIn("user answered: about 80000 a year", backend.prompts[1])  # the question was not lost
+
+    def test_selected_language_change_applies_when_resuming_a_question(self):
+        backend = Scripted([
+            {"thought": "need income", "action": "ask_user", "question_for_user": "What is your family income per year?"},
+            {"thought": "done", "action": "final_answer", "final_answer": "Here is your answer."},
+        ])
+        llm.set_backend(backend)
+        first = self.chat("can I get a free lawyer?", language="English")
+
+        second = self.chat("about 80000 a year", first["thread_id"], language="Hindi")
+
+        self.assertEqual(second["reply"], "हिंदी में उत्तर। 15100")
+        self.assertIn("Final answers must be in Hindi.", backend.prompts[1])
+
+    def test_selected_hindi_is_used_when_citizen_writes_in_english(self):
+        backend = Scripted([{"thought": "done", "action": "final_answer", "final_answer": "Here is your answer."}])
+        llm.set_backend(backend)
+
+        response = self.chat("I need help.", language="Hindi")
+
+        self.assertEqual(response["reply"], "हिंदी में उत्तर। 15100")
+        self.assertIn("Final answers must be in Hindi.", backend.prompts[0])
 
     def test_resume_endpoint_without_a_question_acts_as_a_message(self):
         llm.set_backend(Scripted([{"thought": "d", "action": "final_answer", "final_answer": "Hello."}]))

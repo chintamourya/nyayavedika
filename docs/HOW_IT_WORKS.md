@@ -1,10 +1,10 @@
 # NyayaVedika: how each product works
 
-**Version 1.0 (hackathon release).** This file explains how each product in the repository works, step by step, so a judge, partner or developer can follow the logic from a user's click to the stored result. Section 11 describes what Version 2 and later versions are planned to add. Those are plans, not built features.
 
-**What "agentic" means in Version 1.** NyayaVedika already uses LangGraph agents that plan, call tools, run in parallel, verify their own output and pause for a human decision. Version 1 deliberately keeps the legal rules in plain code and puts a human at every step with legal consequences. The next versions make the agents more autonomous in preparation and follow-up, and keep that human gate.
 
-Contents: 1 Design rules · 2 Architecture · 3 Shared foundations · 4 Citizen door · 5 Advocate door · 6 Court staff door · 7 Measurement and feedback · 8 Safety, privacy and access control · 9 Testing · 10 Known limits of Version 1 · 11 Roadmap
+**What "agentic" means in the current build.** NyayaVedika uses LangGraph agents that plan, call tools, run in parallel, verify their own output, and pause for a human decision. The system keeps the legal rules in plain code and requires a human at every step with legal consequences. The same architecture supports proactive follow-up and a future case-level supervisor without removing the approval gate.
+
+Contents: 1 Design rules · 2 Architecture · 3 Shared foundations · 4 Citizen door · 5 Advocate door · 6 Court staff door · 7 Measurement and feedback · 8 Safety, privacy and access control · 9 Testing · 10 Current limits · 11 Roadmap and next improvements
 
 ---
 
@@ -85,6 +85,7 @@ flowchart TB
 - One client for Azure OpenAI. Calls ask for **structured output**: the model must return JSON that fits a Pydantic class, and a bad shape is an error, not a guess.
 - A **fast** deployment handles short jobs (search strings, document type, claim checks) and a **flagship** deployment handles synthesis, so cost and latency stay low.
 - Every call **masks personal identifiers first**.
+- Citizen-facing generated prose follows the selected English, Hindi or Telugu language even when the input uses another language. A guarded rewrite preserves numbers, citations and URLs; if it fails validation or the model is unavailable, the original answer is retained.
 - Tests swap in a scripted backend (`set_backend()`), so full agent graphs run with no network.
 
 ### 3.2 Reading documents (`ocr.py`, `documents.py`)
@@ -127,7 +128,7 @@ The backlog is a chain of delays, and each door removes a different one. A typic
 | 5. Get listed | Court staff | A Critical case is proposed a fast-lane slot, and the registrar approves the cause list | Section 6.4 |
 | 6. Learn | All | The outcome is recorded and feeds adjournment estimates and the impact log | Sections 6.4 and 7 |
 
-What the doors share in Version 1: the deterministic rules (Section 479, legal-aid eligibility, triage), the data model, the audit log and the impact log. What they do **not** yet share: a citizen's legal-aid request and a staff docket case are separate records, and nothing links them automatically. The journey above is therefore a design view, not a single traced workflow. The Version 2 supervisor agent per case (Section 11) is the planned step that joins them.
+What the doors share in the current build: the deterministic rules (Section 479, legal-aid eligibility, triage), the data model, the audit log and the impact log. They are intentionally separate records at the moment: a citizen's legal-aid request, the advocate's workspace and a staff docket case are distinct objects. The journey above is therefore a design view, not a single traced workflow, and the next evolution is a case-level supervisor that joins these records without weakening the human review gates.
 
 ---
 
@@ -145,8 +146,8 @@ No login. English, Hindi and Telugu. Each tool below is a guided flow built so a
    - The limit comes from a State table. If a value is missing or older than a set number of days, it is confirmed from a trusted official site and written back with its source and date. The rule engine itself never waits on the web, and falls back to a default limit labelled as a default.
    - Outcomes are `likely_eligible`, `possibly_eligible` (with a list of missing facts) and `not_on_facts_given`.
 3. **Practical output.** The right forum for the court level, the DLSA office and helpline, the documents to carry (built from the grounds), numbered next steps, a Lok Adalat note when the dispute can be settled, and urgent numbers when custody, domestic violence or a child at risk is mentioned.
-4. **Explanation.** The knowledge index retrieves relevant NALSA passages, and the model writes a plain-language explanation that cites them. It explains the result and never changes it.
-5. **Draft application.** The model drafts a formal application in the formatting a legal-aid clerk expects: addressee, subject line, numbered paragraphs, the Section 12 clause, a prayer for a panel lawyer, and `[placeholders]` for anything not given. It is told never to invent facts. Without a model, a template is used.
+4. **Explanation.** The knowledge index retrieves relevant NALSA passages, and the model writes a plain-language explanation in the selected language that cites them. It explains the result and never changes it.
+5. **Draft application.** The model drafts a formal application in the selected language and the formatting a legal-aid clerk expects: addressee, subject line, numbered paragraphs, the Section 12 clause, a prayer for a panel lawyer, and `[placeholders]` for anything not given. It is told never to invent facts. Without a model, a template is used.
 6. **Follow-up questions.** A person can ask a limited number of follow-up questions per session, answered from the knowledge index and, when supplied, the person's own document. The limit is tracked per session.
 7. **Status.** A request moves through `checked → drafted → applied → lawyer_assigned → closed`, so partners can report outcomes.
 
@@ -165,7 +166,7 @@ No login. English, Hindi and Telugu. Each tool below is a guided flow built so a
 6. **Answer from the sources.** The model writes points and must tag each with the IDs of the sources that support it. Points whose IDs do not match a retrieved source are removed.
 7. **Fail honestly.** If any search fails, no partial answer is returned. If no readable official source is found, the tool says so and writes no legal answer.
 
-A thin chat layer decides each turn whether to ask one clarifying question, reply conversationally or run the research. It uses only the last five user turns, and legal content still comes only from the research step.
+A thin chat layer decides each turn whether to ask one clarifying question, reply conversationally or run the research. It uses only the last five user turns, and legal content still comes only from the research step. The explicitly selected output language takes precedence over the language used in the user's messages.
 
 **What it eases.** Not knowing which law or office applies, and the risk of confident wrong answers from an ungrounded model.
 
@@ -173,7 +174,7 @@ A thin chat layer decides each turn whether to ask one clarifying question, repl
 
 **Purpose.** Turn an order or notice into plain language.
 
-**How it works.** The upload goes through the shared summarisation engine (Section 6.1) in `summary_only` mode, which creates no case. Four outputs are produced: a three-line glance, a one-page brief with page references, a five-to-eight-sentence plain-language version, and structured fields (dates, parties, next steps). Dates and section numbers are verified against the page they cite. The result is cached by content hash. Without a model key the extractive summariser runs and every output is labelled "extractive".
+**How it works.** The upload goes through the shared summarisation engine (Section 6.1) in `summary_only` mode, which creates no case. Four outputs are produced: a three-line glance, a one-page brief with page references, a five-to-eight-sentence plain-language version, and structured fields (dates, parties, next steps). Citizen-facing prose follows the selected language. Dates and section numbers are verified against the page they cite. The result is cached by content hash. Without a model key the extractive summariser runs and every output is labelled "extractive".
 
 ### 4.4 Know your rights
 
@@ -183,7 +184,7 @@ A thin chat layer decides each turn whether to ask one clarifying question, repl
 
 ### 4.5 The conversational agent (Nyaya Mitra)
 
-`agents/assistants.py` builds a ReAct agent per role. It is used by the staff Registry Copilot and the assistant endpoints, and the citizen page in Version 1 centres on the guided tools above.
+`agents/assistants.py` builds a ReAct agent per role. It is used by the staff Registry Copilot and the assistant endpoints, and the citizen flow in the current build centres on the guided tools above while preserving the same event and safety model across channels.
 
 - **Intent rules narrow the tools.** A rules table picks the tools relevant to each message (custody, free lawyer, office, case status, alerts and so on), plus a few core tools. No extra model call is made for intent, which avoids doubling requests and hitting rate limits.
 - **Role-limited tools.** An agent gets only the tools whose roles include it. A citizen cannot call docket tools.
@@ -240,7 +241,7 @@ The web request is thin: it validates, stores bytes by content hash and writes o
 
 1. **Read** with OCR as needed.
 2. **Summarise** (`summarise.py`). Documents above about 12,000 tokens use map-reduce: split into parts with paragraph cuts and one paragraph of overlap, map the parts in parallel at a limited rate, **tree-reduce** in groups so no call ever receives more than the single-pass limit, then produce the final brief. Indic scripts are counted with a stricter token estimate. Dates and section numbers are verified against the cited page, then the document, or removed.
-3. **Extract** (`extraction.py`). The document type is classified (FIR, order, petition, bail or custody paper, other). A `CaseDraft` is proposed by the model or by regex rules. **Every model-proposed date and section must literally occur in the source or it is dropped.** Missing or low-confidence fields mark the case `needs_review`, and the unverified value is not used. Every field keeps its provenance.
+3. **Extract** (`extraction.py`). The document type is classified (FIR, order, petition, bail or custody paper, other). Uploaded text is treated as untrusted evidence, never as instructions to the model. A `CaseDraft` is proposed by the model or by regex rules. **Every model-proposed date and section must literally occur in the source or it is dropped.** Missing or low-confidence fields mark the case `needs_review`, and the unverified value is not used. Every field keeps its provenance.
 4. **Provisional score.** An unknown custody status on a criminal matter is treated as possible custody and never scored low.
 5. **Merge.** With several documents in a case, a case-level merge runs, and contradictions go to `needs_review`.
 6. **Fast lane.** A Critical or release-eligible case is proposed a slot in the nearest open draft cause list (`proposed`).
@@ -269,6 +270,7 @@ The score maps to a band (Critical, High, Medium, Routine). **A case entitled to
 - The threshold is **one-third of the maximum sentence for a first-time offender and one-half otherwise**. When first-time status is unknown, the lower limit is used, so nobody is missed.
 - Result statuses: `eligible`, `likely_eligible` (one-third crossed, first-offence status unknown), `needs_review` (a blocker such as several pending cases) and `not_eligible` (with the percentage of the threshold reached).
 - Custody days, the thresholds and the basis are returned so the arithmetic is shown.
+- Word drafts include the court application and a separate custody-record review request in English, Hindi or Telugu. It identifies the recorded custody period for verification and asks officials to consider appropriate action under Section 479. The calculation is labelled preliminary; missing values remain placeholders. A lawyer or authorised officer must check it before sending.
 
 **The agent** (LangGraph): `scan → draft (one per new candidate, in parallel) → save → review [human interrupt] → apply`.
 1. **Scan** finds custody cases past the threshold or within a configurable share of it. Custody cases missing a custody date or sentence go to a "data needed" list with where to get each fact (the custody certificate, the remand order, the Act and section charged).
@@ -334,22 +336,22 @@ After hearings, `record_outcome` (heard, adjourned, disposed, not reached) feeds
 
 About 30 test files run offline, with a scripted model backend and no keys. They cover the Section 479 engine against 21 hand-derived cases, legal-aid eligibility and explanation, legal-problem research, agent flow and resilience (including pauses and resumes), the worker queue, intake modes, extraction and summarisation (including real judgments), scheduling invariants (no advocate double-booked, no bench over capacity, nothing lost), efficiency, access tokens, feedback, the data model, the front door and frontend, and the advocate tools (workspace isolation, grounding, file types, re-upload reuse, Studio operations, chat scoping). The tests use invented cases, so they show behaviour as designed, not performance in a real court.
 
-## 10. Known limits of Version 1
+## 10. Current limits
 
-- **Demo access.** Roles use static tokens, not real authentication.
-- **Unverified rules.** The 21 Section 479 cases, triage weights, income limits and the 46-row statutes table are not yet reviewed by a lawyer.
-- **No live record link.** The custody check uses docket fields, so a lawyer confirms the dates. There is no connection to e-Prisons or NJDG.
-- **Masking scope.** Names and addresses are not masked, so real files should not go to a hosted model without consent.
-- **Document limits.** Studio takes PDFs only, and Insights are capped at 50 pages. Chat needs Pinecone and the language model.
-- **Single language model.** Only Azure OpenAI is wired in, with an offline fallback on rules.
-- **Scheduled jobs run from cron**, not inside the app.
-- **No field data yet.** The measurement is built, and real usage numbers are still to be collected.
+- **Demo access.** Roles use static tokens, not real authentication, unless the deployment is configured for a different model.
+- **Unverified rules.** The 21 Section 479 cases, triage weights, income limits and the statutes table need lawyer review before a live legal workflow is trusted in a production setting.
+- **No live record link.** The custody check uses docket fields, so a lawyer confirms the dates. There is no direct connection to e-Prisons or NJDG in the default stack.
+- **Masking scope.** Names and addresses are not masked in all paths, so real files should not be uploaded to a hosted model without consent.
+- **Document limits.** Studio takes PDFs primarily, and Insights are capped at 50 pages. Chat needs Pinecone and a language model.
+- **Model dependencies.** Azure OpenAI and Pinecone are optional enhancements; the project still runs with rules and offline fallback.
+- **Scheduled jobs run from cron.** The app includes the worker and scheduler logic, but deployment still depends on a host job runner.
+- **Field data is still partial.** The measurement layer and feedback collection are in place, but field-verified legal outcome studies are still the next phase.
 
-## 11. Roadmap: planned versions
+## 11. Roadmap and next improvements
 
-Version 1 is a working base with the right safeguards. These are the directions planned for later versions, in the order they are expected to matter. They are plans and may change.
+The current codebase already delivers the core product set and the measurement scaffolding. The next improvements are the practical steps for deployment, legal review and scale, not a reset of the product.
 
-### Version 1.5: hardening (next)
+### Hardening and deployment (next)
 
 - **Real authentication** (OIDC single sign-on) with court, DLSA and jail roles, and per-court data separation.
 - **Lawyer-reviewed rules.** Independent review of the Section 479 cases, triage weights and income limits, with the reviewer's name and date stored with each rules version.
@@ -357,16 +359,16 @@ Version 1 is a working base with the right safeguards. These are the directions 
 - **Stronger masking**, including names, addresses and case numbers, with an option to run an open-weight model on the partner's own server for sensitive files.
 - **Observability.** Traces for every agent run, cost and latency per call, and alerts on failed scheduled jobs.
 
-### Version 2: more agentic
+### More agentic workflow and integration (next)
 
-- **A supervisor agent per case.** One graph that plans the preparation of a case end to end (read the file, find missing facts, check eligibility, draft, schedule) and hands each step to specialist agents, pausing for a person only at decisions. It is also the step that links a citizen's legal-aid request, the advocate's workspace and the staff docket case into one record (Section 3.7).
+- **A supervisor agent per case.** One graph that plans the preparation of a case end to end (read the file, find missing facts, check eligibility, draft, schedule) and hands each step to specialist agents while pausing only at human decisions. This is the step that links a citizen's legal-aid request, the advocate's workspace and the staff docket case into one record.
 - **Proactive follow-up.** Agents that notice a missing custody certificate or surety paper and send a consented reminder to the family, paralegal or jail legal-aid clinic by SMS or WhatsApp, then continue when the document arrives.
 - **Precedent-aware drafting.** Release and bail applications that retrieve and cite relevant judgments from the `judgments` namespace, with every citation verified against the retrieved text before it is shown.
 - **Self-checking loops.** A second agent that tries to find errors in a draft (wrong threshold, missed exclusion, unsupported claim) and sends it back, with the checker's findings visible to the reviewer.
 - **Outcome learning.** Use recorded outcomes (released, denied, adjourned) to improve adjournment estimates and flag cases likely to stall, with calibration checks and a record of what changed.
 - **Voice and more languages.** Spoken input and output, and more Indian languages for the citizen door, tested with native speakers.
 
-### Version 2: technically stronger
+### Technical hardening and scale
 
 - **Optimisation solver for cause lists.** Replace first-fit placement with a constraint solver (for example OR-Tools CP-SAT), so fairness, advocate availability and capacity are solved together and compared with the current planner on the same data.
 - **Evaluation harness.** A fixed set of cases scored on accuracy, grounding and refusal behaviour at every change, with a lawyer panel reviewing a sample each release.

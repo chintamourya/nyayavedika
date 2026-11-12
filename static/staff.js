@@ -555,13 +555,32 @@ $("#staffSummaryForm").addEventListener("submit", (e) => {
         : "Rules-based summary ready. AI was unavailable; see the note in the result.");
       const analysis = result.analysis || {};
       const verification = result.verification || {};
+      const summaryLabels = {
+        summary_case_details: "Case details",
+        summary_case_number: "Case number",
+        summary_court: "Court",
+        summary_parties: "People involved",
+        summary_custody_since: "In custody since",
+        summary_outcome: "Outcome in this paper",
+        summary_next_hearing: "Next hearing",
+        summary_timeline: "What happened",
+        summary_issues: "Issues discussed",
+        summary_statutes: "Laws mentioned",
+        summary_directions: "What the court says to do",
+        summary_not_found: "Not stated in the pages read",
+        summary_page: "Page {page}",
+        summary_show_brief: "Show the full text view",
+      };
       $("#staffSummaryOut").innerHTML = `<div class="card">
         <h3>${esc(result.filename)} · ${esc(result.pages)} page(s) <span class="badge ${result.mode === "llm" ? "src-ai" : "src-rules"}">${esc(result.label || result.mode)}</span></h3>
-        <p>${esc(result.plain || analysis.plain_language_summary || "No plain-language summary was produced.")}</p>
+        <section class="summary-view-lead">
+          <h4>What this paper says</h4>
+          <p>${esc(result.plain || analysis.plain_language_summary || "No plain-language summary was produced.")}</p>
+        </section>
+        ${renderDocumentSummaryDetails(result, (key) => summaryLabels[key] || key)}
         <p class="hint">Document type: ${esc(result.doc_type || "unknown")} · ${verification.overall_grounded ? "Grounding checks passed" : "Check details against the original"}</p>
         ${verification.unverified?.length ? `<p class="banner-warn">Check: ${verification.unverified.map(esc).join("; ")}</p>` : ""}
         ${result.low_confidence_pages?.length ? `<p class="banner-warn">Low OCR confidence on page(s): ${esc(result.low_confidence_pages.join(", "))}</p>` : ""}
-        <details><summary>Open the detailed brief</summary><pre class="doc">${esc(result.brief || "")}</pre></details>
       </div>`;
     } catch (error) {
       if (progress?.signal.aborted) {
@@ -735,6 +754,7 @@ const UT_STEP = { pending: 1, approved: 2, filed: 3, heard: 4, released: 5, deni
 function alertCard(a) {
   const over = a.days_over_limit > 0;
   const lawyer = ROLE === "lawyer";
+  const releaseReview = ["undertrial_release", "release_review_request"].includes(a.kind);
   const next = UT_NEXT[a.status];
   const primary = a.status === "pending"
     ? (lawyer ? `<button class="btn" data-approve="${a.id}">Approve - file a release application</button>`
@@ -753,7 +773,10 @@ function alertCard(a) {
     ${custodyMath(a)}
     ${(a.release_notes || []).length ? `<p class="banner-warn">${a.release_notes.map(esc).join("<br>")}</p>` : ""}
     <div class="actions">${primary}
-      <button class="btn ghost" data-docx="${a.id}">Download application (Word)</button></div>
+      <button class="btn ghost" data-docx="${a.id}">Download application (Word)</button>
+      ${releaseReview ? `<button class="btn ghost" data-superintendent="${a.id}" data-language="en">Custody-record review request (English)</button>
+      <button class="btn ghost" data-superintendent="${a.id}" data-language="hi">निरुद्धि-अवधि जाँच निवेदन (हिन्दी)</button>
+      <button class="btn ghost" data-superintendent="${a.id}" data-language="te">నిర్బంధ కాల వివరాల పరిశీలన వినతి (తెలుగు)</button>` : ""}</div>
     <details><summary>Read the draft application ${engineBadge(a.draft_engine === "ai" ? "AI" : "rules")} and the checklist</summary>
       <div class="alertcard"><pre class="doc">${esc(a.draft || "")}</pre>
         <div><h3>Verify before filing</h3><div class="checklist">${((a.details || {}).checklist || []).map((c) => `<label><input type="checkbox"> ${esc(c)}</label>`).join("")}</div></div></div></details>
@@ -801,6 +824,12 @@ async function loadAlerts() {
     })));
     $$("[data-docx]", root).forEach((b) => b.addEventListener("click", () => busy(b, async () => {
       toast(`Downloaded ${await downloadFrom(`/api/alerts/${b.dataset.docx}/release.docx`, {}, "release_application.docx")}`);
+    })));
+    $$("[data-superintendent]", root).forEach((b) => b.addEventListener("click", () => busy(b, async () => {
+      const language = b.dataset.language;
+      const filename = `custody_record_review_request_${language}.docx`;
+      toast(`Downloaded ${await downloadFrom(
+        `/api/alerts/${b.dataset.superintendent}/superintendent.docx?language=${language}`, {}, filename)}`);
     })));
     const need = await needP;
     if (need.error) { $("#utNeeded").innerHTML = `<li class="error">${esc(need.error)}</li>`; return; }
