@@ -281,7 +281,7 @@ class StaticContentTests(unittest.TestCase):
         self.assertIn(".home-link {", advocate_style)
         self.assertIn('<a class="portal-home" href="/">Home</a>', staff_html)
         self.assertIn("body.staff-page > .top > .portal-home", staff_style)
-        self.assertIn("styles.css?v=15", staff_html)
+        self.assertIn("styles.css?v=16", staff_html)
 
     def test_theme_is_light_by_default_and_manually_toggleable_on_every_page(self):
         pages = ("index.html", "citizen.html", "staff.html", "advocate.html",
@@ -350,7 +350,21 @@ class StaticContentTests(unittest.TestCase):
         self.assertIn("verification.unverified?.length", script)
         self.assertIn("result.low_confidence_pages?.length", script)
         self.assertIn("common.js?v=14", html)
-        self.assertIn("staff.js?v=25", html)
+        self.assertIn("staff.js?v=26", html)
+
+    def test_staff_daily_desk_explains_the_routine_and_case_flow(self):
+        html = (STATIC / "staff.html").read_text(encoding="utf-8")
+        script = (STATIC / "staff.js").read_text(encoding="utf-8")
+        routine_tabs = re.findall(r'data-workflow-tab="([^"]+)"', html)
+        self.assertEqual(routine_tabs, ["undertrial", "intake", "docket", "cause"])
+        self.assertIn("processed cases move to the Docket", html)
+        self.assertIn("Prepare a weekly draft, check it, then publish", html)
+        self.assertIn('if (tab === "docket") setDocketFilters({});', script)
+        tabs = re.findall(r'<button class="tab[^"]*" data-tab="([^"]+)"[^>]*>([^<]+)</button>', html)
+        self.assertEqual(tabs, [
+            ("today", "Today"), ("intake", "Intake"), ("docket", "Docket"),
+            ("cause", "Cause list"), ("summary", "Document summary"), ("undertrial", "Undertrial"),
+        ])
 
     def test_citizen_has_four_capabilities_and_safe_legal_research_rendering(self):
         html = (STATIC / "citizen.html").read_text(encoding="utf-8")

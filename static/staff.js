@@ -49,6 +49,11 @@ function showTab(name) {
   ({ today: loadToday, docket: loadDocket, undertrial: loadAlerts }[name] || (() => {}))();
 }
 $$(".tabs .tab[data-tab]").forEach((t) => t.addEventListener("click", () => showTab(t.dataset.tab)));
+$$("[data-workflow-tab]").forEach((button) => button.addEventListener("click", () => {
+  const tab = button.dataset.workflowTab;
+  if (tab === "docket") setDocketFilters({});
+  showTab(tab);
+}));
 
 const ROLE_NAME = { staff: "Court staff", lawyer: "Lawyer", citizen: "Citizen" };
 function signedIn(on) {  // signed in: show who you are + "Switch user"; signed out: the token field and Sign in

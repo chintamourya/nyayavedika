@@ -6,7 +6,7 @@
 <meta name="theme-color" content="#0866ff">
 <title>NyayaVedika - Staff</title>
 <link rel="icon" href="/static/favicon.svg?v=3" type="image/svg+xml">
-<link rel="stylesheet" href="/static/styles.css?v=15">
+<link rel="stylesheet" href="/static/styles.css?v=16">
 </head>
 <body class="staff-page">
 <header class="top">
@@ -29,7 +29,7 @@
 </header>
 
 <nav class="tabs" id="portalTabs" role="tablist" aria-label="Court staff screens">
-  <button class="tab active" data-tab="today" role="tab" data-court title="What needs a person now, and how cases flow between screens">Today</button>
+  <button class="tab active" data-tab="today" role="tab" data-court title="Start here for today's priorities and the daily routine">Today</button>
   <button class="tab" data-tab="intake" role="tab" data-staff title="Step 1: send case files; they are read, scored and become cases">Intake</button>
   <button class="tab" data-tab="docket" role="tab" data-staff title="Step 2: every pending case with its priority score and why">Docket</button>
   <button class="tab" data-tab="cause" role="tab" data-staff title="Step 3: build, check and publish the weekly hearing list">Cause list</button>
@@ -49,14 +49,37 @@
       <span class="badge src-rules">Rules</span> fixed rules / template.
       Lists show at most 10 synthetic examples per data kind; totals, stored records and real uploads/imports are unchanged.</p>
   </details>
-  <!-- TODAY: what to do first, then the numbers, then how cases flow -->
+  <!-- DAILY DESK: urgent work first, followed by the routine and case-flow overview -->
   <section id="tab-today" class="panel active" aria-label="Today">
-    <h2>Today</h2>
-    <p class="purpose">What needs a person now. Every number is a link to the cases behind it.</p>
-    <div class="card do-next"><h3>Do next</h3><ol class="todo" id="todoList"><li class="hint">Sign in with your access token to load the board.</li></ol></div>
+    <h2>Your daily desk</h2>
+    <p class="purpose">Start with anything urgent, then follow the routine below. Case flow: Intake → Docket → Hearing list.</p>
+    <div class="card do-next"><h3>Needs attention now</h3><ol class="todo" id="todoList"><li class="hint">Sign in with your access token to load today's priorities.</li></ol></div>
+    <section class="card staff-routine" aria-labelledby="routineHeading">
+      <div class="staff-routine-heading"><div><h3 id="routineHeading">A simple daily routine</h3>
+        <p class="hint">Check custody alerts every day. For case work, move from Intake to Docket to the Hearing list.</p></div></div>
+      <div class="staff-routine-steps">
+        <button class="routine-step" type="button" data-workflow-tab="undertrial" data-court>
+          <span class="routine-step-label">Daily check</span><strong>Custody watch</strong>
+          <span>Review alerts and any missing custody details.</span><b>Open custody watch →</b>
+        </button>
+        <button class="routine-step" type="button" data-workflow-tab="intake" data-staff>
+          <span class="routine-step-label">1 · Receive</span><strong>Intake new papers</strong>
+          <span>Upload case papers; processed cases move to the Docket.</span><b>Open Intake →</b>
+        </button>
+        <button class="routine-step" type="button" data-workflow-tab="docket" data-staff>
+          <span class="routine-step-label">2 · Review</span><strong>Check the Docket</strong>
+          <span>Resolve missing details and review case priority.</span><b>Open Docket →</b>
+        </button>
+        <button class="routine-step" type="button" data-workflow-tab="cause" data-staff>
+          <span class="routine-step-label">3 · Schedule</span><strong>Plan hearings</strong>
+          <span>Prepare a weekly draft, check it, then publish.</span><b>Open Hearing list →</b>
+        </button>
+      </div>
+      <p class="hint routine-note">Need to understand just one paper? Use <b>Document summary</b> above; its summary is not saved as a case.</p>
+    </section>
     <div class="kpis" id="todayKpis"></div>
     <p class="hint" id="todayMix"></p>
-    <h3 class="sr-label">How cases move <span class="hint">· live counts, click a step to open it</span></h3>
+    <h3>Case-flow status <span class="hint">· live counts; select a step to open it</span></h3>
     <div id="pipeline"></div>
     <div data-how="today"></div>
   </section>
@@ -212,6 +235,6 @@
 
 <script src="/static/common.js?v=14"></script>
 <script src="/static/explain.js?v=2"></script>
-<script src="/static/staff.js?v=25"></script>
+<script src="/static/staff.js?v=26"></script>
 </body>
 </html>
