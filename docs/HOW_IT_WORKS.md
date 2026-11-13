@@ -113,7 +113,7 @@ LangGraph's `interrupt()` pauses a graph at a human decision. With the Postgres 
 
 ### 3.6 Access and audit
 
-Three roles (citizen, lawyer, staff) come from bearer tokens checked server-side, and a single policy table lists which roles may call each route. The client cannot choose its own role. Every human decision goes through `audit.record()`, which writes an `audit_log` row and a counts-only `decision` event.
+Three roles (citizen, lawyer, staff) come from bearer tokens checked server-side, and a single policy table lists which roles may call each route. The client cannot choose its own role. Some steps are checked again inside the rule itself: in the Section 479 workflow, only the lawyer role can decide whether to file, and only court staff can record filing, hearing, the court's order and release. Every human decision goes through `audit.record()`, which writes an `audit_log` row and a counts-only `decision` event.
 
 ### 3.7 How the three doors connect
 
@@ -225,13 +225,30 @@ Nine PDF operations, in memory and not stored: merge, split (by page ranges into
 
 Chat needs Pinecone and the language model. Studio works without them.
 
-### 5.4 Session impact panel
+### 5.4 Undertrial applications (Section 479 BNSS)
+
+The lawyer's side of Undertrial Watch (Section 6.3). Each case shows counsel on record (entered by court staff from the DLSA assignment letter or a vakalatnama), the custody arithmetic, any blocker such as several pending cases, and the draft application with a Word download.
+- **Decide to file** unlocks only after the five-point checklist is ticked: custody period from the certificate or remand orders, offence not punishable with death or life, delay not caused by the accused, no other detaining case, first-offender status.
+- **Not filing** needs a reason and can set a check-again date.
+- A lawyer types their name once to mark and list first the cases where they are counsel on record, or show only those.
+- After the decision the tab shows what the court registry recorded: filing, hearing, the court's order and release.
+
+### 5.5 Session impact panel
 
 Shows pages handled, operations, documents analysed, insights generated, insights reused without re-extraction, and time from upload to result. These are real session counts and not field results.
 
 ---
 
 ## 6. Court staff door (`/staff`)
+
+The staff door is built around two jobs: **case triage** (which pending matters need the court first, and why) and **efficient scheduling** (a weekly cause list that fits the bench time actually available). The tabs follow the flow: Today → 1 · Intake → 2 · Triage (Docket) → 3 · Scheduling (Cause list), with Document summary and Undertrial Watch alongside.
+
+### 6.0 The daily desk (Today)
+
+- **First-visit guide.** The first time a staff user signs in, a card explains the four steps (receive papers, triage, schedule, hear and record), what the system does at each step and what the person does, and who approves. It can be reopened at any time ("How this desk works").
+- **Case triage panel.** Pending matters by band (click a band to open it), and the highest-priority cases that hold no hearing slot yet, each with its main reason. Uploaded and imported cases are always listed above synthetic demo cases.
+- **Scheduling panel.** For next week: bench time available (holidays and judges on leave removed) against the expected time of the waiting cases, the number of must-list matters, and a one-click route to prepare or review the draft.
+- **Court diary.** Matters on published cause lists for any day, grouped by bench and time, with a "check before the call" column (custody production, details to verify). After the sitting, staff record **heard / adjourned (reason and next date) / disposed / not reached**. The next date must be after the hearing date; a correction never counts an adjournment twice; every entry is in the audit log. Earlier hearings with no outcome recorded (last 30 days) are listed separately.
 
 ### 6.1 Intake: files in, cases out
 
@@ -261,7 +278,13 @@ The web request is thin: it validates, stores bytes by content hash and writes o
 | Vulnerable party | Points for a senior citizen, woman or child, or person with disability |
 | Chronic adjournment, near disposal, dormancy, legal aid | Smaller adjustments |
 
-The score maps to a band (Critical, High, Medium, Routine). **A case entitled to release under Section 479 is always Critical**, whatever its score. The weights and reference tables are editable, are stored with a `rules_version`, and are shown on the staff screens (`GET /api/rules`), so a registry can audit any score. A route is recommended for each case, and suitable matters are pointed to Lok Adalat, mediation or compounding.
+The score maps to a band (Critical, High, Medium, Routine). **A case that appears past the Section 479 mark is always Critical**, whatever its score. The weights and reference tables are editable, are stored with a `rules_version`, and are shown on the staff screens (`GET /api/rules`), so a registry can audit any score. A route is recommended for each case, and suitable matters are pointed to Lok Adalat, mediation or compounding.
+
+**On the Docket screen:**
+- **Triage queues**, one click each: custody and bail first, past the Section 479 mark, Critical not yet listed, listing deadline missed, left out of three published lists in a row, time-bound by statute, pending 10+ years, details to verify.
+- **Score reasons on the row.** The largest point contributions from the stored score (for example "+20 custody past the Section 479 mark, +15 accused in custody") appear under the score, so a case need not be opened to see why it ranks where it does.
+- **Why it needs a person**, in plain words and built only from stored facts: listing deadline passed with no slot held, must-list next, next date already passed with no outcome recorded, custody details missing, a detail read from the papers that is uncertain.
+- **Uploaded and imported cases first**, then synthetic demo cases; priority order within each group. The view can be exported as CSV.
 
 ### 6.3 Undertrial Watch
 
@@ -276,7 +299,12 @@ The score maps to a band (Critical, High, Medium, Routine). **A case entitled to
 1. **Scan** finds custody cases past the threshold or within a configurable share of it. Custody cases missing a custody date or sentence go to a "data needed" list with where to get each fact (the custody certificate, the remand order, the Act and section charged).
 2. **Draft** writes a release application for each new candidate, from a model or a template, with a **checklist of five conditions a lawyer must verify**: custody period, offence not punishable with death or life, delay not caused by the accused, no other pending detaining case, and first-time status.
 3. **Review** pauses for a legal-aid lawyer or committee member. Dismissing needs a reason and can snooze. A dismissed case does not return the next night, only after the snooze date or when its custody facts change.
-4. **Alerts follow a lifecycle** a lawyer advances: `pending → approved → filed → heard → released | denied` (or `dismissed`), with allowed transitions enforced.
+4. **Who does what, as in court.** The lifecycle is `pending → approved → filed → heard → release_ordered → released`, with `denied` (continued detention) and `dismissed` (not filing). Each step belongs to the person who holds that power, and the server refuses it from anyone else:
+   - **Counsel for the undertrial** (usually a DLSA legal-aid lawyer), in the Advocate portal's *Undertrial applications* tab: verifies the five-point checklist, then decides to file (`approved`) or records why not (`dismissed`, with an optional check-again date).
+   - **Court staff (registry)**, in the Staff portal: record the application as filed (with the petition number, if any), the hearing, **the court's order** (release on bail after one-half, on bond for a first-time offender after one-third, or continued detention with reasons recorded, each with the order date), and release from custody once the bond is accepted.
+   - **Counsel on record.** Court staff record which lawyer acts for the person, from the DLSA assignment letter (legal aid) or a filed vakalatnama, with its reference number; nobody assigns themself. The lawyer's tab shows counsel on each case and can be filtered to "only my cases" by name. (This demo uses one shared lawyer login; a deployment would give each lawyer their own login and enforce the link on the server.)
+   - **The court** alone decides release. NyayaVedika never records an order the registry has not entered, and a person is not shown as released until a release order is on record.
+   - Every step is kept on the alert with who recorded it, when, and the order details, and is written to the audit log. The jail superintendent's duty under Section 479(3) is supported by the custody-record review request (English, Hindi, Telugu).
 
 It runs nightly at about 01:00 and on custody-field changes, after re-scoring stored custody bands. The Document Analyst and the worker also hand a case to it when a file shows custody past the threshold.
 
@@ -301,15 +329,22 @@ It runs nightly at about 01:00 and on custody-field changes, after re-scoring st
 5. **Approve.** The graph pauses. Only the registrar publishes.
 6. **Publish** writes hearings, next-hearing dates and the audit log.
 
-After hearings, `record_outcome` (heard, adjourned, disposed, not reached) feeds **learned adjournment rates** per case type and stage, smoothed so a few records do not swing the estimate. A new Critical case can be given a **fast-lane** slot in the nearest open draft, which the registrar accepts, moves or holds.
+After hearings, the outcomes recorded in the court diary (`record_outcome`: heard, adjourned, disposed, not reached) feed **learned adjournment rates** per case type and stage, smoothed so a few records do not swing the estimate. A new Critical case can be given a **fast-lane** slot in the nearest open draft, which the registrar accepts, moves or holds.
+
+**On the Cause list screen:**
+- **Will the week fit?** Before anything is saved, `GET /api/scheduling/preview` compares bench time (sittings minus holidays and leave) with the expected minutes of the waiting cases, counts must-list matters against the reserved time, and gives a one-line verdict. It uses the same eligibility, hold, must-list and expected-time rules as the planner and re-scores stale cases in memory, so its counts match the draft.
+- **Saved lists.** A draft or published list can be reopened later (`GET /api/cause-lists`, `GET /api/cause-lists/{id}/view`), rebuilt from its current slots, including moves and holds. A draft can be rejected with a reason.
+- **Readiness notes** for listed matters: custody production to arrange, details to verify, custody date or stage missing.
+- **"In short"**: one paragraph a registrar can read before approving: matters listed, must-list placed first, bench time used, advocate clashes, cases carried over and why, and the wait of Critical matters compared with listing oldest-first.
+- **Approval** needs an explicit confirmation by the authorised user; publishing creates the hearings.
+- **Print view** in court format: per day and bench, matters grouped under the usual listing heads (judgment and orders, bail and custody, fresh matters, charge and issues, evidence, arguments, pleadings, execution) with running item numbers. Drafts are marked "not for circulation". Timings are estimates; the Presiding Officer decides the order of calling.
 
 **What it eases.** Clashes, overloaded days and cases that wait behind others week after week.
 
 ### 6.5 Other staff tools
 
-- **Document summary** works without creating a case (Section 4.3's engine).
+- **Document summary** works without creating a case (Section 4.3's engine). Generated text and facts found in the document are shown apart, and dates or sections that do not appear in the document are removed and listed.
 - **ADR routing** lists cases suited to Lok Adalat or mediation and logs an event for each.
-- **Insights tab** shows weekly docket health: longest wait per band, percentage deferred repeatedly, cases past their listing deadline, bench utilisation and a before-and-after table against an oldest-first list for the same week.
 - **Registry Copilot** answers docket questions (priority cases, deferral report, case lookup) and prepares a draft cause list only after the user says yes.
 
 ---
@@ -319,6 +354,12 @@ After hearings, `record_outcome` (heard, adjourned, disposed, not reached) feeds
 **Impact log.** Each feature writes counts-only events: citizen sessions, legal-aid checks, applications and partner-reported outcomes, documents analysed (with pages and OCR pages), people flagged, release applications approved, cases triaged, ADR candidates, cause lists published (with conflicts avoided and critical wait gained), feedback and human decisions. `GET /api/impact` aggregates them and `/api/impact/export.csv` exports the raw log for staff. The public `GET /api/demo/metrics` endpoint exposes aggregate activity and summarized feedback only; open the [public metrics dashboard](https://nyayavedika.delightfulmushroom-95327f3a.koreacentral.azurecontainerapps.com/metrics) for per-door and feature totals, distinct-browser estimates, success rates and server latency. Browser counts are not counts of people, and activity does not prove a legal outcome. [docs/RESEARCH_EVIDENCE.md](RESEARCH_EVIDENCE.md) documents the current live-use snapshot and its limits.
 
 **Feedback wall** (`/feedback`). A short form (about three minutes) for advocates, lawyers, court staff and citizens. Only role and star rating are required. The questions map to the four judging criteria: how often the problem occurs and how many people it affects, the costs it causes, the rating and accuracy of the tool, and outcomes and time saved. Free text is masked, names are cut to a first name, and staff can hide an entry.
+
+**Impact reports** (`/impact-report`). The verifiable record behind proven impact. A shareable form (about five minutes; `?role=advocate`, `legal_aid_lawyer`, `court_staff`, `paralegal`, `law_student` or `citizen` preselects the role) asks what the person used and on what (a real matter, a sample or a trial), minutes for the same task without and with NyayaVedika (estimated or timed), whether the output matched the original and how many errors were found, and the concrete outcome. Professionals also give details the team can check: an advocate's law school (enrolment number, courts practised in, empanelment with a legal services authority, designation and work experience are optional). The server (`nyayavedika/impact_reports.py`) validates every answer, masks phone numbers, emails, Aadhaar and PAN in free text, requires consent to store, records a separate choice about quoting, and limits submissions per connection.
+- `POST /api/impact-reports` and `GET /api/impact-reports/options` are public.
+- Listing (with identities), the summary, CSV export and `POST /api/impact-reports/{id}/verify` are staff-only. Verification is a human act with a note of what was checked, written to the audit log.
+- The summary (`GET /api/impact-reports/summary`) counts **verified reports only**: verified professionals, use on real matters, median minutes and share of time saved, total hours saved, documents and people helped, accuracy checks, outcomes, and quotes the authors allowed.
+- The review desk is `/impact-report/review`.
 
 **Pilot tooling.** `pilot/pilot_log_template.csv` and `scripts/pilot_report.py` turn an authorized, anonymized per-case log into agreement with lawyer verdicts, minutes saved and flagged cases. Early live-use activity and voluntary feedback are available, but no verified legal-outcome or manual-versus-tool time study is claimed. Measurement definitions and the evidence boundary are in [docs/RESEARCH_EVIDENCE.md](RESEARCH_EVIDENCE.md).
 
@@ -331,6 +372,7 @@ After hearings, `record_outcome` (heard, adjourned, disposed, not reached) feeds
 - **Disclaimers** and the helpline appear on citizen outputs.
 - **Workspace isolation** for the advocate door, with chat retrieval filtered by workspace and document.
 - **Audit trail** of every human decision, and a table of agent runs for scheduled jobs.
+- **Impact-report identities** (name, email, enrolment, law school) are stored only with consent, readable only with a staff token, never published and never sent to a model.
 
 ## 9. Testing
 
@@ -395,5 +437,6 @@ The current codebase already delivers the core product set and the measurement s
 | Summarising, extraction, intake, worker | `summarise.py`, `extraction.py`, `intake.py`, `worker.py` |
 | Cause-list planner and database side | `scheduler.py`, `cause_list.py` |
 | Advocate tools | `advocate.py`, `document_studio.py`, `static/advocate.*` |
-| Impact and feedback | `impact.py`, `feedback.py`, `pilot_metrics.py`, `scripts/pilot_report.py` |
+| Staff desk read models (docket reasons, court diary, readiness) | `staff_api.py`, `static/staff.*` |
+| Impact, feedback and verified impact reports | `impact.py`, `feedback.py`, `impact_reports.py`, `static/impact-report.*`, `static/impact-review.*`, `pilot_metrics.py`, `scripts/pilot_report.py` |
 | Evidence behind the problem | `docs/RESEARCH_EVIDENCE.md` |

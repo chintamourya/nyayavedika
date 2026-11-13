@@ -153,6 +153,14 @@ SCHEMA: Dict[str, Dict] = {
                     ("answers", "json", ""), ("consent_public", "bool", "DEFAULT FALSE"),
                     ("published", "bool", "DEFAULT FALSE")],
         "pk": None, "indexes": [("ix_field_feedback_pub", "published, created_at", None, False, False)]},
+    "impact_reports": {  # verifiable field evidence (see nyayavedika/impact_reports.py); identity is staff-only
+        "columns": [("id", "id", ""), ("created_at", "ts", NOW), ("source", "text", ""), ("role", "text", ""),
+                    ("identity", "json", ""), ("usage", "json", ""), ("measures", "json", ""), ("ratings", "json", ""),
+                    ("outcomes", "json", ""), ("outcome_detail", "text", ""), ("would_continue", "text", ""),
+                    ("testimonial", "text", ""), ("quote_permission", "text", "DEFAULT 'no'"),
+                    ("consent_contact", "bool", "DEFAULT FALSE"), ("status", "text", "DEFAULT 'pending'"),
+                    ("verified_by", "text", ""), ("verified_at", "ts", ""), ("verification_note", "text", "")],
+        "pk": None, "indexes": [("ix_impact_reports_status", "status, created_at", None, False, False)]},
     "reach_visitors": {
         "columns": [("visitor_hash", "text", ""), ("door", "text", ""), ("first_seen", "ts", NOW)],
         "pk": ("visitor_hash", "door"), "indexes": []},

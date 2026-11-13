@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0866ff">
+<meta name="robots" content="noindex">
+<title>NyayaVedika - Impact evidence review</title>
+<link rel="icon" href="/static/favicon.svg?v=3" type="image/svg+xml">
+<link rel="stylesheet" href="/static/styles.css?v=18">
+<link rel="stylesheet" href="/static/impact-report.css?v=2">
+</head>
+<body class="report-page">
+<header class="top">
+  <div class="brand"><span class="logo" aria-hidden="true">⚖</span>
+    <div><h1>NyayaVedika · Impact evidence</h1><p>Verify field reports before they count</p></div></div>
+  <form class="row gap wrap signin" id="revSignin" autocomplete="off">
+    <label for="revToken">Staff access token</label>
+    <input id="revToken" type="password" autocomplete="off">
+    <button class="btn" type="submit">Open</button>
+  </form>
+  <button type="button" class="theme-toggle">Dark mode</button>
+</header>
+
+<main class="report-main review-main">
+  <p id="revMsg" class="banner-warn hidden" role="status"></p>
+
+  <section class="card">
+    <h2>Links to share</h2>
+    <p class="hint">Send the link that matches the person; it opens the form with their role already chosen. Anyone with the link
+      can submit; nothing they enter is public.</p>
+    <div class="share-links" id="shareLinks"></div>
+  </section>
+
+  <section class="card" id="revSummary"><h2>Evidence so far</h2><p class="hint">Sign in with a staff token to load.</p></section>
+
+  <section class="card">
+    <div class="row between wrap"><h2>Reports</h2>
+      <div class="row gap wrap">
+        <select id="revStatus" aria-label="Filter by status"><option value="pending">Waiting for verification</option>
+          <option value="verified">Verified</option><option value="rejected">Rejected</option><option value="">All</option></select>
+        <button class="btn ghost" type="button" id="revExport">Export CSV (contains identities)</button>
+      </div></div>
+    <p class="hint">How to verify an advocate: search the enrolment number on the State Bar Council roll, or email the person from
+      the address given and ask for a reply. Mark <b>Verified</b> only after a check you could repeat; write what you checked in the note.</p>
+    <div id="revList"></div>
+  </section>
+</main>
+
+<script src="/static/common.js?v=14"></script>
+<script src="/static/impact-review.js?v=2"></script>
+</body>
+</html>

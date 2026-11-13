@@ -43,7 +43,7 @@ Contents: 1 Scale · 2 Severity · 3 Economic loss · 4 Avoidable custody model 
 
 ### 2.3 The legal remedy exists, and the funnel leaks
 
-Section 479 BNSS requires release after half the maximum sentence, or one-third for first-time offenders. The review committees (UTRCs) report the following for October to December 2025 (NALSA, Reported). Rates in the last column are Derived.
+Under Section 479 BNSS a person detained for half the maximum sentence is to be released on bail, and a first-time offender on bond after one-third, unless the court records reasons for continued detention. The review committees (UTRCs) report the following for October to December 2025 (NALSA, Reported). Rates in the last column are Derived.
 
 | Category | Identified | Recommended | Applications filed | Released | Released ÷ recommended |
 |---|---|---|---|---|---|
@@ -177,14 +177,14 @@ Each feature answers a specific gap shown above, and each writes an event we can
 
 | Evidence gap | Who must be equipped | Feature | What changes if it works | Indicator | Data source |
 |---|---|---|---|---|---|
-| Identification is 2.7% of prisoners | Court staff and legal-aid lawyers (the nightly check and the approval) | **Undertrial Watch** | Eligible people are listed with itemised dates and a draft application | People flagged; flagged people confirmed eligible by a lawyer; days over limit when flagged | `undertrial_flagged`, `release_application_approved` events; pilot log |
+| Identification is 2.7% of prisoners | Court staff (the nightly check, counsel on record, court steps) and legal-aid lawyers (the decision to file) | **Undertrial Watch** and the Advocate portal's **Undertrial applications** | Eligible people are listed with itemised dates and a draft application; counsel decides to file; the court's order is recorded | People flagged; decisions to file; release orders recorded; days over the mark when flagged | `undertrial_flagged`, `release_application_approved` events; audit log of each step; pilot log |
 | 16% of recommended are not filed; 1,946 pending | Advocates and legal-aid lawyers (preparation), with a staff approval gate | Release application draft and human approval gate | Fewer applications stall for missing paperwork | Days from eligibility to filing | Pilot log (`days_over_limit`, `application_filed`) |
 | Legal aid reaches about 0.15% of those entitled | Citizens and families (awareness and a ready application) | **Free legal aid check** (citizen) | People find out they qualify and get a drafted application | Checks, eligible results, applications drafted, partner-reported outcomes | `legal_aid_check`, `legal_aid_application`, `legal_aid_outcome` events |
 | People cannot read or act on court papers | Citizens and families | **Understand a court document**, **Understand a legal problem**, **Know your rights** | Plain-language understanding without a lawyer | Documents analysed, citizen sessions, feedback ratings | `document_analyzed`, `citizen_session`, `feedback` events |
 | Advocates lose hours on paper-books and long records | Advocates | **Document Studio**, **AI Document Insights**, **Chat with this document** | Faster preparation; claims that can be checked against the page | Pages handled, operations, insights, upload-to-result time (session); hours saved per case (pilot) | Advocate session counters; pilot log (`manual_minutes`, `tool_minutes`) |
-| Adjournments eat 33% to 54% of sitting time | Court staff and registry | **Case triage and cause list** | Conflict-free, risk-sized listing; critical cases not left waiting | Cases triaged, cases listed, conflicts avoided, critical wait gained | `case_triaged`, `cause_list_published` events |
+| Adjournments eat 33% to 54% of sitting time | Court staff and registry | **Case triage**, **cause list** and **court diary** | Explainable priority; a week that fits the bench time; conflict-free, risk-sized listing; outcomes recorded after each sitting | Cases triaged, cases listed and carried over, conflicts avoided, Critical wait against oldest-first, outcomes recorded | `case_triaged`, `cause_list_published` events; hearings table |
 | Some cases need not go to trial | Court staff and registry | ADR routing | Suitable cases reach Lok Adalat or mediation | ADR candidates | `adr_candidate` event |
-| Limited evidence of real-world use and outcomes | All three groups | **Feedback wall** `/feedback` | Field users report what changed for them | Responses, average rating, share whose situation changed | `feedback` events; `/api/field-feedback` |
+| Limited evidence of real-world use and outcomes | All three groups | **Feedback wall** `/feedback` and **impact reports** `/impact-report` | Field users report what changed; professional reports are verified before they count | Verified reports, median time saved, outcomes | `feedback` events; `/api/impact-reports/summary` |
 
 **Why no single group is enough.** The "who must be equipped" column shows that the leaks sit with different groups: awareness and a first application with citizens and families, preparation with advocates, and identification and listing with court staff. The funnel in Section 2.3 and the access gap in Section 2.4 are linked in both directions. People who are not identified are the least able to reach a lawyer on their own (loop 1 in Section 5), and a lawyer who reaches them still needs a registry that lists the case on time. A tool for one group moves the bottleneck to the next. This column maps where each gap sits, not a measured share owned by each group. Activity has been recorded across all three doors, but it does not yet show that the doors operate as one end-to-end case workflow or improve legal outcomes.
 
@@ -262,7 +262,24 @@ These estimates use stated assumptions, not timed manual comparisons. Replace th
 
 **Illustrative direct custody-cost formula (Estimate / Derived).** The derived average direct cost is about ₹4,195 per inmate per month. If 100 people confirmed eligible by a lawyer were actually released three months earlier, the corresponding direct custody cost avoided would be 100 × 3 × ₹4,195, or about **₹12.6 lakh**. This excludes household and wider economic effects. One release application has been approved to date; no release or cost saving is claimed.
 
-### 7.5 Evidence boundaries
+### 7.5 Verified field reports (how outcomes are being proven)
+
+Product activity cannot show that a task got faster or a person got help. For that we collect **impact reports** from the people who used NyayaVedika on real work, at `/impact-report` (role-specific links, e.g. `/impact-report?role=advocate`).
+
+| What a report contains | Why it is there |
+|---|---|
+| Role, and private details a reviewer can check: advocate's or law student's law school; optional enrolment number, courts practised in, legal services authority, designation and work experience | So a professional report can be traced to a real person. Never published, never sent to a model |
+| Which features, used on a real matter, a sample or a trial run, how often | Separates real use from trying it out |
+| Minutes for the same task without and with NyayaVedika, marked estimated or timed | A before / after per task, not a modelled assumption |
+| Whether the output was checked against the original, and errors found | Accuracy as experienced by the person relying on it |
+| Concrete outcome (application filed, legal aid obtained, fact found that would have been missed, list prepared faster ...) and a short description without client names | The change the product made |
+| Ratings, whether they will keep using it, an optional quote with a separate permission | Quality, and words we may cite |
+
+**Verification.** A staff user checks each report (for example, the enrolment number against the Bar Council roll, or a reply from the email given) and records what was checked. Reports enter the headline figures only once verified; pending and rejected reports are counted separately so nothing is hidden.
+
+**Figures to report** (from `GET /api/impact-reports/summary`, verified reports only): verified reports and verified professionals; reports on real matters; median minutes without and with NyayaVedika, median share of time saved, and how many pairs were timed rather than estimated; total hours saved; documents, pages and people helped; outputs checked and how many matched the source; outcomes by type; average usefulness; share who will keep using it.
+
+### 7.6 Evidence boundaries
 
 - Activity is not outcome: visits, requests and drafts do not show that anyone obtained a lawyer or was released.
 - Feedback is voluntary and self-reported. The sample is too small to generalize.
@@ -272,7 +289,7 @@ These estimates use stated assumptions, not timed manual comparisons. Replace th
 - Time saved and custody cost effects are modeled estimates with stated assumptions, not observed field comparisons.
 - The Section 479 test cases and offline evaluations use synthetic inputs; they show designed behavior, not real-court accuracy.
 
-**Privacy and measurement.** The metrics system stores aggregate counts and pseudonymous browser hashes, not names, contact details, IP addresses, request text or uploaded-document contents. Browser identifiers are not people identifiers: use across multiple devices can inflate counts, and shared devices can undercount. The public `GET /api/demo/metrics` endpoint returns aggregates only; detailed operations and CSV export require staff authentication. The [metrics page](https://nyayavedika.delightfulmushroom-95327f3a.koreacentral.azurecontainerapps.com/metrics) reports per-door and feature usage, browser estimates, success/failure, latency and summarized feedback.
+**Privacy and measurement.** The metrics system stores aggregate counts and pseudonymous browser hashes, not names, contact details, IP addresses, request text or uploaded-document contents. Impact reports are the one place where identity is collected: only with explicit consent, only so a report can be verified, readable only with a staff token, and never published. Browser identifiers are not people identifiers: use across multiple devices can inflate counts, and shared devices can undercount. The public `GET /api/demo/metrics` endpoint returns aggregates only; detailed operations and CSV export require staff authentication. The [metrics page](https://nyayavedika.delightfulmushroom-95327f3a.koreacentral.azurecontainerapps.com/metrics) reports per-door and feature usage, browser estimates, success/failure, latency and summarized feedback.
 
 **Claims we do not make.** We do not claim verified releases, custody days avoided, independently measured hours saved or households helped. The problem-scale and severity figures in Sections 1–5 describe the national context, not NyayaVedika's results.
 

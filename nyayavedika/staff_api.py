@@ -29,6 +29,7 @@ def docket(db, band: str = "", case_type: str = "", flag: str = "", deferred3: b
     rows = db.query(f"SELECT {DOCKET_COLUMNS} FROM cases{clause} ORDER BY score DESC", params, table="cases")
     states = {s["case_id"]: s for s in db.select("case_queue_state")}
     today = date.today().isoformat()
+    q = (q or "").strip()   # a pasted case number often carries spaces
     upcoming = {l["case_id"]: l for l in db.select("listings", {"status": ["planned", "proposed", "accepted", "published"]})
                 if l["day"] >= today}
     out = []
@@ -48,12 +49,14 @@ def docket(db, band: str = "", case_type: str = "", flag: str = "", deferred3: b
             continue
         if q and q.lower() not in r["case_id"].lower():
             continue
-        out.append({"case_id": r["case_id"], "case_type": r["case_type"], "stage": r["stage"], "band": r["band"],
-                    "score": r["score"], "flags": r["flags"] or [], "data_quality": r["data_quality"], "source": r["source"],
-                    "next_hearing_date": r["next_hearing_date"], "deferred": st.get("consecutive_deferrals") or 0,
-                    "sla_due_on": st.get("sla_due_on"), "must_list": bool(st.get("must_list")),
-                    "listed_on": (upcoming.get(r["case_id"]) or {}).get("day"),
-                    "listing_status": (upcoming.get(r["case_id"]) or {}).get("status")})
+        row = {"case_id": r["case_id"], "case_type": r["case_type"], "stage": r["stage"], "band": r["band"],
+               "score": r["score"], "flags": r["flags"] or [], "data_quality": r["data_quality"], "source": r["source"],
+               "next_hearing_date": r["next_hearing_date"], "deferred": st.get("consecutive_deferrals") or 0,
+               "sla_due_on": st.get("sla_due_on"), "must_list": bool(st.get("must_list")),
+               "listed_on": (upcoming.get(r["case_id"]) or {}).get("day"),
+               "listing_status": (upcoming.get(r["case_id"]) or {}).get("status")}
+        row["attention"] = attention_reasons(row, today)
+        out.append(row)
     by_band = {b: 0 for b in BANDS}
     for r in out:
         if r["band"] in by_band:
@@ -61,8 +64,135 @@ def docket(db, band: str = "", case_type: str = "", flag: str = "", deferred3: b
     if band:
         out = [r for r in out if r["band"] == band]
     out.sort(key=lambda r: (r["source"] == "synthetic", -(r["score"] or 0)))
-    return {"total": len(out), "rows": out[:limit], "by_band": by_band,
+    page = out[:limit]
+    _attach_score_drivers(db, page)
+    return {"total": len(out), "rows": page, "by_band": by_band,
             "types": sorted({r["case_type"] for r in rows if r["case_type"]})}
+
+
+def _attach_score_drivers(db, rows: List[Dict], n: int = 3) -> None:
+    """Each row gets `drivers`: the largest point contributions from its latest stored triage score (the same reasons
+    the case drawer shows), so the Docket explains a score without opening the case. One query per 500 rows."""
+    ids = [r["case_id"] for r in rows]
+    latest: Dict[str, List[str]] = {}
+    for i in range(0, len(ids), 500):
+        for s in db.select("triage_scores", {"case_id": ids[i:i + 500]}, order="scored_at DESC"):
+            latest.setdefault(s["case_id"], s["reasons"] or [])
+    for r in rows:
+        chips = [c for c in _chips(latest.get(r["case_id"]) or []) if c["points"] and float(c["points"]) > 0]
+        chips.sort(key=lambda c: -float(c["points"]))
+        r["drivers"] = chips[:n]
+
+
+def attention_reasons(row: Dict, today: str) -> List[Dict]:
+    """Why a docket row needs a person, in plain words, most pressing first. Built only from stored facts (flags,
+    queue state, data quality, dates); nothing is inferred. Each item: {level: urgent | action | note, text}."""
+    flags = set(row.get("flags") or [])
+    out: List[Dict] = []
+    if "UNDERTRIAL_RELEASE_ELIGIBLE" in flags:
+        out.append({"level": "urgent", "text": "Custody appears to have crossed the Sec. 479 BNSS mark - legal-aid lawyer to verify"})
+    elif "UNDERTRIAL_NEARING_THRESHOLD" in flags:
+        out.append({"level": "action", "text": "Custody is close to the Sec. 479 BNSS mark - keep the custody dates verified"})
+    if "CUSTODY_DATE_MISSING" in flags or "CUSTODY_UNKNOWN" in flags:
+        out.append({"level": "action", "text": "Custody details missing - the Sec. 479 check cannot run until they are filled in"})
+    if row.get("sla_due_on") and row["sla_due_on"] < today and not row.get("listed_on"):
+        out.append({"level": "urgent", "text": f"Listing deadline {row['sla_due_on']} has passed and no hearing slot is held"})
+    if row.get("must_list"):
+        n = row.get("deferred") or 0
+        out.append({"level": "action", "text": f"Must be listed in the next draft (left out of {n} published list(s) in a row)"
+                    if n >= config.MUST_LIST_AFTER_DEFERRALS else "Must be listed in the next draft"})
+    if row.get("next_hearing_date") and row["next_hearing_date"] < today:
+        out.append({"level": "action", "text": f"Next date {row['next_hearing_date']} has passed - record what happened at that hearing"})
+    if row.get("data_quality") == "needs_review":
+        out.append({"level": "action", "text": "A detail read from the papers is missing or uncertain - check it against the source page"})
+    if row.get("band") == "Critical" and not row.get("listed_on"):
+        out.append({"level": "note", "text": "Critical band and not yet on any upcoming list"})
+    if "CHRONIC_ADJOURNMENT" in flags:
+        out.append({"level": "note", "text": "Adjourned many times - a firm date may help"})
+    if "DORMANT" in flags:
+        out.append({"level": "note", "text": "Not heard for a long time"})
+    if "DECADE_OLD" in flags:
+        out.append({"level": "note", "text": "Pending for 10 years or more"})
+    return out
+
+
+def readiness_notes(case: Dict, flags: Optional[List[str]] = None) -> List[str]:
+    """What the registry should check before a listed matter is called: from stored facts only."""
+    flags = set(flags or case.get("_flags") or case.get("flags") or [])
+    notes = []
+    if case.get("data_quality") == "needs_review":
+        fields = ", ".join(str(f).replace("_", " ") for f in (case.get("review_fields") or []))
+        notes.append(f"Details to verify{': ' + fields if fields else ''}")
+    if case.get("accused_in_custody"):
+        notes.append("Accused in custody - arrange production (in person or by video link)")
+    if "UNDERTRIAL_RELEASE_ELIGIBLE" in flags:
+        notes.append("Custody appears past the Sec. 479 BNSS mark - legal-aid review pending")
+    if "CUSTODY_DATE_MISSING" in flags:
+        notes.append("Custody date missing")
+    if not case.get("stage"):
+        notes.append("Stage not recorded")
+    # adjournment counts stay on the docket (CHRONIC_ADJOURNMENT): they are context, not something to arrange
+    return notes
+
+
+def readiness(db, case_ids) -> Dict[str, List[str]]:
+    """case_id -> readiness notes, only for the cases that have something to check (one query)."""
+    ids = sorted(set(case_ids))
+    cases = store.get_cases(ids, db=db) if ids else {}
+    out = {}
+    for cid in ids:
+        case = cases.get(cid)
+        if case:
+            notes = readiness_notes(case)
+            if notes:
+                out[cid] = notes
+    return out
+
+
+def hearing_board(db, start: date, days: int = 1, today: Optional[date] = None) -> Dict:
+    """Hearings from published lists for [start, start + days), with slot, case facts, readiness and the outcome
+    recorded so far; plus earlier hearings (last 30 days) whose outcome was never recorded."""
+    from datetime import timedelta
+    today = today or date.today()
+    days = max(1, min(int(days or 1), 14))
+    end = start + timedelta(days=days)
+    a, b = db._ph("date", "a"), db._ph("date", "b")
+    rows = db.query(f"SELECT * FROM hearings WHERE hearing_date >= {a} AND hearing_date < {b} "
+                    "ORDER BY hearing_date, bench_id, hearing_id", {"a": start.isoformat(), "b": end.isoformat()},
+                    table="hearings")
+    since = today - timedelta(days=30)
+    unrecorded = db.query(f"SELECT * FROM hearings WHERE outcome IS NULL AND hearing_date >= {a} AND hearing_date < {b} "
+                          "ORDER BY hearing_date DESC, bench_id LIMIT 200",
+                          {"a": since.isoformat(), "b": today.isoformat()}, table="hearings")
+    ids = sorted({h["case_id"] for h in rows + unrecorded})
+    cases = store.get_cases(ids, db=db) if ids else {}
+    slots: Dict = {}
+    for i in range(0, len(ids), 500):   # chunked: the IN list stays under driver parameter limits
+        for l in db.select("listings", {"case_id": ids[i:i + 500], "status": ["published", "heard", "adjourned"]}):
+            slots.setdefault((l["case_id"], l["day"]), l)
+
+    def item(h: Dict) -> Dict:
+        case = cases.get(h["case_id"]) or {}
+        slot = slots.get((h["case_id"], h["hearing_date"])) or {}
+        return {"hearing_id": h["hearing_id"], "case_id": h["case_id"], "hearing_date": h["hearing_date"],
+                "bench_id": h["bench_id"], "slot_start": slot.get("slot_start"), "slot_end": slot.get("slot_end"),
+                "outcome": h.get("outcome"), "reason": h.get("reason"), "next_date": h.get("next_date"),
+                "case_type": case.get("case_type"), "stage": case.get("stage"), "band": case.get("_band"),
+                "accused_in_custody": bool(case.get("accused_in_custody")), "status": case.get("status"),
+                "source": case.get("source"), "adjournments": case.get("adjournments"),
+                "readiness": readiness_notes(case) if case else ["Case record not found"]}
+
+    board = [item(h) for h in rows]
+    # uploaded / imported matters first, synthetic examples after; then the court's own order
+    board.sort(key=lambda x: (x["source"] == "synthetic", x["hearing_date"] or "", x["bench_id"] or "", x["slot_start"] or "99:99"))
+    earlier = [item(h) for h in unrecorded]
+    earlier.sort(key=lambda x: x["source"] == "synthetic")   # stable: newest first inside each group
+    recorded = sum(1 for x in board if x["outcome"])
+    return {"start": start.isoformat(), "days": days, "hearings": board,
+            "counts": {"listed": len(board), "recorded": recorded, "to_record": len(board) - recorded,
+                       "in_custody": sum(1 for x in board if x["accused_in_custody"])},
+            "unrecorded_earlier": earlier,
+            "outcomes": ["heard", "adjourned", "disposed", "not_reached"]}
 
 
 _POINTS = re.compile(r"([+-]\d+(?:\.\d+)?)\s*$")
@@ -138,21 +268,26 @@ def data_mix(rows: List[Dict]) -> Dict[str, int]:
 
 def alerts(db, status: str = "pending") -> Dict:
     from . import triage
+    from .agents.undertrial_watch import CHECKLIST
+
     rows = db.select("alerts", {"status": status} if status != "all" else None, order="id DESC", limit=200)
     sources = case_sources(db)
     today = date.today()
-    live_ids = [a["case_id"] for a in rows if a["status"] in ("pending", "approved", "filed", "heard")]
+    live_ids = [a["case_id"] for a in rows if a["status"] in ("pending", "approved", "filed", "heard", "release_ordered")]
     cases = store.get_cases(live_ids, db=db)   # one query for every alert, not one SELECT per card
     out = []
     for a in rows:
-        rc = (a["details"] or {}).get("release_check") or {}
-        if a["status"] in ("pending", "approved", "filed", "heard"):   # still in custody: count to today
+        details = dict(a.get("details") or {})
+        if not details.get("checklist"):
+            details["checklist"] = list(CHECKLIST)
+        rc = details.get("release_check") or {}
+        if a["status"] in ("pending", "approved", "filed", "heard", "release_ordered"):   # still in custody: count to today
             case = cases.get(a["case_id"])
             live = triage.undertrial_release_check(case, today) if case else None
             if live:
                 rc = {**rc, **live}
         over = (rc.get("custody_days") or 0) - (rc.get("threshold_days") or 0)
-        out.append({**a, "days_over_limit": over, "custody_days": rc.get("custody_days"), "threshold_days": rc.get("threshold_days"),
+        out.append({**a, "details": details, "days_over_limit": over, "custody_days": rc.get("custody_days"), "threshold_days": rc.get("threshold_days"),
                     "release_status": rc.get("status"), "basis": rc.get("basis"), "release_notes": rc.get("needs_review") or [],
                     "source": sources.get(a["case_id"]) or ("citizen" if a["kind"] == "release_review_request" else None),
                     "draft_engine": (a["details"] or {}).get("draft_engine") or "template"})

@@ -284,3 +284,22 @@ mark { background: color-mix(in srgb, var(--gold) 45%, transparent); color: inhe
 .imp-cols ul { margin: 0; padding-left: 18px; display: grid; gap: 7px; font-size: 14px; }
 @media (max-width: 640px) { .imp-cols { grid-template-columns: 1fr; } .impact > summary::after { margin-left: 0; } }
 @media print { .impact { display: none; } }
+
+/* Undertrial applications (Sec. 479 BNSS): counsel's decision */
+.ut-roles { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 8px; list-style: none; padding: 0; margin: 0 0 16px; counter-reset: ut; }
+.ut-roles li { counter-increment: ut; padding: 10px 12px 10px 40px; position: relative; border: 1px solid var(--line); border-radius: 12px; background: var(--surface-2); font-size: 13.5px; }
+.ut-roles li::before { content: counter(ut); position: absolute; left: 12px; top: 10px; width: 20px; height: 20px; border-radius: 50%; display: grid; place-items: center; background: var(--brand); color: var(--brand-ink); font-size: 12px; font-weight: 700; }
+.ut-list { display: grid; gap: 12px; margin-bottom: 18px; }
+.ut-card p { margin: 6px 0; }
+.ut-card .pill { text-transform: none; }
+.ut-check { border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; margin: 10px 0; }
+.ut-check legend { font-weight: 700; padding: 0 4px; }
+.ut-check label { display: flex; gap: 8px; align-items: flex-start; margin: 5px 0; font-size: 13.5px; }
+.ut-card details label { display: flex; flex-direction: column; gap: 4px; margin: 8px 0; font-size: 13.5px; }
+.ut-steps { margin: 8px 0 0; padding-left: 20px; font-size: 13.5px; }
+.ut-steps li { margin: 3px 0; }
+.ut-draft { white-space: pre-wrap; font: 12.5px/1.55 ui-monospace, Consolas, monospace; background: var(--surface-2); border: 1px solid var(--line); border-radius: 10px; padding: 12px; max-height: 320px; overflow: auto; }
+.ut-mine { align-items: center; gap: 10px; margin: 0 0 14px; }
+.ut-mine input#utMyName { min-width: 220px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); color: var(--ink); font: inherit; }
+.ut-only { display: inline-flex; gap: 6px; align-items: center; }
+.badge.ok { color: var(--ok); border-color: currentColor; }

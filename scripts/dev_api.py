@@ -29,6 +29,7 @@ sys.path.insert(0, str(ROOT))
 from nyayavedika import (advocate, auth, cause_list, feedback, config, db, demo_seed, document_studio, impact, intake, jobs, legal_aid, legal_aid_kb, legal_problem, ocr, staff_api,  # noqa: E402
                    store, summarise, worker, public_docs)
 from nyayavedika.agents import undertrial_watch  # noqa: E402
+from nyayavedika import impact_reports  # noqa: E402
 from nyayavedika.agents.front_door import FrontDoor, answer_kind  # noqa: E402
 from nyayavedika.docgen import legal_aid_docx  # noqa: E402
 
@@ -67,7 +68,7 @@ def _court(fn, *a):
         return _db(fn, *a)
     except LookupError as exc:
         raise HttpError(404, str(exc))
-    except legal_problem.InvalidResearchInput as exc:
+    except (legal_problem.InvalidResearchInput, ValueError) as exc:   # as server.py: bad input is a 400, not a crash
         raise HttpError(400, str(exc))
 
 
@@ -218,9 +219,42 @@ def routes():
         def run(s):
             plan = cause_list.prepare(s, start, int(d.get("days") or 5))
             cid = cause_list.save_draft(s, plan, "DEMO-DC", f"Draft prepared by {p.actor}")
-            return {"cause_list_id": cid, "status": "draft", **{k: plan[k] for k in ("metrics", "violations", "capacity_shortfall",
-                                                                                        "deadline_alerts", "unscheduled", "calendar")}}
-        return _db(run)
+            listed = {c["case_id"] for day in plan["calendar"] for bench in day["benches"] for c in bench["cases"]}
+            return {"cause_list_id": cid, "status": "draft", "start_date": plan["start_date"],
+                    "already_listed": plan.get("already_listed", [])[:200], "readiness": staff_api.readiness(s, listed),
+                    **{k: plan[k] for k in ("metrics", "violations", "capacity_shortfall",
+                                            "deadline_alerts", "unscheduled", "calendar")}}
+        return _court(run)
+
+    @r("GET", "/api/cause-lists", "GET /api/cause-lists")
+    def recent_lists(h, m, q, b, p):
+        return _court(cause_list.recent, int((q.get("limit") or [12])[0]))
+
+    @r("GET", r"/api/cause-lists/(?P<id>\d+)/view", "GET /api/cause-lists/{cause_list_id}/view")
+    def view_list(h, m, q, b, p):
+        return _court(cause_list.view, int(m["id"]))
+
+    @r("GET", "/api/scheduling/preview", "GET /api/scheduling/preview")
+    def scheduling_preview(h, m, q, b, p):
+        try:
+            start = date.fromisoformat(q["start"][0]) if q.get("start") else date.today()
+        except ValueError:
+            raise HttpError(400, "start must be a date in YYYY-MM-DD form")
+        return _court(cause_list.preview, start, int((q.get("days") or [5])[0]))
+
+    @r("GET", "/api/hearings", "GET /api/hearings")
+    def hearings(h, m, q, b, p):
+        try:
+            start = date.fromisoformat(q["start"][0]) if q.get("start") else date.today()
+        except ValueError:
+            raise HttpError(400, "start must be a date in YYYY-MM-DD form")
+        return _court(staff_api.hearing_board, start, int((q.get("days") or [1])[0]))
+
+    @r("POST", r"/api/hearings/(?P<id>\d+)/outcome", "POST /api/hearings/{hearing_id}/outcome")
+    def hearing_outcome(h, m, q, b, p):
+        d = json.loads(b or b"{}")
+        return _court(cause_list.record_outcome, int(m["id"]), d.get("outcome", ""), p.actor, p.role,
+                      d.get("reason"), d.get("next_date"))
 
     @r("GET", r"/api/cause-lists/(?P<id>\d+)", "GET /api/cause-lists/{cause_list_id}")
     def get_list(h, m, q, b, p):
@@ -237,7 +271,10 @@ def routes():
 
     @r("GET", "/api/alerts", "GET /api/alerts")
     def alerts(h, m, q, b, p):
-        return _db(staff_api.alerts, (q.get("status") or ["pending"])[0])
+        result = _db(staff_api.alerts, (q.get("status") or ["pending"])[0])
+        if p.role == auth.LAWYER:
+            result["alerts"] = [a for a in result["alerts"] if undertrial_watch.has_counsel_on_record(a)]
+        return result
 
     @r("GET", "/api/alerts/data-needed", "GET /api/alerts/data-needed")
     def needed(h, m, q, b, p):
@@ -250,7 +287,20 @@ def routes():
             raise HttpError(400, "Dismissing needs a reason")
         try:
             return {"decisions_applied": undertrial_watch.decide_alerts(d, p.actor, p.role)}
+        except PermissionError as exc:
+            raise HttpError(403, str(exc))
         except (ValueError, LookupError) as exc:
+            raise HttpError(400, str(exc))
+
+    @r("POST", r"/api/alerts/(?P<id>\d+)/counsel", "POST /api/alerts/{alert_id}/counsel")
+    def counsel(h, m, q, b, p):
+        d = json.loads(b or b"{}")
+        try:
+            return undertrial_watch.assign_counsel(int(m["id"]), d.get("name", ""), d.get("basis", ""),
+                                                   d.get("reference", ""), p.actor, p.role)
+        except LookupError as exc:
+            raise HttpError(404, str(exc))
+        except ValueError as exc:
             raise HttpError(400, str(exc))
 
     @r("POST", r"/api/alerts/(?P<id>\d+)/state", "POST /api/alerts/{alert_id}/state")
@@ -259,6 +309,8 @@ def routes():
         try:
             return undertrial_watch.advance_alert(int(m["id"]), d.get("status"), p.actor, p.role, d.get("note"), d.get("reason"),
                                                   d.get("snooze_until"))
+        except PermissionError as exc:
+            raise HttpError(403, str(exc))
         except LookupError as exc:
             raise HttpError(404, str(exc))
         except ValueError as exc:
@@ -269,6 +321,8 @@ def routes():
         rows = _db(lambda s: s.select("alerts", {"id": int(m["id"])}))
         if not rows:
             raise HttpError(404, "No alert")
+        if p.role == auth.LAWYER and not undertrial_watch.has_counsel_on_record(rows[0]):
+            raise HttpError(403, "The court registry must record counsel on the alert before counsel can access it.")
         return legal_aid_docx.build_release_docx(rows[0]), DOCX, _docx_name("release_application", rows[0]["case_id"])
 
     @r("GET", r"/api/alerts/(?P<id>\d+)/superintendent\.docx", "GET /api/alerts/{alert_id}/superintendent.docx")
@@ -325,6 +379,43 @@ def routes():
             raise HttpError(400, "browser_id must be a UUID v4") from exc
         db.register_reach(visitor_hash, m["door"])
         return {"ok": True}
+
+    def _report(fn, *a):
+        try:
+            return _db(fn, *a)
+        except impact_reports.ReportError as exc:
+            raise HttpError(exc.status, exc.message)
+
+    @r("GET", "/api/impact-reports/options")
+    def impact_report_options(h, m, q, b, p):
+        return impact_reports.options()
+
+    @r("POST", "/api/impact-reports")
+    def impact_report_submit(h, m, q, b, p):
+        if not impact_reports.rate_ok(h.client_address[0] if h.client_address else ""):
+            raise HttpError(429, "Too many reports from this connection. Please try again in an hour.")
+        try:
+            body = json.loads(b or b"{}")
+        except json.JSONDecodeError:
+            raise HttpError(400, "Send the report as JSON")
+        return _report(impact_reports.submit, body if isinstance(body, dict) else {})
+
+    @r("GET", "/api/impact-reports", "GET /api/impact-reports")
+    def impact_report_list(h, m, q, b, p):
+        return _report(impact_reports.listing, (q.get("status") or [""])[0])
+
+    @r("GET", "/api/impact-reports/summary", "GET /api/impact-reports/summary")
+    def impact_report_summary(h, m, q, b, p):
+        return _report(impact_reports.summary)
+
+    @r("GET", r"/api/impact-reports/export\.csv", "GET /api/impact-reports/export.csv")
+    def impact_report_export(h, m, q, b, p):
+        return _report(impact_reports.export_csv).encode("utf-8"), "text/csv", f"impact_reports_{date.today().isoformat()}.csv"
+
+    @r("POST", r"/api/impact-reports/(?P<id>\d+)/verify", "POST /api/impact-reports/{report_id}/verify")
+    def impact_report_verify(h, m, q, b, p):
+        d = json.loads(b or b"{}")
+        return _report(impact_reports.verify, int(m["id"]), d.get("status", ""), p.actor, d.get("note", ""))
 
     @r("GET", r"/api/impact/export\.csv", "GET /api/impact/export.csv")
     def csv(h, m, q, b, p):
@@ -515,7 +606,8 @@ def routes():
 
 ROUTES = routes()
 PAGES = {"/": "index.html", "/staff": "staff.html", "/advocate": "advocate.html",
-         "/citizen": "citizen.html", "/feedback": "feedback-wall.html", "/metrics": "metrics.html"}
+         "/citizen": "citizen.html", "/feedback": "feedback-wall.html", "/metrics": "metrics.html",
+         "/impact-report": "impact-report.html", "/impact-report/review": "impact-review.html"}
 DOWNLOADS = {"/pilot/template.csv": ROOT / "pilot" / "pilot_log_template.csv"}
 DOCS = {"/how-it-works": "how-it-works", "/research-evidence": "research-evidence"}
 TYPES = {".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8", ".css": "text/css; charset=utf-8",

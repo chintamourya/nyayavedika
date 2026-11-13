@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0866ff">
+<title>NyayaVedika - Impact report</title>
+<link rel="icon" href="/static/favicon.svg?v=3" type="image/svg+xml">
+<link rel="stylesheet" href="/static/styles.css?v=18">
+<link rel="stylesheet" href="/static/impact-report.css?v=2">
+</head>
+<body class="report-page">
+<header class="top">
+  <div class="brand"><span class="logo" aria-hidden="true">⚖</span>
+    <div><h1>NyayaVedika <span lang="hi">(न्यायवेदिका)</span> · Impact report</h1><p>Tell us what changed when you used it on real work</p></div></div>
+  <a class="portal-home" href="/">Home</a>
+  <button type="button" class="theme-toggle">Dark mode</button>
+</header>
+
+<main class="report-main">
+  <section class="card report-intro">
+    <h2>Your report is the evidence</h2>
+    <p>NyayaVedika helps citizens find legal aid, advocates read case papers, and court staff triage and schedule pending cases.
+      We only claim what people who used it can confirm. This form takes about 5 minutes.</p>
+    <details class="privacy"><summary><b>What we collect and why</b></summary>
+      <ul>
+        <li><b>Your name, email and professional details</b> (for advocates: Bar Council enrolment and law school) are used only
+          to confirm that the report comes from a real person. They are <b>never published</b> and never sent to an AI model.</li>
+        <li><b>Please do not name clients, parties or case numbers.</b> Phone numbers, emails, Aadhaar and PAN typed into the
+          text boxes are masked automatically.</li>
+        <li>Your words are quoted only if you choose so below, and only after the team has confirmed the report.</li>
+        <li>To withdraw a report, write to the NyayaVedika team from the same email address.</li>
+      </ul></details>
+  </section>
+
+  <form id="reportForm" novalidate>
+    <section class="card report-step" aria-labelledby="s1"><h3 id="s1"><span class="num">1</span> About you</h3>
+      <fieldset class="choice-grid" id="roleChoices"><legend>I am a… <span class="req">required</span></legend></fieldset>
+
+      <div class="field-grid" id="identityFields">
+        <label data-for="all">Full name <span class="req pro-only">required</span>
+          <input name="full_name" autocomplete="name" maxlength="120"></label>
+        <label data-for="all">Email <span class="req pro-only">required</span>
+          <input name="email" type="email" autocomplete="email" maxlength="160"></label>
+        <label data-for="advocate legal_aid_lawyer">Enrolment number <span class="hint">(optional - helps us confirm faster)</span>
+          <input name="enrolment_number" maxlength="40" placeholder="as on your enrolment certificate"></label>
+        <label data-for="advocate legal_aid_lawyer">Year of enrolment <span class="hint">(optional)</span>
+          <input name="enrolment_year" type="number" min="1950" inputmode="numeric"></label>
+        <label data-for="advocate legal_aid_lawyer law_student">College / university of law degree <span class="req">required</span>
+          <input name="law_school" maxlength="160" placeholder="e.g. University College of Law, Osmania University"></label>
+        <label data-for="advocate legal_aid_lawyer">Court(s) where you mainly practise <span class="hint">(optional)</span>
+          <input name="practice_court" maxlength="120" placeholder="e.g. District Court, Warangal"></label>
+        <label data-for="legal_aid_lawyer">Legal services authority you are empanelled with <span class="hint">(optional)</span>
+          <input name="legal_services_authority" maxlength="120" placeholder="e.g. DLSA Hyderabad"></label>
+        <label data-for="court_staff paralegal">Designation <span class="hint">(optional)</span>
+          <input name="designation" maxlength="80" placeholder="e.g. Bench clerk, Sheristadar, PLV"></label>
+        <label data-for="advocate legal_aid_lawyer law_student court_staff paralegal" class="wide">Work experience <span class="hint">(optional - e.g. "6 years, criminal side, sessions court")</span>
+          <input name="work_experience" maxlength="300"></label>
+        <label data-for="all">District <input name="district" maxlength="80"></label>
+        <label data-for="all">State <input name="state" maxlength="60"></label>
+        <label data-for="advocate legal_aid_lawyer law_student court_staff paralegal" class="wide">Public profile link <span class="hint">(optional, https - e.g. LinkedIn or a firm page; helps confirm faster)</span>
+          <input name="profile_url" type="url" maxlength="200" placeholder="https://"></label>
+      </div>
+    </section>
+
+    <section class="card report-step" aria-labelledby="s2"><h3 id="s2"><span class="num">2</span> What you used</h3>
+      <fieldset class="chips" id="featureChoices"><legend>Which parts of NyayaVedika? <span class="req">required</span></legend></fieldset>
+      <fieldset class="inline-choices" id="usedOnChoices"><legend>You used it on… <span class="req">required</span></legend></fieldset>
+      <div class="field-grid">
+        <label>About how many times? <input name="times_used" type="number" min="1" inputmode="numeric"></label>
+        <label>First used on <input name="used_from" type="date"></label>
+      </div>
+    </section>
+
+    <section class="card report-step" aria-labelledby="s3"><h3 id="s3"><span class="num">3</span> Before and after</h3>
+      <p class="hint">Think of one task you did with NyayaVedika. How long does the same task usually take you without it?</p>
+      <div class="field-grid">
+        <label class="wide">The task <select name="task" id="taskSelect"><option value="">Choose a task</option></select></label>
+        <label>Minutes without NyayaVedika <input name="minutes_without" type="number" min="1" inputmode="numeric"></label>
+        <label>Minutes with NyayaVedika <input name="minutes_with" type="number" min="1" inputmode="numeric"></label>
+      </div>
+      <fieldset class="inline-choices"><legend>These times are…</legend>
+        <label><input type="radio" name="timing_basis" value="estimated"> my estimate</label>
+        <label><input type="radio" name="timing_basis" value="timed"> measured (I timed both)</label></fieldset>
+      <p class="saved-line hidden" id="savedLine" role="status"></p>
+      <div class="field-grid">
+        <label>Documents handled <input name="documents_handled" type="number" min="0" inputmode="numeric"></label>
+        <label>Pages handled <input name="pages_handled" type="number" min="0" inputmode="numeric"></label>
+        <label>Cases or people helped <input name="cases_handled" type="number" min="0" inputmode="numeric"></label>
+      </div>
+      <fieldset class="inline-choices" id="accuracyChoices"><legend>Did you check its output against the original papers?</legend></fieldset>
+      <label class="narrow hidden" id="errorsWrap">How many errors did you find? <input name="errors_found" type="number" min="0" inputmode="numeric"></label>
+    </section>
+
+    <section class="card report-step" aria-labelledby="s4"><h3 id="s4"><span class="num">4</span> What changed</h3>
+      <fieldset class="chips" id="outcomeChoices"><legend>Outcomes <span class="req">required</span></legend></fieldset>
+      <label>In your own words, what happened? <span class="hint">(no client or party names)</span>
+        <textarea name="outcome_detail" rows="3" maxlength="1200" placeholder="e.g. Prepared a list of dates for a 180-page sessions file before the hearing; found the remand date I had missed."></textarea></label>
+    </section>
+
+    <section class="card report-step" aria-labelledby="s5"><h3 id="s5"><span class="num">5</span> Your view</h3>
+      <div class="scales">
+        <fieldset class="scale" data-scale="usefulness"><legend>How useful was it? <span class="req">required</span></legend></fieldset>
+        <fieldset class="scale" data-scale="ease"><legend>How easy was it to use?</legend></fieldset>
+        <fieldset class="scale" data-scale="trust"><legend>How far could you trust the output?</legend></fieldset>
+      </div>
+      <fieldset class="inline-choices"><legend>Will you keep using it?</legend>
+        <label><input type="radio" name="would_continue" value="yes"> Yes</label>
+        <label><input type="radio" name="would_continue" value="maybe"> Maybe</label>
+        <label><input type="radio" name="would_continue" value="no"> No</label></fieldset>
+      <label>A sentence we may quote <span class="hint">(optional)</span>
+        <textarea name="testimonial" rows="2" maxlength="600"></textarea></label>
+      <fieldset class="inline-choices" id="quoteChoices"><legend>May we quote it?</legend></fieldset>
+    </section>
+
+    <section class="card report-step" aria-labelledby="s6"><h3 id="s6"><span class="num">6</span> Consent</h3>
+      <label class="check"><input type="checkbox" name="consent_store"> I agree that NyayaVedika stores this report and uses its
+        numbers (without my identity) as evidence of impact. <span class="req">required</span></label>
+      <label class="check"><input type="checkbox" name="consent_contact"> The team may email me to confirm this report.</label>
+      <label class="hp" aria-hidden="true">Leave this empty <input name="website" tabindex="-1" autocomplete="off"></label>
+      <p id="formError" class="banner-bad hidden" role="alert"></p>
+      <button class="btn" type="submit" id="submitReport">Submit report</button>
+    </section>
+  </form>
+
+  <section class="card hidden" id="thanks" role="status" aria-live="polite">
+    <h2>Thank you</h2><p id="thanksText"></p>
+    <p class="hint">Reference: <b id="thanksRef"></b>. Keep it if you write to us about this report.</p>
+    <button class="btn ghost" type="button" id="another">Send another report</button>
+  </section>
+</main>
+
+<script src="/static/common.js?v=14"></script>
+<script src="/static/impact-report.js?v=2"></script>
+</body>
+</html>

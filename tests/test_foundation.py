@@ -41,6 +41,7 @@ class RoleMatrixTests(unittest.TestCase):
         "POST /api/registry/decide": (200, 403, 403),
         "GET /api/impact": (200, 403, 403),
         "GET /api/alerts": (200, 200, 403),
+        "GET /api/alerts/{alert_id}/superintendent.docx": (200, 403, 403),
         "POST /api/alerts/decide": (403, 200, 403),
         "POST /api/documents/analyze": (200, 200, 403),
         "POST /api/documents/summarize": (200, 200, 200),
@@ -269,6 +270,40 @@ class ServerRoleTests(unittest.TestCase):
             self.assertIn(f"custody_record_review_request_UT_HTTP_{language}.docx",
                           response.headers["content-disposition"])
             self.assertTrue(response.content.startswith(b"PK"))
+
+        self.assertEqual(self.client.get(
+            f"/api/alerts/{alert_id}/superintendent.docx?language=en", headers=self.h("lawyer")).status_code, 403)
+
+    def test_lawyers_only_see_and_decide_alerts_with_registry_assigned_counsel(self):
+        from nyayavedika import store
+
+        with store.connect() as db:
+            store.prepare_database(db)
+            unassigned_id = db.insert("alerts", [
+                {"case_id": "UT/UNASSIGNED-GATE", "kind": "undertrial_release", "status": "pending",
+                 "created_at": datetime.now(timezone.utc).isoformat(), "details": {}, "draft": "draft"},
+            ], returning="id")
+            assigned_id = db.insert("alerts", [
+                {"case_id": "UT/ASSIGNED-GATE", "kind": "undertrial_release", "status": "pending",
+                 "created_at": datetime.now(timezone.utc).isoformat(),
+                 "details": {"counsel": {"name": "Advocate Example"}}, "draft": "draft"},
+            ], returning="id")
+            db.commit()
+
+        lawyer_alerts = self.client.get("/api/alerts?status=all", headers=self.h("lawyer")).json()["alerts"]
+        staff_alerts = self.client.get("/api/alerts?status=all", headers=self.h("staff")).json()["alerts"]
+        self.assertNotIn(unassigned_id, [a["id"] for a in lawyer_alerts])
+        self.assertIn(assigned_id, [a["id"] for a in lawyer_alerts])
+        self.assertIn(unassigned_id, [a["id"] for a in staff_alerts])
+
+        decision = self.client.post("/api/alerts/decide", headers=self.h("lawyer"),
+                                    json={"decisions": {str(unassigned_id): {"approve": True}}})
+        self.assertEqual(decision.status_code, 403, decision.text)
+        draft = self.client.get(f"/api/alerts/{unassigned_id}/release.docx", headers=self.h("lawyer"))
+        self.assertEqual(draft.status_code, 403, draft.text)
+        approved = self.client.post("/api/alerts/decide", headers=self.h("lawyer"),
+                                    json={"decisions": {str(assigned_id): {"approve": True}}})
+        self.assertEqual(approved.status_code, 200, approved.text)
 
     def test_advocate_documents_are_workspace_scoped_and_hidden_from_staff_sources(self):
         import base64

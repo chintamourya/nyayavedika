@@ -6,7 +6,7 @@
 <meta name="theme-color" content="#0866ff">
 <title>NyayaVedika - Advocate</title>
 <link rel="icon" href="/static/favicon.svg?v=3" type="image/svg+xml">
-<link rel="stylesheet" href="/static/advocate.css?v=11">
+<link rel="stylesheet" href="/static/advocate.css?v=13">
 </head>
 <body class="adv">
 <svg width="0" height="0" style="position:absolute" aria-hidden="true">
@@ -61,6 +61,8 @@
       <svg class="ic"><use href="#i-file"/></svg><span>Document Studio</span><kbd>Alt 1</kbd></button>
     <button class="tab" type="button" role="tab" aria-selected="false" data-advocate-tab="insights">
       <svg class="ic"><use href="#i-summary"/></svg><span>AI Document Insights</span><kbd>Alt 2</kbd></button>
+    <button class="tab" type="button" role="tab" aria-selected="false" data-advocate-tab="undertrial">
+      <svg class="ic"><use href="#i-file"/></svg><span>Undertrial applications</span><kbd>Alt 3</kbd></button>
   </nav>
 
   <details id="impactPanel" class="impact">
@@ -91,6 +93,33 @@
       </div>
     </div>
   </details>
+
+  <!-- ============================ UNDERTRIAL APPLICATIONS (Sec. 479 BNSS) ============================ -->
+  <section id="advocate-undertrial" class="advocate-panel hidden" aria-labelledby="utHeading">
+    <div class="panel-head">
+      <div>
+        <h2 id="utHeading">Undertrial applications - Sec. 479 BNSS</h2>
+        <p class="muted">People in custody who appear past the Sec. 479 mark. As counsel you decide whether to file the application.
+          The court decides release; the court registry records filing, hearing and the court's order.</p>
+      </div>
+    </div>
+    <ol class="ut-roles" aria-label="Who does what">
+      <li><b>NyayaVedika</b> flags the case and shows the arithmetic</li>
+      <li><b>You (counsel)</b> verify the facts and decide to file, or record why not</li>
+      <li><b>Court registry</b> records the filing and the hearing</li>
+      <li><b>The court</b> orders release on bail / bond, or continued detention with reasons</li>
+    </ol>
+    <div class="ut-mine toolbar">
+      <label for="utMyName">Your name as on the DLSA letter / vakalatnama</label>
+      <input id="utMyName" maxlength="120" placeholder="e.g. Adv. R. Lakshmi">
+      <label class="ut-only"><input type="checkbox" id="utOnlyMine"> Show only cases where I am counsel on record</label>
+    </div>
+    <p id="utAdvError" class="banner banner-bad hidden" role="alert"></p>
+    <h3 id="utAdvDecideH">Awaiting your decision</h3>
+    <div id="utAdvDecide" class="ut-list"><p class="muted">Loading…</p></div>
+    <h3 id="utAdvTrackH">Applications in court</h3>
+    <div id="utAdvTrack" class="ut-list"></div>
+  </section>
 
   <!-- ============================ DOCUMENT STUDIO ============================ -->
   <section id="advocate-studio" class="advocate-panel" aria-labelledby="studioHeading">
@@ -324,6 +353,6 @@
 </main>
 <div id="toasts" class="toasts" role="status" aria-live="polite"></div>
 <script src="/static/common.js?v=14"></script>
-<script src="/static/advocate.js?v=13"></script>
+<script src="/static/advocate.js?v=16"></script>
 </body>
 </html>

@@ -167,6 +167,148 @@ def prepare(db, start: date, days: int = 5, court_id: Optional[str] = None, agin
     return plan
 
 
+# ----------------------------------------------------------------------------- before drafting: will the week fit?
+def preview(db, start: date, days: int = 5) -> Dict:
+    """What a draft for this week would face, before anything is saved: bench time available (calendar closures and
+    judges on leave removed) against the expected time of the cases waiting to be listed, using the same
+    eligibility, hold, must-list and expected-minutes rules as the planner. Read-only; an estimate, not a plan."""
+    days = max(1, min(int(days or 5), 10))
+    results = pending_results(db)
+    state = {r["case_id"]: r for r in db.select("case_queue_state")}
+    # prepare() re-scores edited / never-scored cases before planning; do the same here, in memory only, so the
+    # preview and the draft agree (a GET must not write)
+    stale = {r["case_id"] for r in db.query(
+        """SELECT case_id FROM cases c WHERE c.status IN ('pending', 'on_hold') AND (c.score IS NULL OR NOT EXISTS
+             (SELECT 1 FROM triage_scores t WHERE t.case_id = c.case_id AND t.scored_at >= c.updated_at))""")}
+    if stale:
+        fresh = store.get_cases(stale, db=db)
+        for r in results:
+            if r["case_id"] in fresh:
+                case = fresh[r["case_id"]]
+                probe = {**case, "first_eligible_on": (state.get(r["case_id"]) or {}).get("first_eligible_on")}
+                s = extraction.provisional_score(probe, date.today())
+                r.update(score=s["score"], band=s["band"], flags=s["flags"])
+    calendar = calendar_rows(db, start, days)
+    closed = sorted({c["day"] for c in calendar if c["kind"] in scheduler.CLOSED_KINDS and not c.get("bench_id")})
+    leave = {(c["day"], c["bench_id"]) for c in calendar if c.get("bench_id")}
+    benches = load_benches(db)
+    day_list = scheduler.working_days(start, days, closed)
+    sittings = [(d.isoformat(), b) for d in day_list for b in benches if (d.isoformat(), b["bench_id"]) not in leave]
+    capacity = sum(b["minutes_per_day"] for _, b in sittings)
+    elsewhere = already_listed(db, start, days, calendar)
+    by_band = {b: 0 for b in staff_api.BANDS}
+    waiting, held, must, past, custody, minutes, must_minutes = 0, 0, 0, 0, 0, 0.0, 0.0
+    for r in results:
+        st = state.get(r["case_id"], {})
+        if r["case_id"] in elsewhere:
+            continue
+        hold = st.get("hold_until")
+        if r["case"].get("status") == "on_hold" or (hold and hold > start.isoformat()):
+            held += 1
+            continue
+        pr = scheduler.effective_priority(r["score"], r["band"], st, start)
+        is_must = pr["must_list"] or r["band"] == "Critical" or "UNDERTRIAL_RELEASE_ELIGIBLE" in r["flags"]
+        need = scheduler._expected_minutes(r)
+        waiting += 1
+        minutes += need
+        by_band[r["band"]] = by_band.get(r["band"], 0) + 1
+        if is_must:
+            must += 1
+            must_minutes += need
+        past += 1 if pr["past_deadline"] else 0
+        custody += 1 if r["case"].get("accused_in_custody") else 0
+    reserve = capacity * config.MUST_LIST_RESERVE
+    if not capacity:
+        verdict = "No bench sits on these days (holidays or leave in the court calendar)."
+    elif minutes <= capacity:
+        verdict = "Every waiting case is expected to fit in this week's bench time."
+    else:
+        verdict = (f"About {round(100 * capacity / minutes)}% of the waiting work fits; the rest is carried over and "
+                   "climbs next week (must-list cases go first).")
+    last = day_list[-1].isoformat() if day_list else start.isoformat()
+    return {"start_date": start.isoformat(), "days": [d.isoformat() for d in day_list],
+            "closed_days": [d for d in closed if start.isoformat() <= d <= last],   # only the planned week
+            "benches": len(benches), "sittings": len(sittings), "benches_on_leave": len(leave),
+            "capacity_minutes": round(capacity), "waiting": waiting, "waiting_minutes": round(minutes),
+            "by_band": by_band, "must_list": must, "must_list_minutes": round(must_minutes),
+            "must_list_reserve_minutes": round(reserve), "must_list_over_reserve": must_minutes > reserve,
+            "past_deadline": past, "in_custody": custody, "on_hold": held, "already_listed": len(elsewhere),
+            "fits": bool(capacity) and minutes <= capacity, "verdict": verdict,
+            "note": "Expected minutes allow for each case's likely adjournment; the draft itself also checks advocate clashes."}
+
+
+# ----------------------------------------------------------------------------- read a saved list back
+def recent(db, limit: int = 12) -> Dict:
+    """Recent cause lists (weekly drafts, fast-lane drafts, published), newest first, so the screen can reopen one."""
+    rows = db.select("cause_lists", order="id DESC", limit=int(max(1, min(limit, 50))))
+    counts: Dict[int, int] = {}
+    if rows:
+        for l in db.select("listings", {"cause_list_id": [r["id"] for r in rows],
+                                        "status": list(OPEN_LISTING) + ["published", "heard", "adjourned"]}):
+            counts[l["cause_list_id"]] = counts.get(l["cause_list_id"], 0) + 1
+    keep = ("id", "status", "start_date", "created_at", "approved_by", "decided_at")
+    return {"lists": [{**{k: r.get(k) for k in keep}, "fast_lane": bool((r.get("plan") or {}).get("fast_lane")),
+                       "cases": counts.get(r["id"], 0)} for r in rows]}
+
+
+def view(db, cause_list_id: int) -> Dict:
+    """A saved list in the same shape as a freshly prepared draft, with each bench's cases rebuilt from the listings
+    as they stand now (moves, holds and accepted fast-lane slots included), plus readiness notes. Read-only."""
+    rows = db.select("cause_lists", {"id": cause_list_id})
+    if not rows:
+        raise LookupError(f"No cause list {cause_list_id}")
+    cl = rows[0]
+    plan = cl["plan"] or {}
+    live = ("published", "heard", "adjourned") if cl["status"] == "published" else OPEN_LISTING
+    listings = [l for l in db.select("listings", {"cause_list_id": cause_list_id}, order="day, bench_id, slot_start")
+                if l["status"] in live]
+    planned = {c["case_id"]: c for d in plan.get("calendar") or [] for b in d["benches"] for c in b["cases"]}
+    benches = {b["bench_id"]: b for b in load_benches(db)}
+    sources = staff_api.case_sources(db)
+    calendar = [{**d, "benches": [{**b, "cases": []} for b in d["benches"]]} for d in plan.get("calendar") or []]
+    by_day = {d["date"]: d for d in calendar}
+    for l in listings:
+        day = by_day.get(l["day"])
+        if day is None:   # a fast-lane list has no planned calendar: build the day as listings arrive
+            day = by_day[l["day"]] = {"date": l["day"], "benches": []}
+            calendar.append(day)
+        bench = next((b for b in day["benches"] if b["bench_id"] == l["bench_id"]), None)
+        if bench is None:
+            meta = benches.get(l["bench_id"], {})
+            bench = {"bench_id": l["bench_id"], "name": meta.get("name", l["bench_id"]), "open": True,
+                     "minutes_per_day": meta.get("minutes_per_day", 300), "cases": []}
+            day["benches"].append(bench)
+        base = planned.get(l["case_id"], {})
+        bench["cases"].append({**base, "case_id": l["case_id"], "band": l["band"] or base.get("band"),
+                               "score": l["score"] if l["score"] is not None else base.get("score"),
+                               "slot": f"{l['slot_start']}-{l['slot_end']}", "expected_minutes": l["expected_minutes"] or 0,
+                               "listing_status": l["status"], "source": sources.get(l["case_id"])})
+    calendar.sort(key=lambda d: d["date"])
+    for d in calendar:
+        for b in d["benches"]:
+            used = sum(c.get("expected_minutes") or 0 for c in b["cases"])
+            cap = b.get("minutes_per_day") or 0
+            b["expected_minutes"] = round(used)
+            b["utilisation_percent"] = round(100 * used / cap, 1) if cap else 0.0
+            b["cases"].sort(key=lambda c: c["slot"])
+    listed_ids = {c["case_id"] for d in calendar for b in d["benches"] for c in b["cases"]}
+    util = [b["utilisation_percent"] for d in calendar for b in d["benches"] if b.get("open", True)]
+    metrics = {**(cl["metrics"] or {}), "cases_listed": len(listed_ids)}
+    if util:
+        metrics["avg_bench_utilisation_percent"] = round(sum(util) / len(util), 1)
+    for key in ("must_list_listed", "must_list_total", "cases_carried_over"):
+        metrics.setdefault(key, 0)
+    for u in plan.get("unscheduled") or []:
+        u.setdefault("source", sources.get(u["case_id"]))
+    return {"cause_list_id": cl["id"], "status": cl["status"], "start_date": cl["start_date"],
+            "fast_lane": bool(plan.get("fast_lane")), "approved_by": cl.get("approved_by"),
+            "metrics": metrics, "violations": plan.get("violations") or [],
+            "capacity_shortfall": plan.get("capacity_shortfall"), "deadline_alerts": plan.get("deadline_alerts") or [],
+            "unscheduled": [u for u in (plan.get("unscheduled") or []) if u["case_id"] not in listed_ids][:200],
+            "already_listed": (plan.get("already_listed") or [])[:200], "calendar": calendar,
+            "readiness": staff_api.readiness(db, listed_ids)}
+
+
 # ----------------------------------------------------------------------------- write a draft
 def _sla_due(band: str, anchor: date) -> str:
     return scheduler.add_working_days(anchor, int(config.SLA_DAYS.get(band, 30))).isoformat()
@@ -438,14 +580,30 @@ def record_outcome(db, hearing_id: int, outcome: str, actor: str, role: str, rea
     if not rows:
         raise LookupError(f"No hearing {hearing_id}")
     h = rows[0]
+    reason = (reason or "").strip()[:300] or None
+    if next_date in ("", None):
+        next_date = None
+    else:
+        try:
+            parsed = date.fromisoformat(str(next_date)[:10])
+        except ValueError:
+            raise ValueError("next_date must be a date in YYYY-MM-DD form")
+        if h["hearing_date"] and parsed.isoformat() <= str(h["hearing_date"])[:10]:
+            raise ValueError("The next date must be after the hearing date")
+        next_date = parsed.isoformat()
+    if outcome == "disposed":
+        next_date = None   # a disposed matter has no next date
+    previous = h.get("outcome")
     db.update("hearings", {"hearing_id": hearing_id}, {"outcome": outcome, "reason": reason, "next_date": next_date})
     case = store.get_case(h["case_id"], db=db)
     if case:
         meta = {k: case.get(k) for k in ("source", "data_quality", "field_provenance")}
         clean = {k: v for k, v in case.items() if not k.startswith("_") and k not in meta}
         clean["last_hearing_date"] = h["hearing_date"]
-        if outcome == "adjourned":
+        if outcome == "adjourned" and previous != "adjourned":   # correcting a recorded outcome must not count twice
             clean["adjournments"] = int(clean.get("adjournments") or 0) + 1
+        elif previous == "adjourned" and outcome != "adjourned":
+            clean["adjournments"] = max(0, int(clean.get("adjournments") or 0) - 1)
         if outcome == "disposed":
             clean["status"] = "disposed"
         clean["next_hearing_date"] = next_date
@@ -453,9 +611,11 @@ def record_outcome(db, hearing_id: int, outcome: str, actor: str, role: str, rea
                           field_provenance=meta["field_provenance"], db=db)
     db.update("listings", {"case_id": h["case_id"], "day": h["hearing_date"], "status": "published"},
               {"status": {"heard": "heard", "disposed": "heard"}.get(outcome, "adjourned")})
-    store.audit(actor, role, "hearing_outcome", f"hearing:{hearing_id}", {"case_id": h["case_id"], "outcome": outcome}, db=db)
+    store.audit(actor, role, "hearing_outcome", f"hearing:{hearing_id}",
+                {"case_id": h["case_id"], "outcome": outcome, "previous": previous, "next_date": next_date}, db=db)
     db.commit()
-    return {"hearing_id": hearing_id, "case_id": h["case_id"], "outcome": outcome}
+    return {"hearing_id": hearing_id, "case_id": h["case_id"], "outcome": outcome, "next_date": next_date,
+            "corrected": previous is not None}
 
 
 # ----------------------------------------------------------------------------- Today counters
@@ -470,7 +630,7 @@ def _pipeline(db, pending: List[Dict], listed_ids) -> Dict:
         "docket_needs_review": sum(1 for c in pending if c["data_quality"] == "needs_review"),
         "listed_upcoming": len(listed_ids),
         "in_custody": sum(1 for c in pending if c.get("accused_in_custody")),
-        "alerts_open": sum(1 for a in alerts if a["status"] in ("pending", "approved", "filed", "heard")),
+        "alerts_open": sum(1 for a in alerts if a["status"] in ("pending", "approved", "filed", "heard", "release_ordered")),
         "alerts_waiting_decision": sum(1 for a in alerts if a["status"] == "pending"),
         "latest_cause_list": ({"id": lists[0]["id"], "status": lists[0]["status"], "start_date": lists[0]["start_date"]}
                               if lists else None),
@@ -480,8 +640,8 @@ def _pipeline(db, pending: List[Dict], listed_ids) -> Dict:
 def today_counters(db, today: Optional[date] = None) -> Dict:
     today = today or date.today()
     # the counters need six columns, not each case's full JSON document
-    pending = db.query("SELECT case_id, band, flags, data_quality, accused_in_custody, source FROM cases "
-                       "WHERE status = 'pending'", table="cases")
+    pending = db.query("SELECT case_id, band, score, flags, data_quality, accused_in_custody, source, case_type, stage, "
+                       "next_hearing_date FROM cases WHERE status = 'pending'", table="cases")
     states = {r["case_id"]: r for r in db.select("case_queue_state")}
     proposed = [l for l in db.select("listings", {"status": "proposed"}) if l["day"] >= today.isoformat()]
     listed_ids = {l["case_id"] for l in db.select("listings", {"status": list(OPEN_LISTING) + ["published"]})
@@ -505,4 +665,30 @@ def today_counters(db, today: Optional[date] = None) -> Dict:
                                >= config.MUST_LIST_AFTER_DEFERRALS),
         "pipeline": _pipeline(db, pending, listed_ids),
         "data_mix": staff_api.data_mix(pending),   # synthetic demo cases vs cases from real uploads / imports
+        # triage at a glance: the band split, and the highest-priority cases that hold no upcoming slot yet
+        "by_band": {b: sum(1 for c in pending if c["band"] == b) for b in staff_api.BANDS},
+        "top_unlisted": _top_unlisted(pending, states, listed_ids, today),
     }
+
+
+def _top_unlisted(pending: List[Dict], states: Dict, listed_ids, today: date, n: int = 6) -> List[Dict]:
+    """Highest-priority pending cases with no upcoming slot, uploads / imports before synthetic examples at the same
+    score, each with its plain-words reasons (staff_api.attention_reasons)."""
+    rows = []
+    for c in pending:
+        if c["case_id"] in listed_ids:
+            continue
+        st = states.get(c["case_id"]) or {}
+        row = {"case_id": c["case_id"], "band": c["band"], "score": c["score"], "flags": c["flags"] or [],
+               "source": c["source"], "case_type": c["case_type"], "stage": c["stage"],
+               "data_quality": c["data_quality"], "next_hearing_date": c["next_hearing_date"],
+               "deferred": st.get("consecutive_deferrals") or 0, "sla_due_on": st.get("sla_due_on"),
+               "must_list": bool(st.get("must_list")), "listed_on": None}
+        rows.append(row)
+    rows.sort(key=lambda r: (-(r["score"] or 0), r["source"] == "synthetic", r["case_id"]))
+    real = [r for r in rows if r["source"] != "synthetic"][:n]
+    top = (real + [r for r in rows if r["source"] == "synthetic"])[:n] if len(real) < n else real
+    top.sort(key=lambda r: (r["source"] == "synthetic", -(r["score"] or 0)))   # uploads / imports always on top
+    for r in top:
+        r["attention"] = staff_api.attention_reasons(r, today.isoformat())
+    return top

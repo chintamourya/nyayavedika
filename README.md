@@ -7,15 +7,15 @@
 
 [![Python tests](https://github.com/chintamourya/nyayavedika/actions/workflows/tests.yml/badge.svg)](https://github.com/chintamourya/nyayavedika/actions/workflows/tests.yml)
 
-This repository now includes the full three-door product set: citizen legal-aid / problem-research flows, advocate document studio and grounded insight tools, and staff intake / triage / cause-list / undertrial-watch workflows. It also includes public impact metrics, a consent-based feedback wall, worker-driven ingestion and offline-safe fallback modes.
+NyayaVedika is one platform with three doors: citizens find legal aid and understand their problem, advocates read and assemble case papers with page-cited AI help, and court staff **triage the pending docket and schedule it efficiently**. Legal rules run as deterministic code with visible reasons; a named human approves every step with legal consequences.
 
-Latest updates reflected in this branch:
-- public metrics page and aggregate activity API
-- feedback wall with outcome/time-saved reporting
-- legal-aid knowledge-base, draft application and explain flows
-- staff intake, docket, cause-list, alerts and review gates
-- advocate workspace isolation, studio tooling and page-grounded chat
-- offline-compatible rules engine and deterministic fallback behavior
+What is in this repository:
+- **Court staff desk, built around case triage and efficient scheduling:** a first-visit guide to the whole flow, a triage queue with plain-words reasons on every case, a bench-time check before a cause list is drafted, readiness notes, a printable list under the usual listing heads, and a court diary to record proceedings and next dates
+- **Undertrial Watch:** Section 479 BNSS arithmetic with blockers flagged, a draft application, and lawyer approval
+- **Citizen door:** legal-aid eligibility and a drafted application, problem research from official sources, plain-language document summaries (English, Hindi, Telugu)
+- **Advocate door:** Document Studio, page-cited insights and document chat in an isolated workspace
+- **Evidence:** a public metrics page, a feedback wall, and a **verifiable impact report** (`/impact-report`) that the team checks before any figure is counted
+- Offline-safe: without API keys every rule-based flow still works
 
 Figures are tagged **Measured** (our product logs), **Reported** (published by the named source), **Derived** (our arithmetic on reported or measured figures) or **Estimate** (our model, assumptions stated).
 
@@ -23,7 +23,7 @@ Figures are tagged **Measured** (our product logs), **Reported** (published by t
 
 ## Problem statement
 
-India's law already says when many undertrial prisoners must be released. Section 479 of the Bharatiya Nagarik Suraksha Sanhita (BNSS) requires release after half the maximum sentence, or one-third for first-time offenders. What is missing is someone, or something, that **notices the date, prepares the paperwork and puts the decision in front of a human on time**.
+India's law already says when many undertrial prisoners are to be released. Under Section 479 of the Bharatiya Nagarik Suraksha Sanhita (BNSS), a person detained for half the maximum sentence is to be released by the court on bail, and a first-time offender on bond after one-third, unless the court, after hearing the prosecution, records reasons for continued detention. What is missing is someone, or something, that **notices the date, prepares the paperwork and puts the decision in front of a human on time**. The same gap shows up across the docket: registries need to see which of thousands of pending matters need the court first, and to list them within the bench time they actually have.
 
 Three groups fall through the same gap:
 - **People in custody and their families**, who cannot find or afford a lawyer and do not know they may be eligible for release or free legal aid.
@@ -42,10 +42,10 @@ NyayaVedika is a set of AI agents and a lawyer workbench with three doors. Every
 
 | Track focus | Citizen | Advocate | Court staff |
 |---|---|---|---|
-| **Case triage** | Understand a legal problem sorts a situation into a category and points to the right law and office | Insights surface the issues and facts in a file | Priority scores with reasons; Undertrial Watch flags Section 479 cases |
-| **Document summarisation** | Understand a court document gives a plain-language brief | Insights and page-cited chat on the lawyer's own file | Intake summaries and field extraction, verified against the source |
-| **Legal aid access** | Eligibility check and a drafted application | Insights give a lawyer the facts and issues for a legal-aid or release application | Alerts for people held past the Section 479 threshold, with a drafted application for a lawyer to approve |
-| **Scheduling efficiency** | Knowing what an order says and what to do next | Studio produces paper-books that are ready on time | Conflict-free cause list sized by adjournment risk |
+| **Case triage** | Understand a legal problem sorts a situation into a category and points to the right law and office | Insights surface the issues and facts in a file | Rule-based 0-100 priority with the reasons on every row; one-click queues (custody and bail, Section 479, missed listing deadlines, statutory time limits, 10+ year old cases); Undertrial Watch |
+| **Document summarisation** | Understand a court document gives a plain-language brief | Insights and page-cited chat on the lawyer's own file | Intake summaries and field extraction with page references; extracted facts kept apart from generated text |
+| **Legal aid access** | Eligibility check and a drafted application | Insights give a lawyer the facts and issues for a legal-aid or release application | Alerts for people held past the Section 479 mark, with a drafted application for a lawyer to approve |
+| **Scheduling efficiency** | Knowing what an order says and what to do next | Studio produces paper-books that are ready on time | Bench-time check before drafting; conflict-free weekly cause list sized by adjournment risk; must-list matters first; registrar approval; court diary feeding outcomes back |
 
 | Door | Feature | What it does | What it eases | How impact is measured |
 |---|---|---|---|---|
@@ -56,11 +56,15 @@ NyayaVedika is a set of AI agents and a lawyer workbench with three doors. Every
 | **Advocate** `/advocate` (lawyer token) | Document Studio | Merge, split into volumes, reorder, rotate, remove pages, OCR, bookmarks, clickable index, page numbers, all in memory | Hand-assembling paper-books in several desktop tools | Pages and operations per session |
 | | AI Document Insights | Issues, Facts, Background or Summary of a PDF, DOCX, text or image (up to 50 pages). Every point has a page number and a verbatim excerpt checked against the text | Hours of reading; unverifiable AI claims | Documents analysed, upload-to-result time |
 | | Chat with this document | Page-cited answers from the lawyer's own document only | Hunting through a file for one fact | Questions per session |
-| **Court staff** `/staff` | Intake and Docket | Reads case files and scores every pending case, with reasons | Manual sorting of the docket | Cases triaged |
-| | Cause list | Conflict-free weekly hearing list sized by adjournment risk; registrar approves | Clashes and adjourned hearings | Cases listed, conflicts avoided, critical wait gained |
-| | **Undertrial Watch** (nightly) | Computes the Section 479 threshold, itemises the arithmetic, drafts the release application; lawyer approves | Eligible people missed because nobody checked the date | People flagged, applications approved, custody days over the limit |
-| | Document summary, ADR routing, Insights tab | Briefs any document; routes suitable cases to Lok Adalat; weekly docket health | Reading time; cases that need not go to trial | Documents analysed, ADR candidates |
-| **All** | Feedback wall `/feedback` | Public ratings and notes from field users | Early activity and self-reported feedback; legal outcomes are not independently verified | Responses, average rating, share whose situation changed |
+| | **Undertrial applications** (Sec. 479 BNSS) | Shows each case with counsel on record, the custody arithmetic and the draft; counsel ticks a five-point verification checklist, then decides to file or records why not; then follows what the court did | Eligible people waiting because nobody decided to file | Decisions to file, reasons for not filing |
+| **Court staff** `/staff` | Daily desk | First-visit guide to the whole flow; triage and scheduling panels; court diary to record heard / adjourned (reason, next date) / disposed / not reached | Not knowing where to start; next dates never updated after a sitting | Proceedings recorded, earlier hearings left unrecorded |
+| | 1 · Intake | Reads case files, extracts facts with page references, flags uncertain details | Re-typing case details; papers sitting unread | Files processed, details corrected |
+| | **2 · Case triage** | Scores every pending case 0-100 by fixed rules, shows the biggest reasons on the row and why the case needs a person; uploaded cases always above demo data | Manual sorting of the docket; urgent matters buried | Cases triaged, Critical cases not yet listed |
+| | **3 · Efficient scheduling** | Checks bench time against waiting work, drafts a conflict-free week (must-list first), shows readiness notes and a one-paragraph summary; registrar approves; prints under listing heads | Clashes, overloaded days, cases left out week after week | Cases listed, carried over and why, Critical wait versus oldest-first |
+| | **Undertrial Watch** (nightly) | Computes the Section 479 mark, itemises the arithmetic, flags blockers, drafts the application. Counsel decides to file (Advocate portal); the registry records filing, hearing, the court's order and release; only the court decides | Eligible people missed because nobody checked the date | People flagged, applications filed, release orders recorded |
+| | Document summary | Briefs any document without creating a case | Reading time | Documents analysed |
+| **All** | Feedback wall `/feedback` | Public ratings and short notes | Quick sentiment | Responses, average rating |
+| **All** | **Impact report** `/impact-report` | A 5-minute form for advocates, legal-aid lawyers, court staff, para-legal volunteers, law students and citizens: what they used, time without and with NyayaVedika, accuracy, concrete outcome. Professionals give details the team can check (Bar Council enrolment, law school); reports count only after a staff user verifies them | Unverifiable claims of impact | Verified reports, median time saved, outcomes |
 
 ```mermaid
 flowchart LR
@@ -75,6 +79,7 @@ flowchart LR
     UW --> G1{{"Lawyer approves"}}
     RA --> G2{{"Registrar approves"}}
     Agents["All agents"] --> IMP["Impact log + feedback wall"]
+    U["Field users"] --> IR["Impact report /impact-report"] --> G3{{"Staff verify"}}
 ```
 
 **Why the design works**
@@ -84,6 +89,24 @@ flowchart LR
 - **Grounded outputs.** Briefs are verified against the source. Insights need a page and a checked excerpt. Chat cites a page for every statement.
 - **Privacy.** Phone, email, Aadhaar and PAN numbers are masked before text reaches any model, index or web search. Web search is limited to official domains. Advocate workspaces use random tokens stored only as SHA-256 hashes.
 - **Works without keys.** With no API key the app runs offline on rules.
+
+## How the court staff desk works
+
+The staff door is built around **case triage** and **efficient scheduling**.
+
+- **Start here.** A first-visit guide explains the whole flow. Tabs follow it: 1 · Intake, 2 · Triage, 3 · Scheduling. Every screen opens with what to do there and a link to the next step.
+- **Today.** A triage panel (pending matters by band, and the top cases with no hearing slot, each with its reason) and a scheduling panel (next week's bench time against the waiting work) lead the page.
+- **Triage.** One-click queues: custody and bail, past the Section 479 mark, Critical not yet listed, missed listing deadlines, left out of three lists in a row, statutory time limits, pending 10+ years, details to verify. Every row shows its biggest score reasons and, in plain words, why it needs a person. The view exports to CSV.
+- **Scheduling.** A bench-time check before drafting; saved drafts that can be reopened or rejected with a reason; readiness notes (custody production, details to verify); an "In short" summary for the Registrar; confirmation before publishing; and a court-format print view under the usual listing heads.
+- **Court diary.** After each sitting, staff record heard / adjourned (reason and next date) / disposed / not reached. Outcomes feed back into how much time the next list allows.
+- **Real cases first.** Uploaded and imported cases are always listed above synthetic demo data.
+
+**Undertrial Watch follows who holds each power under Section 479 BNSS.**
+- Court staff record counsel on record from the DLSA assignment letter or a vakalatnama.
+- Counsel decides whether to file, in the Advocate portal's *Undertrial applications* tab, after a five-point verification checklist.
+- Court staff record the filing, the hearing, the court's order (release on bail or on bond, or continued detention, with the order date) and release from custody.
+- Only the court decides release. The server refuses a step from the wrong role, and every step is kept with who recorded it and when.
+- The draft application asks for release on bail or on bond, as the section provides.
 
 ## How we used AgentFoundry (AF)
 
@@ -131,6 +154,20 @@ Every case has at least two parties, plus families and witnesses, so the people 
 The cycle reinforces itself. The people not identified are the least able to find a lawyer (only 7.91% of undertrials used free legal aid in 2016–19), and each missed release adds to the overcrowding that makes the next review harder. The largest costs, to households and public trust, are also the least measured, so **we put no number on the ripples** beyond the custody floor above. Full evidence tables are in [docs/RESEARCH_EVIDENCE.md](docs/RESEARCH_EVIDENCE.md).
 
 ## Proven impact
+
+### How we prove it: verified field reports
+
+Activity counts show use, not impact. So every person who uses NyayaVedika on real work is asked to file an **impact report** at [`/impact-report`](https://nyayavedika.delightfulmushroom-95327f3a.koreacentral.azurecontainerapps.io/impact-report) (role-specific links such as `/impact-report?role=advocate`). Each report records:
+
+- **who** reported, privately: an advocate gives their law school, and may add an enrolment number, the courts practised in and work experience; court staff may add a designation. These details are only for checking that the person is real; they are never published or sent to a model;
+- **what** they used it on (a real matter, a sample, or a trial run) and how often;
+- **before and after:** minutes for the same task without and with NyayaVedika, estimated or timed;
+- **accuracy:** whether they checked the output against the original papers, and errors found;
+- **the concrete outcome:** an application filed, legal aid obtained, a fact found that would have been missed, a list prepared faster.
+
+A staff user verifies each report on the review desk (`/impact-report/review`), for example against the Bar Council roll, and writes down what was checked. **Only verified reports are counted**, and a person's words are quoted only with their permission.
+
+### Product activity snapshot
 
 **Status:** NyayaVedika is live and in early field use. The figures below are a measured product-activity snapshot, not a claim of verified legal outcomes. The [public metrics dashboard](https://nyayavedika.delightfulmushroom-95327f3a.koreacentral.azurecontainerapps.io/metrics) is the live source; see [docs/RESEARCH_EVIDENCE.md](docs/RESEARCH_EVIDENCE.md) for definitions, caveats and the full evidence.
 
@@ -190,7 +227,7 @@ python server.py                    # http://127.0.0.1:8000
 python -m unittest discover -s tests
 ```
 
-Open `/citizen`, `/advocate` or `/staff`. Add `AZURE_OPENAI_*`, `PINECONE_API_KEY` and `TAVILY_API_KEY` to `.env` to switch on the LLM, vector search (needed for document chat) and web search. For Docker Compose, configure the database settings in `.env` as described at the top of `docker-compose.yml`. Scanned pages need Tesseract with language packs (`apt install tesseract-ocr tesseract-ocr-hin tesseract-ocr-tel`). `docker compose up --build` runs the full stack.
+Open `/citizen`, `/advocate` or `/staff` (the staff desk opens with a short guide on the first visit). Share `/impact-report?role=advocate` (or `legal_aid_lawyer`, `court_staff`, `paralegal`, `law_student`, `citizen`) to collect field evidence, and verify reports at `/impact-report/review` with the staff token. Add `AZURE_OPENAI_*`, `PINECONE_API_KEY` and `TAVILY_API_KEY` to `.env` to switch on the LLM, vector search (needed for document chat) and web search. For Docker Compose, configure the database settings in `.env` as described at the top of `docker-compose.yml`. Scanned pages need Tesseract with language packs (`apt install tesseract-ocr tesseract-ocr-hin tesseract-ocr-tel`). `docker compose up --build` runs the full stack.
 
 ## Known limits
 
@@ -200,6 +237,8 @@ Open `/citizen`, `/advocate` or `/staff`. Add `AZURE_OPENAI_*`, `PINECONE_API_KE
 - Document chat needs Pinecone and the language model. Studio takes PDFs only, and Insights are capped at 50 pages.
 - Poverty can still block release when a court has ordered it, for example when no surety can be found.
 - Outputs are legal information for a lawyer to review, not legal advice. Nothing is filed without a human decision.
+- Scheduling does not replace the court's own listing practice: timings are estimates, the Presiding Officer decides the order of calling, and nothing is listed until the registrar publishes.
+- Impact reports hold identity details for verification. Keep the staff token and the CSV export private; delete a report when its author asks.
 
 ## Licence
 

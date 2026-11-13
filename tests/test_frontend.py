@@ -110,6 +110,22 @@ class StaffApiTests(SeededDb):
             over = [a["days_over_limit"] for a in rows if a["source"] == source]
             self.assertEqual(over, sorted(over, reverse=True))
 
+    def test_legacy_alerts_receive_the_verification_checklist(self):
+        from nyayavedika.agents.undertrial_watch import CHECKLIST
+
+        with store.connect() as db:
+            alert_id = db.insert("alerts", [{
+                "case_id": "UT/LEGACY-CHECKLIST-TEST",
+                "kind": "undertrial_release",
+                "status": "pending",
+                "details": {},
+                "draft": "test draft",
+            }], returning="id")
+            db.commit()
+            alert = next(row for row in staff_api.alerts(db, "all")["alerts"] if row["id"] == alert_id)
+
+        self.assertEqual(alert["details"]["checklist"], CHECKLIST)
+
     def test_weekly_numbers(self):
         with store.connect() as db:
             w = staff_api.weekly(db)
@@ -183,6 +199,32 @@ class DevServerTests(SeededDb):
             for src in re.findall(rb'(?:src|href)="(/static/[^"]+)"', body):
                 self.assertEqual(self.call(src.decode())[0], 200, src)
         self.assertEqual(self.call("/static/../server.py")[0], 404)
+
+    def test_court_diary_and_saved_cause_lists_over_http(self):
+        self.assertEqual(self.call("/api/hearings", token="t-lawyer")[0], 403)
+        self.assertEqual(self.call("/api/hearings?start=not-a-date", token="t-staff")[0], 400)
+        status, _, body = self.call("/api/cause-lists/draft", "POST", {"start_date": "2026-11-16", "days": 5}, token="t-staff")
+        self.assertEqual(status, 200)
+        draft = json.loads(body)
+        self.assertIn("readiness", draft)
+        lists = json.loads(self.call("/api/cause-lists", token="t-staff")[2])["lists"]
+        self.assertIn(draft["cause_list_id"], [l["id"] for l in lists])
+        view = json.loads(self.call(f"/api/cause-lists/{draft['cause_list_id']}/view", token="t-staff")[2])
+        self.assertEqual(view["status"], "draft")
+        self.assertEqual(self.call("/api/cause-lists/999999/view", token="t-staff")[0], 404)
+        self.assertEqual(self.call(f"/api/cause-lists/{draft['cause_list_id']}/publish", "POST", {}, token="t-staff")[0], 200)
+        pv = json.loads(self.call("/api/scheduling/preview?start=2026-11-23", token="t-staff")[2])
+        self.assertIn("verdict", pv)
+        self.assertEqual(self.call("/api/scheduling/preview", token="t-lawyer")[0], 403)
+        board = json.loads(self.call("/api/hearings?start=2026-11-16&days=5", token="t-staff")[2])
+        self.assertTrue(board["hearings"])
+        h = board["hearings"][0]
+        bad = self.call(f"/api/hearings/{h['hearing_id']}/outcome", "POST",
+                        {"outcome": "adjourned", "next_date": h["hearing_date"]}, token="t-staff")
+        self.assertEqual(bad[0], 400)
+        ok = self.call(f"/api/hearings/{h['hearing_id']}/outcome", "POST",
+                       {"outcome": "adjourned", "reason": "Witness not present", "next_date": "2026-12-21"}, token="t-staff")
+        self.assertEqual((ok[0], json.loads(ok[2])["next_date"]), (200, "2026-12-21"))
 
     def test_dev_api_counts_public_reach_and_distinct_feature_browsers(self):
         first_id, second_id = str(uuid.uuid4()), str(uuid.uuid4())
@@ -281,7 +323,7 @@ class StaticContentTests(unittest.TestCase):
         self.assertIn(".home-link {", advocate_style)
         self.assertIn('<a class="portal-home" href="/">Home</a>', staff_html)
         self.assertIn("body.staff-page > .top > .portal-home", staff_style)
-        self.assertIn("styles.css?v=16", staff_html)
+        self.assertIn("styles.css?v=19", staff_html)
 
     def test_theme_is_light_by_default_and_manually_toggleable_on_every_page(self):
         pages = ("index.html", "citizen.html", "staff.html", "advocate.html",
@@ -323,7 +365,7 @@ class StaticContentTests(unittest.TestCase):
         self.assertIn("summarize_result_heading", strings["en"])
         self.assertIn("summarize_reader_note", strings["en"])
         html = (STATIC / "citizen.html").read_text(encoding="utf-8") + (STATIC / "citizen.js").read_text(encoding="utf-8")
-        self.assertIn("citizen.js?v=17", html)
+        self.assertIn("citizen.js?v=18", html)
         used = set(re.findall(r'data-t[pa]?="([a-z_]+)"', html)) | set(re.findall(r'\bt\("([a-z_]+)"\)', html))
         self.assertFalse(used - set(strings["en"]), used - set(strings["en"]))
 
@@ -350,20 +392,24 @@ class StaticContentTests(unittest.TestCase):
         self.assertIn("verification.unverified?.length", script)
         self.assertIn("result.low_confidence_pages?.length", script)
         self.assertIn("common.js?v=14", html)
-        self.assertIn("staff.js?v=26", html)
+        self.assertIn("staff.js?v=32", html)
 
     def test_staff_daily_desk_explains_the_routine_and_case_flow(self):
         html = (STATIC / "staff.html").read_text(encoding="utf-8")
         script = (STATIC / "staff.js").read_text(encoding="utf-8")
-        routine_tabs = re.findall(r'data-workflow-tab="([^"]+)"', html)
-        self.assertEqual(routine_tabs, ["undertrial", "intake", "docket", "cause"])
+        # the first-visit guide walks the whole flow in order, then the daily custody check
+        guide = html[html.index('id="staffGuide"'):html.index('id="todoList"')]
+        self.assertEqual(re.findall(r'data-workflow-tab="([^"]+)"', guide), ["intake", "docket", "cause", "diary", "undertrial"])
         self.assertIn("processed cases move to the Docket", html)
         self.assertIn("Prepare a weekly draft, check it, then publish", html)
         self.assertIn('if (tab === "docket") setDocketFilters({});', script)
+        self.assertIn("nyayavedika_staff_guide_seen", script)          # opens by itself only on a first visit
+        self.assertLess(html.index('id="triageFocus"'), html.index('id="diaryCard"'))   # triage and scheduling lead Today
+        self.assertLess(html.index('id="schedFocus"'), html.index('id="diaryCard"'))
         tabs = re.findall(r'<button class="tab[^"]*" data-tab="([^"]+)"[^>]*>([^<]+)</button>', html)
         self.assertEqual(tabs, [
-            ("today", "Today"), ("intake", "Intake"), ("docket", "Docket"),
-            ("cause", "Cause list"), ("summary", "Document summary"), ("undertrial", "Undertrial"),
+            ("today", "Today"), ("intake", "1 · Intake"), ("docket", "2 · Triage (Docket)"),
+            ("cause", "3 · Scheduling (Cause list)"), ("summary", "Document summary"), ("undertrial", "Undertrial"),
         ])
 
     def test_citizen_has_four_capabilities_and_safe_legal_research_rendering(self):
@@ -385,7 +431,7 @@ class StaticContentTests(unittest.TestCase):
         script = (STATIC / "advocate.js").read_text(encoding="utf-8")
         style = (STATIC / "advocate.css").read_text(encoding="utf-8")
         tabs = re.findall(r'data-advocate-tab="([^"]+)"', html)
-        self.assertEqual(tabs, ["studio", "insights"])
+        self.assertEqual(tabs, ["studio", "insights", "undertrial"])
         for operation in ("merge", "split", "reorder", "rotate", "remove", "ocr", "bookmarks", "index", "page_numbers"):
             self.assertIn(f'<option value="{operation}"', html)
         for kind in ("issues", "facts", "background", "summary"):
@@ -404,8 +450,8 @@ class StaticContentTests(unittest.TestCase):
         self.assertIn('id="lawyerTokenHint" class="muted">Demo lawyer token: mourya', html)
         self.assertIn('lawyerTokenInput.value = "mourya";', script)
         self.assertIn('setToken("mourya");', script)
-        self.assertIn("advocate.js?v=13", html)
-        self.assertIn("advocate.css?v=11", html)
+        self.assertIn("advocate.js?v=16", html)
+        self.assertIn("advocate.css?v=13", html)
         self.assertIn(".file-list { list-style: none; padding: 0; margin: 10px 0 0; display: grid; gap: 6px; width: 100%; min-width: 0; max-width: 100%; }", style)
         self.assertIn(".auth { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; min-width: 0; max-width: 100%; }", style)
         self.assertIn(".chat-status {", style)
@@ -432,6 +478,10 @@ class StaticContentTests(unittest.TestCase):
         self.assertNotIn("Where this scores against the problem", html)
         self.assertNotIn("Measured in this session", html)
         self.assertNotIn("METRICS_KEY", script)
+        # counsel decides whether to file a Sec. 479 application here; court events are recorded in the staff portal
+        self.assertIn('id="advocate-undertrial"', html)
+        self.assertIn('"/api/alerts/decide"', script)
+        self.assertNotIn("/state`", script)
 
     def test_demo_banner_and_no_colour_only_bands(self):
         common = (STATIC / "common.js").read_text(encoding="utf-8")

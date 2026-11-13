@@ -34,6 +34,10 @@ POLICY = {
     "PATCH /api/cases/{case_id:path}": (STAFF,),
     "POST /api/cause-lists/draft": (STAFF,),
     "GET /api/cause-lists/{cause_list_id}": (STAFF,),
+    "GET /api/cause-lists": (STAFF,),
+    "GET /api/cause-lists/{cause_list_id}/view": (STAFF,),
+    "GET /api/hearings": (STAFF,),
+    "GET /api/scheduling/preview": (STAFF,),
     "POST /api/cause-lists/{cause_list_id}/publish": (STAFF,),
     "POST /api/cause-lists/{cause_list_id}/reject": (STAFF,),
     "POST /api/cases/{case_id:path}/accept-slot": (STAFF,),
@@ -58,6 +62,7 @@ POLICY = {
     "POST /api/alerts/decide": (LAWYER,),
     "POST /api/alerts/{alert_id}/state": COURT,   # lawyer decides; staff may record filed / heard / outcome
     "GET /api/alerts/data-needed": COURT,
+    "POST /api/alerts/{alert_id}/counsel": (STAFF,),   # the registry records counsel on record; nobody self-assigns
     "POST /api/legal-aid/{request_id}/outcome": COURT,
     # everyone: legal-aid check, assistant (agent chosen by role), feedback
     "POST /api/legal-problem/research": (CITIZEN,),
@@ -77,7 +82,7 @@ POLICY = {
     "GET /api/legal-aid/topics": ALL_ROLES,
     "GET /api/legal-aid/state-fact": ALL_ROLES,
     "GET /api/alerts/{alert_id}/release.docx": COURT,
-    "GET /api/alerts/{alert_id}/superintendent.docx": COURT,
+    "GET /api/alerts/{alert_id}/superintendent.docx": (STAFF,),
     "POST /api/agent/chat": ALL_ROLES,
     "POST /api/agent/chat/files": ALL_ROLES,
     "POST /api/agent/resume": ALL_ROLES,
@@ -87,8 +92,14 @@ POLICY = {
     "GET /api/field-feedback/all": ALL_ROLES,
     "POST /api/field-feedback": ALL_ROLES,
     "POST /api/field-feedback/{feedback_id}/hide": (STAFF,),
+    # impact evidence reports: anyone may submit through the shared link; only staff see identities and verify
+    "GET /api/impact-reports": (STAFF,),
+    "GET /api/impact-reports/summary": (STAFF,),
+    "GET /api/impact-reports/export.csv": (STAFF,),
+    "POST /api/impact-reports/{report_id}/verify": (STAFF,),
 }
-PUBLIC = {"GET /api/health", "POST /api/reach/{door}", "DELETE /api/reach", "GET /api/demo/metrics"}
+PUBLIC = {"GET /api/health", "POST /api/reach/{door}", "DELETE /api/reach", "GET /api/demo/metrics",
+          "GET /api/impact-reports/options", "POST /api/impact-reports"}
 
 
 @dataclass(frozen=True)

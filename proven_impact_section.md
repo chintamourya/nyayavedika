@@ -89,11 +89,34 @@ We do not compare our volume with national volume. A pilot of 50 checks against 
 **6b. Direct cost effect of earlier release (Estimate).** The state spends about ₹4,195 per inmate per month (Derived from NCRB FY 2023-24). For every **100** people a lawyer confirms as eligible and who are released **3 months earlier**, the direct custody cost avoided is 100 × 3 × ₹4,195 = **about ₹12.6 lakh** (Derived). This excludes lost wages, family cost and overcrowding, and counts only people actually released after lawyer review. Today **1** release application has been approved, so we do not claim this saving yet; we show the formula so a district can apply it to its own numbers.
 
 
-### 7. Limits of this evidence
+### 7. Verified field reports (fill in from `/impact-report/review`)
+
+Collected through the impact report form (`/impact-report`). Only reports a staff user has verified are counted below; copy the numbers from the review desk or `GET /api/impact-reports/summary`.
+
+| Measure (verified reports only) | Value |
+|---|---|
+| Verified reports (pending / rejected shown separately) | |
+| Verified professionals (advocates, legal-aid lawyers, court staff, para-legal volunteers, law students) | |
+| Reports on real matters | |
+| Median minutes for the task: without → with NyayaVedika (n pairs, of which timed) | |
+| Median share of time saved | |
+| Total hours saved | |
+| Documents / pages / cases or people helped | |
+| Outputs checked against the original that matched | |
+| Outcomes: applications filed, legal aid obtained, facts found that would have been missed, lists prepared faster | |
+| Average usefulness (1-5) / will keep using it | |
+
+Quotes (verified, with the author's permission):
+
+> 
+
+How reports were verified: _e.g. enrolment numbers checked on the State Bar Council roll; replies received from the email address given._
+
+### 8. Limits of this evidence
 
 - Activity is not outcome. Requests, visits and drafts show use, not that anyone was released or got a lawyer.
 - Feedback is voluntary, self-reported and small.
 - Nothing is filed without a human decision, so "applications drafted" is not "applications filed".
 - Seeded demo data is labelled and excluded from the reach figures above.
 - Benchmarks are national averages from public sources.
-- The before/after in 8a and 8b is a model with stated assumptions. 
+- The before/after in 6a and 6b is a model with stated assumptions; section 7 holds the verified field reports.

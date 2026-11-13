@@ -61,7 +61,7 @@ def api_feature(route_path: str, method: str = "GET", door: str = "unknown") -> 
     """Map a FastAPI route template to a user-facing tool name, never a request URL."""
     parts = route_path.strip("/").split("/")
     if len(parts) < 2 or parts[0] != "api" or parts[1] in {
-        "health", "impact", "feedback", "field-feedback", "whoami"
+        "health", "impact", "feedback", "field-feedback", "whoami", "impact-reports"
     }:
         return None
     root = parts[1]

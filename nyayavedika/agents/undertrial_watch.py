@@ -21,9 +21,34 @@ from .. import config, impact, llm, store, triage
 
 logger = logging.getLogger(__name__)
 NEAR_THRESHOLD_PERCENT = config.NEAR_THRESHOLD_PERCENT
-OPEN = ("pending", "approved", "filed", "heard")
-TRANSITIONS = {"pending": {"approved", "dismissed"}, "approved": {"filed", "dismissed"}, "filed": {"heard"},
-               "heard": {"released", "denied"}, "released": set(), "denied": set(), "dismissed": set()}
+# The Sec. 479 BNSS path as it runs in an Indian court, and who holds each power:
+#   pending          the watch found custody past the one-third / one-half mark (the jail superintendent must also
+#                    apply under Sec. 479(3); the Under Trial Review Committee reviews such cases)
+#   approved         COUNSEL for the undertrial (usually a DLSA legal-aid lawyer) decides to file the application
+#   dismissed        counsel decides not to file, with a reason (e.g. another detaining case; not a first offence)
+#   filed            the court REGISTRY records the application as registered (petition number, if any)
+#   heard            the court heard it (the Public Prosecutor is heard before any order)
+#   release_ordered  the COURT ordered release - on bail (one-half), or on bond (first-time offender, one-third)
+#   denied           the COURT ordered continued detention, with reasons recorded in writing
+#   released         released from custody after the bail / bond was furnished and accepted
+# Only counsel decides whether to file; only the court decides release; court staff record what the court did.
+OPEN = ("pending", "approved", "filed", "heard", "release_ordered")   # the person is still in custody
+TRANSITIONS = {"pending": {"approved", "dismissed"}, "approved": {"filed", "dismissed"},
+               "filed": {"heard", "release_ordered", "denied"},    # an order can come at the first listing
+               "heard": {"release_ordered", "denied"}, "release_ordered": {"released"},
+               "released": set(), "denied": set(), "dismissed": set()}
+COUNSEL_STEPS = ("approved", "dismissed")                                  # counsel's decision
+REGISTRY_STEPS = ("filed", "heard", "release_ordered", "denied", "released")   # recorded by court staff
+STEP_ROLES = {**{s: ("lawyer",) for s in COUNSEL_STEPS}, **{s: ("staff",) for s in REGISTRY_STEPS}}
+NOTE_REQUIRED = {"release_ordered": "Record the court's order: on bail or on bond, and the order date",
+                 "denied": "Record the order date and that reasons for continued detention were recorded by the court"}
+STEP_LABEL = {"approved": "counsel decided to file", "dismissed": "counsel decided not to file",
+              "filed": "application registered", "heard": "heard by the court",
+              "release_ordered": "court ordered release", "denied": "court ordered continued detention",
+              "released": "released from custody"}
+# kept for callers written against the earlier names
+LAWYER_DECISIONS = COUNSEL_STEPS
+LAWYER_DECIDES_ROLES = ("lawyer",)
 CHECKLIST = [
     "Custody period taken from the custody certificate / remand orders [to be verified]",
     "Offence not punishable with death or imprisonment for life [check the charge, not only the FIR]",
@@ -56,20 +81,22 @@ accused (or [to be verified]), and pray for release on personal bond with or wit
 def _template(c: dict) -> str:
     ut = c["release_check"]
     notes = "".join(f"\n[LAWYER NOTE: {n}]" for n in ut.get("needs_review") or [])
+    # Sec. 479(1): release on bail after one-half; a first-time offender on bond after one-third
+    relief = "ON BOND" if c.get("first_time_offender") else "ON BAIL" if c.get("first_time_offender") is False else "ON BAIL / BOND"
     return f"""IN THE COURT OF [court name]
 {c['case_id']}
 State v. [name of accused]
 
-APPLICATION UNDER SECTION 479 OF THE BHARATIYA NAGARIK SURAKSHA SANHITA, 2023 FOR RELEASE ON BOND
+APPLICATION UNDER SECTION 479 OF THE BHARATIYA NAGARIK SURAKSHA SANHITA, 2023 FOR RELEASE {relief}
 
 1. That the applicant/accused has been in judicial custody since {c.get('custody_since')}, i.e. for {ut['custody_days']} days.
 2. That the maximum punishment for the offence alleged ({c.get('act', '[Act]')} s.{c.get('section', '[section]')}) is {c.get('max_sentence_years')} years and the offence is not punishable with death or imprisonment for life.
-3. That the applicant has undergone detention exceeding {ut.get('basis') or ('one-third' if c.get('first_time_offender') else 'one-half')} of the maximum period ({ut['threshold_days']} days), and is entitled to release under Section 479 BNSS.
+3. That the applicant has undergone detention exceeding {ut.get('basis') or ('one-third' if c.get('first_time_offender') else 'one-half')} of the maximum period ({ut['threshold_days']} days), and is liable to be released under Section 479 BNSS.
 4. That the delay in trial is not attributable to the applicant [to be verified from the order sheet].
 5. That no other case is pending against the applicant in which he/she is detained [to be verified].{notes}
 
 PRAYER
-It is therefore prayed that this Hon'ble Court may be pleased to release the applicant on personal bond, with or without sureties, and pass such other orders as deemed fit.
+It is therefore prayed that this Hon'ble Court may be pleased to release the applicant {"on bond" if c.get("first_time_offender") else "on bail"} under Section 479 BNSS, on personal bond with or without sureties, and pass such other orders as deemed fit.
 
 [Legal Aid Counsel]                                                    Place: [ ]  Date: [ ]
 (Draft for a lawyer's review - legal information, not legal advice. Word copy: GET /api/alerts/<id>/release.docx)
@@ -175,7 +202,16 @@ def run_scan(db=None, court_id: Optional[str] = None, case_ids: Optional[List[st
 # ----------------------------------------------------------------------------- lawyer decisions
 def advance_alert(alert_id: int, to_status: str, actor: str = "", role: str = "", note: Optional[str] = None,
                   reason: Optional[str] = None, snooze_until: Optional[str] = None, db=None) -> dict:
-    """Move an alert along pending -> approved -> filed -> heard -> released | denied (or dismissed)."""
+    """Move an alert one step along the Sec. 479 path (see TRANSITIONS above).
+    Counsel (lawyer role) decides whether to file; court staff record what the court did. A role may only take its
+    own steps; an internal call without a role (the watch graph's resume) is trusted."""
+    if role and to_status in STEP_ROLES and role not in STEP_ROLES[to_status]:
+        raise PermissionError(
+            "Only counsel for the undertrial (the legal-aid lawyer) decides whether to file the application."
+            if to_status in COUNSEL_STEPS else
+            "Court events - registration, hearing, the court's order and release - are recorded by court staff.")
+    if to_status in NOTE_REQUIRED and not (note or "").strip():
+        raise ValueError(NOTE_REQUIRED[to_status])
     with store._session(db) as s:
         rows = s.select("alerts", {"id": int(alert_id)})
         if not rows:
@@ -185,7 +221,13 @@ def advance_alert(alert_id: int, to_status: str, actor: str = "", role: str = ""
             raise ValueError(f"An alert that is '{current}' cannot become '{to_status}'")
         if to_status == "dismissed" and not (reason or "").strip():
             raise ValueError("Dismissing needs a reason")
-        values = {"status": to_status, "decided_at": _now(), "decision_note": note}
+        details = dict(rows[0].get("details") or {})
+        if role == "lawyer" and to_status in COUNSEL_STEPS and not has_counsel_on_record(rows[0]):
+            raise PermissionError("The court registry must record counsel on the alert before counsel can decide.")
+        details["steps"] = list(details.get("steps") or []) + [
+            {"status": to_status, "at": _now(), "by": actor or "system", "role": role or "system",
+             "note": (note or reason or "").strip()[:500] or None}]
+        values = {"status": to_status, "decided_at": _now(), "decision_note": note, "details": details}
         if to_status == "dismissed":
             values.update(dismiss_reason=reason.strip(), snooze_until=snooze_until)
         if actor:
@@ -193,15 +235,62 @@ def advance_alert(alert_id: int, to_status: str, actor: str = "", role: str = ""
         s.update("alerts", {"id": int(alert_id)}, values)
         if actor:
             store.audit(actor, role, f"alert_{to_status}", f"alert:{alert_id}",
-                        {"from": current, "reason": reason, "snooze_until": snooze_until}, db=s)
+                        {"from": current, "reason": reason, "note": note, "snooze_until": snooze_until}, db=s)
         s.commit()
     if to_status == "approved":
         impact.record("release_application_approved")
     return {"alert_id": int(alert_id), "status": to_status}
 
 
+COUNSEL_BASIS = {"dlsa_assignment": "DLSA assignment letter (legal aid)", "vakalatnama": "Vakalatnama filed"}
+
+
+def has_counsel_on_record(alert: dict) -> bool:
+    counsel = ((alert.get("details") or {}).get("counsel") or {})
+    return bool(str(counsel.get("name") or "").strip())
+
+
+def require_counsel_for_decisions(decisions: Dict, role: str, db=None) -> None:
+    if role != "lawyer":
+        return
+    with store._session(db) as s:
+        for alert_id in decisions:
+            rows = s.select("alerts", {"id": int(alert_id)})
+            if not rows:
+                raise LookupError(f"No alert {alert_id}")
+            if not has_counsel_on_record(rows[0]):
+                raise PermissionError("The court registry must record counsel on the alert before counsel can decide.")
+
+
+def assign_counsel(alert_id: int, name: str, basis: str, reference: str = "", actor: str = "", role: str = "",
+                   db=None) -> dict:
+    """Court staff record counsel on record for the person, from the DLSA assignment letter or a vakalatnama -
+    the documents that link a lawyer to a case in court. NyayaVedika does not appoint anyone. Replaces any earlier
+    entry (counsel can change); every change is in the audit log."""
+    name = " ".join(str(name or "").split())[:120]
+    reference = " ".join(str(reference or "").split())[:120]
+    if len(name) < 3:
+        raise ValueError("Give counsel's name as on the assignment letter or vakalatnama")
+    if basis not in COUNSEL_BASIS:
+        raise ValueError(f"basis must be one of: {', '.join(COUNSEL_BASIS)}")
+    with store._session(db) as s:
+        rows = s.select("alerts", {"id": int(alert_id)})
+        if not rows:
+            raise LookupError(f"No alert {alert_id}")
+        details = dict(rows[0].get("details") or {})
+        counsel = {"name": name, "basis": basis, "basis_label": COUNSEL_BASIS[basis], "reference": reference or None,
+                   "recorded_at": _now(), "recorded_by": actor or "system"}
+        details["counsel"] = counsel
+        s.update("alerts", {"id": int(alert_id)}, {"details": details})
+        store.audit(actor, role, "alert_counsel_recorded", f"alert:{alert_id}",
+                    {"name": name, "basis": basis, "reference": reference or None}, db=s)
+        s.commit()
+    return {"alert_id": int(alert_id), "counsel": counsel}
+
+
 def decide_alerts(decisions: Dict, actor: str = "", role: str = "", db=None) -> int:
     """decisions: {alert_id: {"approve": bool, "note": str, "reason": str, "snooze_until": "YYYY-MM-DD"}}"""
+    require_counsel_for_decisions(decisions, role, db)
     for aid, d in decisions.items():
         advance_alert(int(aid), "approved" if d.get("approve") else "dismissed", actor, role, note=d.get("note"),
                       reason=d.get("reason") or (d.get("note") if not d.get("approve") else None),

@@ -6,7 +6,7 @@
 <meta name="theme-color" content="#0866ff">
 <title>NyayaVedika - Staff</title>
 <link rel="icon" href="/static/favicon.svg?v=3" type="image/svg+xml">
-<link rel="stylesheet" href="/static/styles.css?v=16">
+<link rel="stylesheet" href="/static/styles.css?v=19">
 </head>
 <body class="staff-page">
 <header class="top">
@@ -30,9 +30,9 @@
 
 <nav class="tabs" id="portalTabs" role="tablist" aria-label="Court staff screens">
   <button class="tab active" data-tab="today" role="tab" data-court title="Start here for today's priorities and the daily routine">Today</button>
-  <button class="tab" data-tab="intake" role="tab" data-staff title="Step 1: send case files; they are read, scored and become cases">Intake</button>
-  <button class="tab" data-tab="docket" role="tab" data-staff title="Step 2: every pending case with its priority score and why">Docket</button>
-  <button class="tab" data-tab="cause" role="tab" data-staff title="Step 3: build, check and publish the weekly hearing list">Cause list</button>
+  <button class="tab" data-tab="intake" role="tab" data-staff title="Step 1: receive papers; they are read, facts extracted and turned into cases">1 · Intake</button>
+  <button class="tab" data-tab="docket" role="tab" data-staff title="Step 2: case triage - every pending matter ranked by fixed, explainable rules">2 · Triage (Docket)</button>
+  <button class="tab" data-tab="cause" role="tab" data-staff title="Step 3: efficient scheduling - draft, check and publish the weekly cause list">3 · Scheduling (Cause list)</button>
   <button class="tab" data-tab="summary" role="tab" data-court title="Read any one document without creating a case">Document summary</button>
   <button class="tab" data-tab="undertrial" role="tab" data-court title="People in custody past the Sec. 479 BNSS limit, and their release applications">Undertrial</button>
 </nav>
@@ -51,32 +51,81 @@
   </details>
   <!-- DAILY DESK: urgent work first, followed by the routine and case-flow overview -->
   <section id="tab-today" class="panel active" aria-label="Today">
-    <h2>Your daily desk</h2>
-    <p class="purpose">Start with anything urgent, then follow the routine below. Case flow: Intake → Docket → Hearing list.</p>
+    <div class="row between wrap"><h2>Your daily desk</h2>
+      <button class="btn ghost small" type="button" id="guideOpen" data-staff>How this desk works</button></div>
+    <p class="purpose">NyayaVedika's staff desk does two things first: <b>case triage</b> (which matters need the court soonest, and why)
+      and <b>efficient scheduling</b> (a weekly cause list that fits the bench time). Everything else feeds these two.</p>
+
+    <!-- FIRST VISIT: the whole flow on one card; opens by itself the first time, then stays one click away -->
+    <details class="card guide" id="staffGuide" data-staff>
+      <summary><b>How the Court Staff desk works</b> <span class="hint">· 4 steps, about a minute to read</span></summary>
+      <ol class="guide-flow" aria-label="Case flow">
+        <li class="guide-step">
+          <span class="guide-no">1</span><div><strong>Receive papers</strong>
+          <p>FIRs, charge sheets, petitions and orders go in through <b>Intake</b>. Each paper is read, its facts are extracted with
+            page references, and the processed cases move to the Docket.</p>
+          <p class="guide-who"><b>You:</b> upload, and fill in any detail marked "needs review".</p></div>
+          <button class="btn ghost small" type="button" data-workflow-tab="intake">Open Intake →</button></li>
+        <li class="guide-step focus">
+          <span class="guide-no">2</span><div><strong>Case triage</strong> <span class="focus-tag">Main focus</span>
+          <p>Every pending matter gets a 0-100 priority from fixed rules, never from the AI: custody and the Sec. 479 BNSS mark,
+            bail, time-bound statutes (e.g. Sec. 143 NI Act, DV Act), senior citizens, women and children, and how long the case
+            has waited. The band (Critical / High / Medium / Routine) sets how soon it must be listed.</p>
+          <p class="guide-who"><b>You:</b> check the cases at the top of the queue and correct any wrong fact; the score is recomputed.</p></div>
+          <button class="btn ghost small" type="button" data-workflow-tab="docket">Open Triage →</button></li>
+        <li class="guide-step focus">
+          <span class="guide-no">3</span><div><strong>Efficient scheduling</strong> <span class="focus-tag">Main focus</span>
+          <p>Prepare a weekly draft, check it, then publish. The draft lists must-list matters first (custody, bail, missed deadlines,
+            cases left out three times), fits each bench's sitting time allowing for likely adjournments, and never books an
+            advocate in two courts at once. Cases that do not fit are carried over and climb next week.</p>
+          <p class="guide-who"><b>You:</b> check the draft, move or hold a matter if needed; the Registrar approves and publishes.</p></div>
+          <button class="btn ghost small" type="button" data-workflow-tab="cause">Open Scheduling →</button></li>
+        <li class="guide-step">
+          <span class="guide-no">4</span><div><strong>Hear and record</strong>
+          <p>On the day, the <b>Court diary</b> below lists the matters. After the sitting, record heard / adjourned (reason and next
+            date) / disposed / not reached. Adjournments feed back into triage and into how much time the next list allows.</p>
+          <p class="guide-who"><b>You:</b> record proceedings; the court's order is always the authority.</p></div>
+          <button class="btn ghost small" type="button" data-workflow-tab="diary">Open Court diary →</button></li>
+      </ol>
+      <p class="guide-daily"><b>Every day, separately:</b> the <button class="linkish" type="button" data-workflow-tab="undertrial">Undertrial watch</button>
+        checks custody matters against Sec. 479 BNSS. You record counsel on record (from the DLSA letter or vakalatnama); counsel decides
+        whether to file; you record the filing, hearing and the court's order. NyayaVedika suggests and explains; the Registrar approves
+        lists, counsel decides on filing, and only the court decides release.</p>
+      <div class="row gap wrap"><button class="btn" type="button" id="guideStart">Start with triage →</button>
+        <button class="btn ghost" type="button" id="guideDone">Got it, hide this</button></div>
+    </details>
+
     <div class="card do-next"><h3>Needs attention now</h3><ol class="todo" id="todoList"><li class="hint">Sign in with your access token to load today's priorities.</li></ol></div>
-    <section class="card staff-routine" aria-labelledby="routineHeading">
-      <div class="staff-routine-heading"><div><h3 id="routineHeading">A simple daily routine</h3>
-        <p class="hint">Check custody alerts every day. For case work, move from Intake to Docket to the Hearing list.</p></div></div>
-      <div class="staff-routine-steps">
-        <button class="routine-step" type="button" data-workflow-tab="undertrial" data-court>
-          <span class="routine-step-label">Daily check</span><strong>Custody watch</strong>
-          <span>Review alerts and any missing custody details.</span><b>Open custody watch →</b>
-        </button>
-        <button class="routine-step" type="button" data-workflow-tab="intake" data-staff>
-          <span class="routine-step-label">1 · Receive</span><strong>Intake new papers</strong>
-          <span>Upload case papers; processed cases move to the Docket.</span><b>Open Intake →</b>
-        </button>
-        <button class="routine-step" type="button" data-workflow-tab="docket" data-staff>
-          <span class="routine-step-label">2 · Review</span><strong>Check the Docket</strong>
-          <span>Resolve missing details and review case priority.</span><b>Open Docket →</b>
-        </button>
-        <button class="routine-step" type="button" data-workflow-tab="cause" data-staff>
-          <span class="routine-step-label">3 · Schedule</span><strong>Plan hearings</strong>
-          <span>Prepare a weekly draft, check it, then publish.</span><b>Open Hearing list →</b>
-        </button>
+
+    <div class="focus-grid" data-staff>
+      <section class="card focus-card" id="triageFocus" aria-labelledby="triageFocusH">
+        <div class="focus-head"><span class="step-pill">Step 2</span><h3 id="triageFocusH">Case triage</h3></div>
+        <div id="triageFocusBody"><p class="hint">Loading the triage queue…</p></div>
+      </section>
+      <section class="card focus-card" id="schedFocus" aria-labelledby="schedFocusH">
+        <div class="focus-head"><span class="step-pill">Step 3</span><h3 id="schedFocusH">Scheduling - next week</h3></div>
+        <div id="schedFocusBody"><p class="hint">Checking next week's bench time…</p></div>
+      </section>
+    </div>
+    <section class="card diary" id="diaryCard" aria-labelledby="diaryHeading" data-staff>
+      <div class="diary-head">
+        <div><h3 id="diaryHeading">Court diary</h3>
+          <p class="hint">Matters on published cause lists for the chosen day. After each sitting, record what the court did:
+            heard, adjourned (with the next date), disposed or not reached. Nothing here changes a list or a date by itself.</p></div>
+        <div class="diary-nav" role="group" aria-label="Choose the day">
+          <button class="btn ghost small" type="button" id="diaryPrev" aria-label="Previous day">‹ Prev</button>
+          <input type="date" id="diaryDay" aria-label="Diary date">
+          <button class="btn ghost small" type="button" id="diaryNext" aria-label="Next day">Next ›</button>
+          <button class="btn ghost small" type="button" id="diaryToday">Today</button>
+        </div>
       </div>
-      <p class="hint routine-note">Need to understand just one paper? Use <b>Document summary</b> above; its summary is not saved as a case.</p>
+      <p class="diary-counts" id="diaryCounts" role="status" aria-live="polite"></p>
+      <div id="diaryBody"><p class="hint">Loading the diary…</p></div>
+      <details class="diary-backlog" id="diaryBacklogBox"><summary id="diaryBacklogH">Earlier hearings with no outcome recorded</summary>
+        <div id="diaryBacklog"></div></details>
     </section>
+    <p class="hint routine-note">Need to understand just one paper? Use <b>Document summary</b> above; its summary is not saved as a case.</p>
+    <h3>Other counts <span class="hint">· each tile opens the cases behind it</span></h3>
     <div class="kpis" id="todayKpis"></div>
     <p class="hint" id="todayMix"></p>
     <h3>Case-flow status <span class="hint">· live counts; select a step to open it</span></h3>
@@ -86,9 +135,12 @@
 
   <!-- INTAKE -->
   <section id="tab-intake" class="panel" aria-label="Intake">
-    <h2>Intake</h2>
-    <p class="purpose">Step 1 of the flow. Send FIRs, charge sheets, orders or petitions: each file is read, summarised,
+    <div class="step-head"><span class="step-pill">Step 1 of 3</span><h2>Intake - receive papers</h2></div>
+    <p class="purpose">Send FIRs, charge sheets, orders or petitions: each file is read, summarised,
       its facts extracted with page references, scored, and saved as a case on the Docket.</p>
+    <ul class="step-todo"><li>Upload the papers (or paste text) and say how they belong together.</li>
+      <li>Fill in any detail marked <b>needs review</b>; triage uses it.</li>
+      <li>Then go to <button class="linkish" type="button" data-workflow-tab="docket">Step 2 · Triage →</button></li></ul>
     <div data-how="intake"></div>
     <div class="card">
       <p class="hint" id="limitLine">Loading upload limits from the server…</p>
@@ -111,6 +163,7 @@
         <label><input type="radio" name="mode" value="existing_case"> Attach to case number <span class="hint">- a new order for a case already on the Docket</span></label>
         <input id="caseNumber" placeholder="case number, e.g. SC/2024/9" class="hidden">
       </fieldset>
+      <p class="hint" id="intakeCheck" role="status" aria-live="polite"></p>
       <button class="btn" id="submitIntake" disabled>Submit</button>
     </div>
     <div id="batchView"></div>
@@ -141,10 +194,14 @@
 
   <!-- DOCKET -->
   <section id="tab-docket" class="panel" aria-label="Docket">
-    <h2>Docket</h2>
-    <p class="purpose">Step 2. Uploaded and imported cases appear first, with highest priority first within each group, followed by synthetic examples.
-      Click a row to see why it scored what it did,
-      its facts with source pages, timeline and history.</p>
+    <div class="step-head"><span class="step-pill">Step 2 of 3</span><h2>Case triage - the Docket</h2></div>
+    <p class="purpose">Every pending matter, ranked by a 0-100 priority from fixed rules (never by the AI). Uploaded and imported cases
+      appear first, highest priority first, followed by synthetic examples. The main reasons for each score are shown on the row;
+      click a row for the full breakdown, facts with source pages, timeline and history.</p>
+    <ul class="step-todo"><li>Start with a queue below: custody and bail matters, Critical cases not yet listed, missed listing deadlines.</li>
+      <li>Check the flagged facts and correct any that are wrong (Open → Correct field); the score is recomputed at once.</li>
+      <li>When the top of the queue looks right, go to <button class="linkish" type="button" data-workflow-tab="cause">Step 3 · Scheduling →</button></li></ul>
+    <div class="queues" id="triageQueues" role="group" aria-label="Triage queues"></div>
     <div data-how="docket"></div>
     <div class="card docket-bar" id="docketFilters">
       <div class="row gap wrap docket-main">
@@ -152,6 +209,7 @@
         <select id="fBand" aria-label="Band"><option value="">All bands</option><option>Critical</option><option>High</option><option>Medium</option><option>Routine</option></select>
         <select id="fType" aria-label="Case type"><option value="">All types</option></select>
         <button class="btn ghost" type="button" id="fApply" title="Load the docket again">Refresh</button>
+        <button class="btn ghost" type="button" id="fExport" title="Download the rows on screen as a CSV file">Export view (CSV)</button>
       </div>
       <div class="band-chips" id="docketBands" aria-label="Cases per triage band"></div>
       <details class="more-filters" id="moreFilters"><summary>More filters <span class="pill hidden" id="filterCount"></span></summary>
@@ -170,8 +228,8 @@
     </div>
     <p class="hint" id="docketCount" role="status" aria-live="polite"></p>
     <div class="card table-wrap"><table id="docketTable"><thead><tr><th>Case</th><th title="Critical / High / Medium / Routine - follows from the score">Band</th>
-      <th title="0-100: sum of the points in 'How this works'">Score</th><th>Type / stage</th>
-      <th title="Facts that changed the score or need attention">Flags</th>
+      <th title="0-100: sum of the points in 'How this works'; the biggest contributions are listed under it">Score · main reasons</th><th>Type / stage</th>
+      <th title="Flags from the scoring rules, and why the case needs a person (from stored facts only)">Flags · why it needs attention</th>
       <th title="Left out of this many published lists in a row; 3+ = must-list">Deferred</th>
       <th title="List by this date (band deadline in working days)">Due by</th>
       <th title="Next hearing, or the slot in an upcoming list">Next hearing / list</th></tr></thead><tbody></tbody></table></div>
@@ -179,9 +237,13 @@
 
   <!-- CAUSE LIST -->
   <section id="tab-cause" class="panel" aria-label="Cause list">
-    <h2>Cause list</h2>
-    <p class="purpose">Step 3. Turn the Docket into next week's hearing list. Cases that do not fit are carried over and
-      climb next time; publishing creates the hearings.</p>
+    <div class="step-head"><span class="step-pill">Step 3 of 3</span><h2>Efficient scheduling - the cause list</h2></div>
+    <p class="purpose">Turn the triaged Docket into next week's cause list, within each bench's sitting time. The printed list groups
+      each bench's matters under the usual heads (bail and custody, fresh / admission, evidence, arguments, orders and judgment).
+      Cases that do not fit are carried over and climb next time; nothing becomes a hearing until the Registrar publishes.</p>
+    <ul class="step-todo"><li>Pick the week and read the bench-time check below: will the waiting work fit?</li>
+      <li>Prepare the draft, look at the problems and readiness notes, and move or hold a matter if needed.</li>
+      <li>The Registrar approves and publishes; hearings then appear in the <button class="linkish" type="button" data-workflow-tab="diary">Court diary</button>.</li></ul>
     <div data-how="cause"></div>
     <ol class="flow" id="clFlow" aria-label="Steps">
       <li class="now" data-step="1">Pick the week</li><li data-step="2">Check the draft</li><li data-step="3">Approve and publish</li>
@@ -194,6 +256,11 @@
       </div>
       <p class="hint">The system lists urgent and long-waiting cases first and checks bench time and advocate clashes.
         Nothing is published until you approve it in step 3.</p>
+      <p id="clStartWarn" class="banner-warn hidden" role="status"></p>
+      <div class="sched-preview" id="clPreview" aria-live="polite"></div>
+      <details class="saved-lists" id="clSavedBox"><summary>Saved lists <span class="pill hidden" id="clOpenDrafts"></span></summary>
+        <p class="hint">Reopen a draft you prepared earlier, or look at a published list. Preparing a new draft for the same week replaces the open draft.</p>
+        <div id="clSaved"><p class="hint">Loading…</p></div></details>
     </div>
     <div id="clView"></div>
   </section>
@@ -201,21 +268,24 @@
   <!-- UNDERTRIAL -->
   <section id="tab-undertrial" class="panel" aria-label="Undertrial">
     <h2>Undertrial Watch</h2>
-    <p class="purpose">Custody cases from the Docket are checked every day against Sec. 479 BNSS. Anyone past the
-      limit gets an alert with a ready release application for a legal-aid lawyer. Uploaded and imported cases appear before synthetic examples.</p>
+    <p class="purpose">Custody cases from the Docket are checked every day against Sec. 479 BNSS. Anyone who appears past the
+      mark gets an alert with a draft release application for a legal-aid lawyer. Uploaded and imported cases appear before synthetic examples.</p>
+    <p class="banner-info" role="note"><b>A calculation, not a decision.</b> Each alert is arithmetic on the recorded custody date and
+      maximum sentence. Periods of delay caused by the accused, other pending cases and the exact charge must be verified;
+      a legal-aid lawyer approves any application, and only the court decides on release.</p>
     <div data-how="undertrial"></div>
     <div class="card">
       <p>Each alert moves through:</p>
-      <ol class="flow small" id="utFlow"><li>Found</li><li>Lawyer approves</li><li>Filed in court</li><li>Heard</li><li>Released / denied</li></ol>
+      <ol class="flow small" id="utFlow"><li>Found</li><li>Counsel decides to file</li><li>Filed in court</li><li>Heard</li><li>Court's order</li><li>Released</li></ol>
       <div class="row gap wrap"><span class="hint" id="utRole"></span>
         <button class="btn ghost small" id="utScan" data-staff>Check again now</button></div>
     </div>
-    <h3 id="utNeedH">Needs a decision</h3>
+    <h3 id="utNeedH">Awaiting counsel's decision</h3>
     <div id="utDecide"></div>
     <h3 id="utProgH">In progress</h3>
     <div id="utProgress"></div>
     <details class="card"><summary><b id="utNeededH">Missing information</b></summary>
-      <p class="hint">Custody cases the watch cannot check yet, and who can supply the missing fact.</p><ul id="utNeeded"></ul></details>
+      <p class="hint">Custody cases the watch cannot check yet, and who can supply the missing fact. After filling one in from the custody certificate or remand order, press <b>Check again now</b>.</p><ul id="utNeeded"></ul></details>
   </section>
 
 </main>
@@ -234,7 +304,7 @@
 <dialog id="dialog"><div id="dialogBody"></div><div class="row gap" style="justify-content:flex-end;margin-top:12px"><button class="btn ghost" id="dialogClose">Close</button></div></dialog>
 
 <script src="/static/common.js?v=14"></script>
-<script src="/static/explain.js?v=2"></script>
-<script src="/static/staff.js?v=26"></script>
+<script src="/static/explain.js?v=6"></script>
+<script src="/static/staff.js?v=32"></script>
 </body>
 </html>

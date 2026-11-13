@@ -235,6 +235,7 @@ class UndertrialTests(DbTestCase):
         self.assertIn("custody certificate", first["data_needed"][0]["who_can_supply"][0])
         alert = self.alerts()[0]
         self.assertTrue(any("not attributable to the accused" in c for c in alert["details"]["checklist"]))
+        uw.assign_counsel(alert["id"], "Advocate Example", "dlsa_assignment", actor="demo-staff", role="staff")
         with self.assertRaises(ValueError):
             uw.advance_alert(alert["id"], "dismissed", "demo-lawyer", "lawyer")  # a reason is required
         uw.advance_alert(alert["id"], "dismissed", "demo-lawyer", "lawyer", reason="released in another case")
@@ -243,9 +244,11 @@ class UndertrialTests(DbTestCase):
 
     def test_snooze_expiry_and_custody_change_bring_it_back(self):
         uw.run_scan(today=TODAY)
+        uw.assign_counsel(self.alerts()[0]["id"], "Advocate Example", "dlsa_assignment", actor="demo-staff", role="staff")
         uw.advance_alert(self.alerts()[0]["id"], "dismissed", "demo-lawyer", "lawyer", reason="check later",
                          snooze_until="2000-01-01T00:00:00+00:00")
         self.assertEqual(uw.run_scan(today=TODAY)["new_release_alerts"], 1)  # snooze is over
+        uw.assign_counsel(self.alerts()[-1]["id"], "Advocate Example", "dlsa_assignment", actor="demo-staff", role="staff")
         uw.advance_alert(self.alerts()[-1]["id"], "dismissed", "demo-lawyer", "lawyer", reason="wrong custody date")
         out = intake.patch_case("UT/1", {"custody_since": "2023-02-01"}, "demo-staff", "staff")
         self.assertEqual(out["undertrial_rescan"]["new_release_alerts"], 1)  # facts changed -> rescanned
@@ -253,8 +256,11 @@ class UndertrialTests(DbTestCase):
     def test_lifecycle(self):
         uw.run_scan(today=TODAY)
         aid = self.alerts()[0]["id"]
-        for status in ("approved", "filed", "heard", "released"):
-            uw.advance_alert(aid, status, "demo-lawyer", "lawyer")
+        uw.assign_counsel(aid, "Advocate Example", "dlsa_assignment", actor="demo-staff", role="staff")
+        uw.advance_alert(aid, "approved", "demo-lawyer", "lawyer")          # counsel decides to file
+        for status, note in (("filed", "Crl.M.P. 12/2026"), ("heard", None),
+                             ("release_ordered", "On bond, order dated 2026-10-30"), ("released", None)):
+            uw.advance_alert(aid, status, "demo-staff", "staff", note=note)   # the registry records the court's steps
         self.assertEqual(self.alerts()[0]["status"], "released")
         with self.assertRaises(ValueError):
             uw.advance_alert(aid, "pending", "demo-lawyer", "lawyer")

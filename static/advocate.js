@@ -131,11 +131,110 @@ function showTab(name) {
     tab.setAttribute("aria-selected", String(active));
   });
   $$(".advocate-panel").forEach((panel) => panel.classList.toggle("hidden", panel.id !== `advocate-${name}`));
+  if (name === "undertrial") loadUndertrial();
+}
+
+// ---------------------------------------------------------------- Sec. 479 BNSS: counsel's decision
+// Counsel decides whether to file (here). The court decides release; court staff record filing, hearing, the order
+// and release in the Staff portal. The server enforces the same split (undertrial_watch.STEP_ROLES).
+const UT_LABEL = { pending: "Awaiting your decision", approved: "You decided to file - registry to record filing",
+  filed: "Filed - awaiting hearing", heard: "Heard - awaiting the court's order", release_ordered: "Court ordered release - awaiting release from custody",
+  denied: "Court ordered continued detention", released: "Released from custody", dismissed: "You decided not to file" };
+const UT_FINDING_ADV = {
+  eligible: "Custody has crossed the mark on the recorded facts.",
+  likely_eligible: "One-third crossed: applies only if this is a first offence - confirm there is no previous conviction.",
+  needs_review: "Mark crossed, but Sec. 479(2) may bar release (another offence or case pending) - examine before filing.",
+};
+function utSteps(a) {
+  const steps = (a.details || {}).steps || [];
+  return steps.length ? `<ol class="ut-steps">${steps.map((s) => `<li><b>${esc(UT_LABEL[s.status] || s.status)}</b>
+    <span class="muted">${esc(String(s.at || "").slice(0, 10))} · ${esc(s.role === "lawyer" ? "counsel" : s.role === "staff" ? "court registry" : s.role)}</span>${s.note ? ` - ${esc(s.note)}` : ""}</li>`).join("")}</ol>` : "";
+}
+// Counsel on record is entered by the court registry (DLSA assignment letter or vakalatnama); a lawyer never self-assigns.
+const MY_NAME_KEY = "nyayavedika_counsel_name";
+const normName = (s) => String(s || "").toLowerCase().replace(/\badv(ocate)?\.?\s*/g, "").replace(/[^a-zऀ-෿]+/g, " ").trim();
+function isMine(a, me) { const c = (a.details || {}).counsel; return !!(me && c && normName(c.name) === normName(me)); }
+function counselLine(a) {
+  const c = (a.details || {}).counsel;
+  return c ? `<p><b>Counsel on record:</b> ${esc(c.name)} <span class="muted">· ${esc(c.basis_label)}${c.reference ? `, ref. ${esc(c.reference)}` : ""}</span></p>`
+    : `<p class="muted"><b>No counsel on record yet</b> - the court registry records it from the DLSA assignment letter or a vakalatnama.</p>`;
+}
+try { $("#utMyName").value = localStorage.getItem(MY_NAME_KEY) || ""; } catch { /* name stays for this page only */ }
+$("#utMyName").addEventListener("change", () => { try { localStorage.setItem(MY_NAME_KEY, $("#utMyName").value.trim()); } catch { /* ignore */ } loadUndertrial(); });
+$("#utOnlyMine").addEventListener("change", loadUndertrial);
+function utCard(a, decide) {
+  const over = (a.custody_days ?? 0) - (a.threshold_days ?? 0);
+  const checklist = ((a.details || {}).checklist || []);
+  const mine = isMine(a, $("#utMyName").value);
+  return `<article class="doc-card ut-card" data-alert="${esc(a.id)}">
+    <div class="out-head"><h3>${esc(a.case_id)} ${a.source === "synthetic" ? '<span class="badge">Synthetic</span>' : ""}
+      ${mine ? '<span class="badge ok">Your case</span>' : ""}</h3>
+      <span class="pill">${esc(UT_LABEL[a.status] || a.status)}</span></div>
+    ${counselLine(a)}
+    <p><b>${esc(a.custody_days ?? "?")}</b> days in custody · Sec. 479 mark <b>${esc(a.threshold_days ?? "?")}</b> days ${a.basis ? `(${esc(a.basis)})` : ""}
+      ${over >= 0 ? ` · <b>${esc(over)} days past</b>` : ` · ${esc(-over)} days to go`}</p>
+    ${UT_FINDING_ADV[a.release_status] ? `<p class="muted">${esc(UT_FINDING_ADV[a.release_status])}</p>` : ""}
+    ${(a.release_notes || []).length ? `<p class="banner banner-warn">${a.release_notes.map(esc).join("<br>")}</p>` : ""}
+    <div class="toolbar"><button class="btn sm" type="button" data-ut-docx="${esc(a.id)}">Draft application (Word)</button></div>
+    <details><summary>Read the draft</summary><pre class="ut-draft">${esc(a.draft || "")}</pre></details>
+    ${decide ? `<fieldset class="ut-check"><legend>Verify before you decide to file</legend>
+        ${checklist.map((c, i) => `<label><input type="checkbox" data-ut-check="${esc(a.id)}" value="${i}"> ${esc(c)}</label>`).join("")}</fieldset>
+      <div class="toolbar"><button class="btn primary" type="button" data-ut-file="${esc(a.id)}" disabled>Decide to file the application</button></div>
+      <details><summary>Not filing? Record why</summary>
+        <label>Reason (required) <input data-ut-reason="${esc(a.id)}" maxlength="300" placeholder="e.g. detained in another case (Sec. 479(2))"></label>
+        <label>Check again after <input type="date" data-ut-snooze="${esc(a.id)}"></label>
+        <button class="btn sm" type="button" data-ut-skip="${esc(a.id)}">Record: not filing</button></details>` : utSteps(a)}
+  </article>`;
+}
+async function loadUndertrial() {
+  const err = $("#utAdvError");
+  err.classList.add("hidden");
+  try {
+    const { alerts } = await api("/api/alerts?status=all");
+    const me = $("#utMyName").value.trim(), onlyMine = $("#utOnlyMine").checked;
+    if (onlyMine && !me) toast("Enter your name as it appears on the DLSA letter or vakalatnama.");
+    // your own cases first, then uploaded cases, then synthetic examples
+    const real = (rows) => [...rows].filter((a) => !onlyMine || isMine(a, me))
+      .sort((x, y) => (isMine(y, me) - isMine(x, me)) || ((x.source === "synthetic") - (y.source === "synthetic")));
+    const decide = real(alerts.filter((a) => a.status === "pending"));
+    const track = real(alerts.filter((a) => ["approved", "filed", "heard", "release_ordered", "denied", "released", "dismissed"].includes(a.status)));
+    $("#utAdvDecideH").textContent = `Awaiting your decision (${decide.length})`;
+    $("#utAdvTrackH").textContent = `Your decisions and what the court did (${track.length})`;
+    $("#utAdvDecide").innerHTML = decide.map((a) => utCard(a, true)).join("") || `<p class="muted">Nothing is waiting for a decision.</p>`;
+    $("#utAdvTrack").innerHTML = track.map((a) => utCard(a, false)).join("") || `<p class="muted">No decisions yet.</p>`;
+    const root = $("#advocate-undertrial");
+    $$("[data-ut-check]", root).forEach((box) => box.addEventListener("change", () => {
+      const id = box.dataset.utCheck;
+      $(`[data-ut-file="${id}"]`, root).disabled = !$$(`[data-ut-check="${id}"]`, root).every((b) => b.checked);
+    }));
+    $$("[data-ut-file]", root).forEach((b) => b.addEventListener("click", async () => {
+      b.disabled = true;
+      try {
+        await api("/api/alerts/decide", { json: { decisions: { [b.dataset.utFile]: { approve: true, note: "Counsel verified the checklist" } } } });
+        toast("Recorded: you will file the application. The registry records filing and the court's order.");
+        loadUndertrial();
+      } catch (e) { toast(e.message, "error"); b.disabled = false; }
+    }));
+    $$("[data-ut-skip]", root).forEach((b) => b.addEventListener("click", async () => {
+      const id = b.dataset.utSkip, reason = $(`[data-ut-reason="${id}"]`, root).value.trim();
+      if (!reason) return toast("Give the reason for not filing.", "error");
+      b.disabled = true;
+      try {
+        await api("/api/alerts/decide", { json: { decisions: { [id]: { approve: false, reason, snooze_until: $(`[data-ut-snooze="${id}"]`, root).value || null } } } });
+        toast("Recorded: not filing."); loadUndertrial();
+      } catch (e) { toast(e.message, "error"); b.disabled = false; }
+    }));
+    $$("[data-ut-docx]", root).forEach((b) => b.addEventListener("click", async () => {
+      try { toast(`Downloaded ${await downloadFrom(`/api/alerts/${b.dataset.utDocx}/release.docx`, {}, "release_application.docx")}`); }
+      catch (e) { toast(e.message, "error"); }
+    }));
+  } catch (e) { err.textContent = `Could not load: ${e.message}`; err.classList.remove("hidden"); }
 }
 $$("[data-advocate-tab]").forEach((button) => button.addEventListener("click", () => showTab(button.dataset.advocateTab)));
 document.addEventListener("keydown", (event) => {
   if (event.altKey && event.key === "1") { event.preventDefault(); showTab("studio"); }
   if (event.altKey && event.key === "2") { event.preventDefault(); showTab("insights"); }
+  if (event.altKey && event.key === "3") { event.preventDefault(); showTab("undertrial"); }
   if ((event.ctrlKey || event.metaKey) && event.key === "Enter" && currentTab === "studio") {
     event.preventDefault();
     $("#studioForm").requestSubmit();
@@ -658,7 +757,10 @@ function markText(html) {
   const q = insights.filter.trim();
   if (!q) return html;
   const safe = esc(q).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  return html.replace(new RegExp(`(${safe})`, "gi"), "<mark>$1</mark>");
+  const re = new RegExp(`(${safe})`, "gi");
+  if (/[&<>"']/.test(q)) return html.replace(re, "<mark>$1</mark>");
+  // highlight text runs only, never inside an escaped entity (searching "amp" must not break "&amp;")
+  return html.replace(/(&#?\w+;)|([^&]+)/g, (m, entity, run) => entity || run.replace(re, "<mark>$1</mark>"));
 }
 function pointMatches(point) {
   const q = insights.filter.trim().toLowerCase();
@@ -687,7 +789,8 @@ function renderInsight(result, type) {
     const items = visible.map((point) => {
       const evidence = esc(point.evidence);
       const refs = point.page_refs.map(Number).map((n) =>
-        `<button type="button" class="pref" data-goto="${n}" title="${isPdfDocument() ? "Open this page in the document preview" : "Page citation"}">p. ${n}</button>`).join("");
+        `<button type="button" class="pref" data-goto="${n}" title="${isPdfDocument() ? "Open this page in the document preview" : "Page citation"}">p. ${n}</button>`).join("")
+        || `<span class="muted" title="Locate this point in the original before relying on it">no page reference</span>`;
       return `<li class="pt"><span class="txt">${point.basis === "inference" ? '<span class="badge">Inference</span> ' : ""}${markText(esc(point.text))}</span>` +
         `<div class="meta">${refs}</div><blockquote>${markText(evidence)}</blockquote></li>`;
     }).join("");
@@ -697,9 +800,14 @@ function renderInsight(result, type) {
     ? `<p class="banner banner-warn">No points match "${esc(insights.filter)}".</p>`
     : `<p class="banner banner-warn">${esc(result.message || "No source-grounded insight was returned.")}</p>`;
   output.className = insights.evidence ? "" : "hide-evidence";
+  const allPoints = (result.sections || []).flatMap((section) => section.points || []);
+  const inferred = allPoints.filter((point) => point.basis === "inference").length;
+  const basisLine = allPoints.length
+    ? ` · ${allPoints.length - inferred} point(s) stated in the document, ${inferred} inference(s) marked <span class="badge">Inference</span>`
+    : "";
   output.innerHTML =
     `<div class="out-head"><h3><span class="tag ${esc(type)}">${esc(label)}</span> ${esc(result.filename)}</h3>` +
-    `<span class="muted">${esc(result.pages)} pages · ${esc(result.ocr_pages)} OCR page(s)</span></div>` +
+    `<span class="muted">${esc(result.pages)} pages · ${esc(result.ocr_pages)} OCR page(s)${basisLine}</span></div>` +
     `<div class="toolbar"><input type="search" id="insightSearch" placeholder="Find in this insight…" value="${esc(insights.filter)}" aria-label="Filter insight points">` +
     `<label><input type="checkbox" id="evidenceToggle"${insights.evidence ? " checked" : ""}> Show source text</label>` +
     `<button class="btn sm" type="button" id="copyInsight">${icon("copy")} Copy</button>` +

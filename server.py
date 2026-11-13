@@ -35,6 +35,7 @@ from nyayavedika.agents.context import clean_context  # noqa: E402
 from nyayavedika.agents.front_door import answer_kind  # noqa: E402
 from nyayavedika.agents.react import new_turn  # noqa: E402
 from nyayavedika import feedback as feedback_mod  # noqa: E402
+from nyayavedika import impact_reports  # noqa: E402
 from nyayavedika.auth import Principal, guard  # noqa: E402
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
@@ -464,11 +465,14 @@ def undertrial_scan(court_id: Optional[str] = None):
     return {"thread_id": thread_id, "awaiting_approval": _interrupt_payload(out) is not None, "summary": out.get("summary")}
 
 
-@app.get("/api/alerts", dependencies=[guard("GET /api/alerts")])
-def list_alerts(status: str = "pending"):
+@app.get("/api/alerts")
+def list_alerts(status: str = "pending", principal: Principal = guard("GET /api/alerts")):
     """Undertrial cards, sorted by days over the legal limit ('all' for every status)."""
     with store.connect() as s:
-        return staff_api.alerts(s, status)
+        result = staff_api.alerts(s, status)
+    if principal.role == auth.LAWYER:
+        result["alerts"] = [a for a in result["alerts"] if undertrial_watch.has_counsel_on_record(a)]
+    return result
 
 
 @app.post("/api/alerts/decide")
@@ -480,6 +484,12 @@ def decide_alerts(body: DecisionIn, principal: Principal = guard("POST /api/aler
     if body.thread_id:  # resume the paused watch run
         if not body.thread_id.startswith("watch-") or not _has_pending_question(undertrial_watch.graph(), body.thread_id):
             raise HTTPException(409, "This scan is not waiting for a decision (already decided, or unknown thread)")
+        try:
+            undertrial_watch.require_counsel_for_decisions(body.decisions, principal.role)
+        except PermissionError as exc:
+            raise HTTPException(403, str(exc))
+        except LookupError as exc:
+            raise HTTPException(404, str(exc))
         for alert_id, d in body.decisions.items():
             audit.record(principal, "release_alert_approved" if d.get("approve") else "release_alert_dismissed",
                          f"alert:{alert_id}", thread_id=body.thread_id)
@@ -487,6 +497,8 @@ def decide_alerts(body: DecisionIn, principal: Principal = guard("POST /api/aler
         return {"summary": out.get("summary")}
     try:
         return {"decisions_applied": undertrial_watch.decide_alerts(body.decisions, principal.actor, principal.role)}
+    except PermissionError as exc:
+        raise HTTPException(403, str(exc))
     except (ValueError, LookupError) as exc:
         raise HTTPException(400, str(exc))
 
@@ -504,9 +516,29 @@ def alert_state(alert_id: int, body: AlertStateIn, principal: Principal = guard(
     try:
         return undertrial_watch.advance_alert(alert_id, body.status, principal.actor, principal.role, body.note or None,
                                               body.reason or None, body.snooze_until)
+    except PermissionError as exc:
+        raise HTTPException(403, str(exc))
     except LookupError as exc:
         raise HTTPException(404, str(exc))
-    except legal_problem.InvalidResearchInput as exc:
+    except (legal_problem.InvalidResearchInput, ValueError) as exc:   # an impossible step was a 500 before
+        raise HTTPException(400, str(exc))
+
+
+class CounselIn(BaseModel):
+    name: str
+    basis: str                       # dlsa_assignment | vakalatnama
+    reference: str = ""
+
+
+@app.post("/api/alerts/{alert_id}/counsel")
+def alert_counsel(alert_id: int, body: CounselIn, principal: Principal = guard("POST /api/alerts/{alert_id}/counsel")):
+    """Court staff record counsel on record (from the DLSA assignment letter or a vakalatnama)."""
+    try:
+        return undertrial_watch.assign_counsel(alert_id, body.name, body.basis, body.reference, principal.actor,
+                                               principal.role)
+    except LookupError as exc:
+        raise HTTPException(404, str(exc))
+    except ValueError as exc:
         raise HTTPException(400, str(exc))
 
 
@@ -567,11 +599,45 @@ def cause_list_draft(body: DraftIn, principal: Principal = guard("POST /api/caus
     def run(s):
         plan = cause_list.prepare(s, start, body.days, body.court_id)
         cid = cause_list.save_draft(s, plan, body.court_id or "DEMO-DC", f"Draft prepared by {principal.actor}")
-        return {"cause_list_id": cid, "status": "draft", "metrics": plan["metrics"], "violations": plan["violations"],
+        listed = {c["case_id"] for d in plan["calendar"] for b in d["benches"] for c in b["cases"]}
+        return {"cause_list_id": cid, "status": "draft", "start_date": plan["start_date"], "metrics": plan["metrics"],
+                "violations": plan["violations"],
                 "capacity_shortfall": plan["capacity_shortfall"], "deadline_alerts": plan["deadline_alerts"],
                 "unscheduled": plan["unscheduled"][:200], "already_listed": plan.get("already_listed", [])[:200],
-                "calendar": plan["calendar"]}
+                "calendar": plan["calendar"], "readiness": staff_api.readiness(s, listed)}
     return _court_call(run)
+
+
+@app.get("/api/cause-lists", dependencies=[guard("GET /api/cause-lists")])
+def cause_lists_recent(limit: int = 12):
+    """Recent cause lists (draft, published, rejected, superseded), newest first."""
+    return _court_call(cause_list.recent, limit)
+
+
+@app.get("/api/cause-lists/{cause_list_id}/view", dependencies=[guard("GET /api/cause-lists/{cause_list_id}/view")])
+def cause_list_view(cause_list_id: int):
+    """A saved list in the draft screen's shape, rebuilt from its current listings (reopen a draft after leaving)."""
+    return _court_call(cause_list.view, cause_list_id)
+
+
+@app.get("/api/scheduling/preview", dependencies=[guard("GET /api/scheduling/preview")])
+def scheduling_preview(start: Optional[str] = None, days: int = 5):
+    """Before drafting: bench time for the week against the expected time of the cases waiting to be listed."""
+    try:
+        first = date.fromisoformat(start) if start else date.today()
+    except ValueError:
+        raise HTTPException(400, "start must be a date in YYYY-MM-DD form")
+    return _court_call(cause_list.preview, first, days)
+
+
+@app.get("/api/hearings", dependencies=[guard("GET /api/hearings")])
+def hearings_board(start: Optional[str] = None, days: int = 1):
+    """Hearings on published lists from `start` for `days` days, plus earlier hearings with no outcome recorded."""
+    try:
+        first = date.fromisoformat(start) if start else date.today()
+    except ValueError:
+        raise HTTPException(400, "start must be a date in YYYY-MM-DD form")
+    return _court_call(staff_api.hearing_board, first, days)
 
 
 @app.get("/api/cause-lists/{cause_list_id}", dependencies=[guard("GET /api/cause-lists/{cause_list_id}")])
@@ -1067,6 +1133,59 @@ def field_feedback_hide(feedback_id: int, principal: Principal = guard("POST /ap
     return out
 
 
+# ----------------------------------------------------------------------------- impact evidence reports
+def _report_call(fn, *args):
+    try:
+        with store.connect() as s:
+            return fn(s, *args)
+    except impact_reports.ReportError as exc:
+        raise HTTPException(exc.status, exc.message)
+
+
+@app.get("/api/impact-reports/options")
+def impact_report_options():
+    """Public: the choices the shareable form draws (roles, features, tasks, outcomes)."""
+    return impact_reports.options()
+
+
+@app.post("/api/impact-reports")
+def impact_report_submit(body: Dict[str, Any], request: Request):
+    """Public: one report from the shareable form (/impact-report). No token needed; consent required."""
+    if not impact_reports.rate_ok(request.client.host if request.client else ""):
+        raise HTTPException(429, "Too many reports from this connection. Please try again in an hour.")
+    out = _report_call(impact_reports.submit, body)
+    impact.record("impact_report", 1, role=str(body.get("role") or ""))
+    return out
+
+
+@app.get("/api/impact-reports", dependencies=[guard("GET /api/impact-reports")])
+def impact_report_list(status: str = ""):
+    """Staff: every report with identity details, for verification. Never public."""
+    return _report_call(impact_reports.listing, status)
+
+
+@app.get("/api/impact-reports/summary", dependencies=[guard("GET /api/impact-reports/summary")])
+def impact_report_summary():
+    return _report_call(impact_reports.summary)
+
+
+@app.get("/api/impact-reports/export.csv", response_class=PlainTextResponse,
+         dependencies=[guard("GET /api/impact-reports/export.csv")])
+def impact_report_export():
+    return PlainTextResponse(_report_call(impact_reports.export_csv), media_type="text/csv",
+                             headers={"Content-Disposition": f'attachment; filename="impact_reports_{date.today().isoformat()}.csv"'})
+
+
+@app.post("/api/impact-reports/{report_id}/verify")
+def impact_report_verify(report_id: int, body: Dict[str, str],
+                         principal: Principal = guard("POST /api/impact-reports/{report_id}/verify")):
+    """Staff: mark a report verified / rejected after checking the person (e.g. Bar Council roll)."""
+    out = _report_call(impact_reports.verify, report_id, (body or {}).get("status", ""), principal.actor,
+                       (body or {}).get("note", ""))
+    audit.record(principal, f"impact_report_{out['status']}", f"impact_report:{report_id}")
+    return out
+
+
 @app.post("/api/legal-aid/{request_id}/outcome")
 def legal_aid_outcome(request_id: int, body: Dict[str, str],
                       principal: Principal = guard("POST /api/legal-aid/{request_id}/outcome")):
@@ -1083,14 +1202,16 @@ def legal_aid_outcome(request_id: int, body: Dict[str, str],
     return {"ok": True, "status": status, "what_happens_next": legal_aid.WHAT_NEXT[status]}
 
 
-@app.get("/api/alerts/{alert_id}/release.docx", dependencies=[guard("GET /api/alerts/{alert_id}/release.docx")])
-def release_docx(alert_id: int):
+@app.get("/api/alerts/{alert_id}/release.docx")
+def release_docx(alert_id: int, principal: Principal = guard("GET /api/alerts/{alert_id}/release.docx")):
     """Word copy of the Sec. 479 release draft with the lawyer checklist ([to be verified] placeholders)."""
     from nyayavedika.docgen import legal_aid_docx as docgen
     with store.connect() as s:
         rows = s.select("alerts", {"id": alert_id})
     if not rows:
         raise HTTPException(404, f"No alert {alert_id}")
+    if principal.role == auth.LAWYER and not undertrial_watch.has_counsel_on_record(rows[0]):
+        raise HTTPException(403, "The court registry must record counsel on the alert before counsel can access it.")
     slug = re.sub(r"[^A-Za-z0-9]+", "_", rows[0]["case_id"] or "case").strip("_")
     return Response(content=docgen.build_release_docx(rows[0]), media_type=DOCX_TYPE,
                     headers={"Content-Disposition": f'attachment; filename="release_application_{slug}.docx"'})
@@ -1172,6 +1293,18 @@ def citizen_portal():
 @app.get("/feedback")
 def feedback_wall_page():
     return FileResponse(ROOT / "static" / "feedback-wall.html")
+
+
+@app.get("/impact-report")
+def impact_report_page():
+    """The shareable evidence form. Add ?role=advocate (or citizen, court_staff ...) to preselect the role."""
+    return FileResponse(ROOT / "static" / "impact-report.html")
+
+
+@app.get("/impact-report/review")
+def impact_review_page():
+    """Staff verification desk for impact reports (the data itself needs a staff token)."""
+    return FileResponse(ROOT / "static" / "impact-review.html")
 
 
 @app.get("/metrics")
