@@ -192,7 +192,7 @@ Each feature answers a specific gap shown above, and each writes an event we can
 
 ## 7. What is proven today, and what is not
 
-NyayaVedika is live and in early field use. The following product activity is measured in its logs and summarized on the [public metrics dashboard](https://nyayavedika.delightfulmushroom-95327f3a.koreacentral.azurecontainerapps.com/metrics). Counts are a deployment snapshot and can change as new activity is recorded.
+NyayaVedika is live and in early field use. The following product activity is measured in its logs and summarized on the [public metrics dashboard](https://nyayavedika.delightfulmushroom-95327f3a.koreacentral.azurecontainerapps.io/metrics). Counts are a deployment snapshot and can change as new activity is recorded.
 
 ### 7.1 Reach and use (Measured)
 
@@ -206,7 +206,7 @@ NyayaVedika is live and in early field use. The following product activity is me
 | Tool requests | **374** (Citizen 39, Advocate 41, Staff 293, one role unresolved) |
 | Voluntary feedback responses | 7 |
 
-These are browser counts, not people counts. One person using multiple devices may count more than once; a shared browser may count once. The staff door's 293 requests include reviewer visits and should not be read as 293 independent users or citizens reached.
+The staff door's 293 requests include reviewer visits and should not be read as 293 independent users or citizens reached.
 
 | Product action | Measured total |
 |---|---:|

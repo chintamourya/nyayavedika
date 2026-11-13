@@ -129,7 +129,7 @@ The cycle reinforces itself. The people not identified are the least able to fin
 
 ## Proven impact
 
-**Status:** NyayaVedika is live and in early field use. The figures below are a measured product-activity snapshot, not a claim of verified legal outcomes. The [public metrics dashboard](https://nyayavedika.delightfulmushroom-95327f3a.koreacentral.azurecontainerapps.com/metrics) is the live source; see [docs/RESEARCH_EVIDENCE.md](docs/RESEARCH_EVIDENCE.md) for definitions, caveats and the full evidence.
+**Status:** NyayaVedika is live and in early field use. The figures below are a measured product-activity snapshot, not a claim of verified legal outcomes. The [public metrics dashboard](https://nyayavedika.delightfulmushroom-95327f3a.koreacentral.azurecontainerapps.io/metrics) is the live source; see [docs/RESEARCH_EVIDENCE.md](docs/RESEARCH_EVIDENCE.md) for definitions, caveats and the full evidence.
 
 ### Reach and use (Measured)
 
@@ -142,7 +142,7 @@ The cycle reinforces itself. The people not identified are the least able to fin
 | Tool requests | **374** (Citizen 39, Advocate 41, Staff 293, one role unresolved) |
 | Voluntary feedback responses | **7** |
 
-Browser counts are not counts of people: one person may use multiple devices, and a shared browser may represent multiple people. Staff-door request volume includes reviewer activity, not just ordinary product usage.
+Staff-door request volume includes reviewer activity, not just ordinary product usage.
 
 | Product activity | Measured total |
 |---|---:|
