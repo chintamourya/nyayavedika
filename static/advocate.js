@@ -74,25 +74,6 @@ function compressPages(nums) {
   return parts.join(",");
 }
 
-// ---------------------------------------------------------------- session impact metrics (real counts only)
-const METRICS_KEY = "nyayavedika_advocate_metrics";
-const metrics = { ops: 0, pages: 0, docs: 0, insights: 0, reused: 0, lastMs: 0 };
-try { Object.assign(metrics, JSON.parse(sessionGet(METRICS_KEY) || "{}")); } catch { /* start from zero */ }
-function bump(field, amount = 1) {
-  metrics[field] = (field === "lastMs" ? amount : (Number(metrics[field]) || 0) + amount);
-  sessionSet(METRICS_KEY, JSON.stringify(metrics));
-  renderMetrics();
-}
-function renderMetrics() {
-  const set = (id, value) => { const el = $(id); if (el) el.textContent = value; };
-  ["#mOps", "#mOps2"].forEach((id) => set(id, metrics.ops));
-  ["#mDocs", "#mDocs2"].forEach((id) => set(id, metrics.docs));
-  ["#mInsights", "#mInsights2"].forEach((id) => set(id, metrics.insights));
-  set("#mPages", metrics.pages);
-  set("#mReused", metrics.reused);
-  set("#mLast", metrics.lastMs ? `${(metrics.lastMs / 1000).toFixed(1)} s` : "–");
-}
-
 async function prepareRestoredDocumentChat(documentInfo) {
   setChatStatus("Preparing this saved document for chat…");
   try {
@@ -519,8 +500,6 @@ $("#studioForm").addEventListener("submit", async (event) => {
       ({ filename: file.name, content_base64: await fileToBase64(file) })));
     const result = await api("/api/advocate/studio", { method: "POST", json: { operation, files: encoded, options } });
     renderStudioResult(result, operation);
-    bump("ops");
-    if (operation !== "merge") bump("pages", studio.pages.length);
   } catch (error) {
     setError("#studioError", error.message || "The PDF operation could not be completed.");
   } finally {
@@ -633,7 +612,6 @@ async function uploadInsightFile(file) {
       json: { workspace_token: workspaceToken, filename: file.name, content_base64: await fileToBase64(file) },
     });
     activeDocument = documentInfo;
-    bump("docs");
     insights.uploadedAt = performance.now();
     insights.cache.clear();
     insights.current = "";
@@ -780,7 +758,6 @@ async function runInsight(type, force = false) {
   const key = `${activeDocument.doc_id}:${type}`;
   if (!force && !userGuidance && insights.cache.has(key)) {
     renderInsight(insights.cache.get(key), type);
-    bump("reused");
     return toast(`${INSIGHT_LABELS[type]} reused. No new analysis needed.`);
   }
   $("#insightOutput").replaceChildren();
@@ -793,7 +770,6 @@ async function runInsight(type, force = false) {
   $("#insightLoading").classList.remove("hidden");
   $("#insightSkeleton").classList.remove("hidden");
   $$(".insight-choice").forEach((choice) => { choice.disabled = true; });
-  const started = performance.now();
   try {
     const result = await api(`/api/advocate/documents/${encodeURIComponent(activeDocument.doc_id)}/insights`, {
       method: "POST",
@@ -801,8 +777,6 @@ async function runInsight(type, force = false) {
     });
     if ((result.sections || []).length) {
       if (!userGuidance) insights.cache.set(key, result);
-      bump("insights");
-      bump("lastMs", Math.round(performance.now() - started));
       if (!userGuidance) $(`.insight-choice[data-insight="${type}"]`).classList.add("cached");
     }
     renderInsight(result, type);
@@ -862,7 +836,6 @@ const lawyerTokenInput = $("#demoToken");
 tokenBox(lawyerTokenInput, initialize);
 lawyerTokenInput.value = "mourya";
 setToken("mourya");
-renderMetrics();
 updateStudioOperation();
 $("#studioOperation").value = "merge";
 updateStudioOperation();

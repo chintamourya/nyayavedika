@@ -404,8 +404,8 @@ class StaticContentTests(unittest.TestCase):
         self.assertIn('id="lawyerTokenHint" class="muted">Demo lawyer token: mourya', html)
         self.assertIn('lawyerTokenInput.value = "mourya";', script)
         self.assertIn('setToken("mourya");', script)
-        self.assertIn("advocate.js?v=11", html)
-        self.assertIn("advocate.css?v=10", html)
+        self.assertIn("advocate.js?v=13", html)
+        self.assertIn("advocate.css?v=11", html)
         self.assertIn(".file-list { list-style: none; padding: 0; margin: 10px 0 0; display: grid; gap: 6px; width: 100%; min-width: 0; max-width: 100%; }", style)
         self.assertIn(".auth { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; min-width: 0; max-width: 100%; }", style)
         self.assertIn(".chat-status {", style)
@@ -428,6 +428,10 @@ class StaticContentTests(unittest.TestCase):
         self.assertIn('$("#insightPreview").src = "about:blank";', script)
         self.assertIn('messages: insights.chatMessages.map(({ role, content }) => ({ role, content }))', script)
         self.assertIn("showProgressStatus(", script)
+        self.assertNotIn("This session: PDF operations", html)
+        self.assertNotIn("Where this scores against the problem", html)
+        self.assertNotIn("Measured in this session", html)
+        self.assertNotIn("METRICS_KEY", script)
 
     def test_demo_banner_and_no_colour_only_bands(self):
         common = (STATIC / "common.js").read_text(encoding="utf-8")

@@ -4,11 +4,11 @@ Real users feedback link : https://nyayavedika.delightfulmushroom-95327f3a.korea
 
 This file holds the full evidence behind the README's claims about size, severity and impact. It is written for judges, partners and reviewers who want to check the numbers. The README carries the short version, and this file reflects the repository's current evidence base and the guardrails around it.
 
-**How figures are tagged.** **Reported**: published by the named source. **Derived**: our arithmetic on reported figures, shown so it can be checked. **Estimate**: our model, with assumptions stated and changeable.
+**How figures are tagged.** **Measured**: recorded in NyayaVedika's product logs. **Reported**: published by the named source. **Derived**: our arithmetic on reported or measured figures, shown so it can be checked. **Estimate**: our model, with assumptions stated and changeable.
 
-**Status of impact evidence.** There is no real field deployment yet. Section 7 says what exists today, Section 8 gives the protocol for collecting real evidence, and nothing in this file is presented as field impact. The current codebase includes the instrumentation and review flows needed for that step, but not a yet-validated field outcome study.
+**Status of impact evidence.** NyayaVedika is live and in early field use. Section 7 reports measured reach, feature activity, reliability and voluntary feedback, but these do not establish independently verified legal outcomes. We distinguish measured usage from reported feedback, national benchmarks and modeled estimates throughout.
 
-Contents: 1 Scale · 2 Severity · 3 Economic loss · 4 Avoidable custody model · 5 How the harm ripples · 6 From evidence gap to feature to indicator · 7 What is proven today · 8 Measurement protocol · 9 Limits of this evidence · 10 Sources
+Contents: 1 Scale · 2 Severity · 3 Economic loss · 4 Avoidable custody model · 5 How the harm ripples · 6 From evidence gap to feature to indicator · 7 What is proven today · 8 Sources
 
 ---
 
@@ -184,28 +184,102 @@ Each feature answers a specific gap shown above, and each writes an event we can
 | Advocates lose hours on paper-books and long records | Advocates | **Document Studio**, **AI Document Insights**, **Chat with this document** | Faster preparation; claims that can be checked against the page | Pages handled, operations, insights, upload-to-result time (session); hours saved per case (pilot) | Advocate session counters; pilot log (`manual_minutes`, `tool_minutes`) |
 | Adjournments eat 33% to 54% of sitting time | Court staff and registry | **Case triage and cause list** | Conflict-free, risk-sized listing; critical cases not left waiting | Cases triaged, cases listed, conflicts avoided, critical wait gained | `case_triaged`, `cause_list_published` events |
 | Some cases need not go to trial | Court staff and registry | ADR routing | Suitable cases reach Lok Adalat or mediation | ADR candidates | `adr_candidate` event |
-| No evidence of real-world use | All three groups | **Feedback wall** `/feedback` | Field users report what changed for them | Responses, average rating, share whose situation changed | `feedback` events; `/api/field-feedback` |
+| Limited evidence of real-world use and outcomes | All three groups | **Feedback wall** `/feedback` | Field users report what changed for them | Responses, average rating, share whose situation changed | `feedback` events; `/api/field-feedback` |
 
-**Why no single group is enough.** The "who must be equipped" column shows that the leaks sit with different groups: awareness and a first application with citizens and families, preparation with advocates, and identification and listing with court staff. The funnel in Section 2.3 and the access gap in Section 2.4 are linked in both directions. People who are not identified are the least able to reach a lawyer on their own (loop 1 in Section 5), and a lawyer who reaches them still needs a registry that lists the case on time. A tool for one group moves the bottleneck to the next. This column is a mapping of where each gap sits, not a measured share of the problem owned by each group, and no pilot data yet shows how the three doors perform together.
+**Why no single group is enough.** The "who must be equipped" column shows that the leaks sit with different groups: awareness and a first application with citizens and families, preparation with advocates, and identification and listing with court staff. The funnel in Section 2.3 and the access gap in Section 2.4 are linked in both directions. People who are not identified are the least able to reach a lawyer on their own (loop 1 in Section 5), and a lawyer who reaches them still needs a registry that lists the case on time. A tool for one group moves the bottleneck to the next. This column maps where each gap sits, not a measured share owned by each group. Activity has been recorded across all three doors, but it does not yet show that the doors operate as one end-to-end case workflow or improve legal outcomes.
 
 **Design choices that protect the evidence.** Rules sit in code, so a result can be traced to its inputs. Every consequential output passes a human gate, and each approval is logged as a decision event. Insights and chat answers carry a page number and an excerpt that is checked against the extracted text, so a reviewer can verify any claim in seconds.
 
 ## 7. What is proven today, and what is not
 
-| Evidence | What it shows | What it does not show |
-|---|---|---|
-| 21 hand-derived Section 479 cases (`tests/gold_479.json`) | The engine returns the expected status and dates for known inputs | Not verified by a lawyer yet. Not real cases |
-| Offline unit and integration tests (`python -m unittest discover -s tests`) | Rules, grounding, workspace isolation, upload handling, scheduling invariants (no advocate double-booked, no bench over capacity, nothing lost) | Behaviour in a real court |
-| Synthetic evaluation (`python scripts/eval_demo.py`) | The system behaves as designed on invented cases and courts | Real-world accuracy or impact |
-| Session counters in the Advocate page | Real counts of pages, operations, documents and insights in one session | Time saved against a manual baseline |
-| Impact log and feedback wall | The instrumentation is in place and counts-only | Any field outcome, until real users generate events |
+NyayaVedika is live and in early field use. The following product activity is measured in its logs and summarized on the [public metrics dashboard](https://nyayavedika.delightfulmushroom-95327f3a.koreacentral.azurecontainerapps.com/metrics). Counts are a deployment snapshot and can change as new activity is recorded.
 
-**Claims we do not make.** We do not claim releases secured, custody days avoided, hours saved or households helped. The figures in Sections 1 to 5 describe the problem, not our results.
+### 7.1 Reach and use (Measured)
+
+| Metric | Value |
+|---|---:|
+| Distinct browsers, all activity | **49** |
+| Public-site browsers | 44 |
+| Portal visits | **111** (Citizen 32, Advocate 27, Staff 52) |
+| Distinct browsers by door | Citizen 18, Advocate 13, Staff 11 |
+| Browsers that used an API feature | **17** |
+| Tool requests | **374** (Citizen 39, Advocate 41, Staff 293, one role unresolved) |
+| Voluntary feedback responses | 7 |
+
+These are browser counts, not people counts. One person using multiple devices may count more than once; a shared browser may count once. The staff door's 293 requests include reviewer visits and should not be read as 293 independent users or citizens reached.
+
+| Product action | Measured total |
+|---|---:|
+| Citizen sessions | 51 |
+| Completed five-question free legal-aid checks | 50 |
+| Legal-aid applications drafted | 23 |
+| Court documents analysed (summary or insights) | 7 |
+| Undertrials flagged by Undertrial Watch | 23 |
+| Release applications approved by a lawyer | 1 |
+| Cases triaged by the registry agent | 607 |
+| Cause lists published | 3 |
+| Cases scheduled in those lists | 1,209 |
+
+The 607 triaged cases and 1,209 scheduled cases include synthetic demo data as well as uploaded cases. They are workflow activity totals, not counts of real citizens served or real hearings completed.
+
+**Citizen funnel (Measured / Derived):** 50 legal-aid checks were completed; 23 resulted in a drafted application, a 46% check-to-draft rate. Drafting does not mean that an application was filed, accepted or resulted in legal representation.
+
+### 7.2 Reliability and latency (Measured / Derived)
+
+- **367 of 374 tool requests succeeded (98.1%, Derived).** The seven failures occurred in Undertrial Watch, out of 95 requests; they were attributed to internal code testing and have since been fixed. Other features had no logged failures in this snapshot.
+- Typical server latency: case intake 0.08 seconds; document tools 0.3 seconds; daily brief 2.4 seconds; docket view 2.6 seconds; Document Studio 2.9 seconds; document chat 5.6 seconds; AI Insights about 23 seconds; document summary about 32 seconds.
+- Samples are small (1–71 requests per feature). Latencies are indicative server processing times, not end-to-end task times or benchmark results. Longer documents account for slower summary features; summary time remains an improvement area.
+
+### 7.3 Feedback (Reported by users)
+
+- Seven voluntary responses averaged **4.9/5**. Excluding one team member, six external responses (three lawyers, one advocate and two citizens) averaged **4.8/5**.
+- Users mentioned case triage and scheduling, document insights, document chat, the free legal-aid check and help understanding rights.
+- One lawyer in Narsapuram said the tool helped with filing PDFs, understanding case insights and chatting with documents, and described case triage and scheduling as having "wondered me."
+- Feedback is self-reported, voluntary and small (n = 7); it is not independent outcome verification.
+
+### 7.4 National context and estimated effects
+
+We do not compare our pilot volume with national volume: 50 legal-aid checks against 16.6 lakh reported legal-aid recipients would not be a meaningful effectiveness comparison. We compare the gaps the product targets:
+
+| Gap | National figure (source, type) | Product response |
+|---|---|---|
+| Court backlog | 5.64 crore pending cases as of 16 July 2026 (Law Ministry / NJDG; Reported) | Explainable case triage and cause-list planning |
+| Counsel unavailable | 35% of about 1.39 crore pending district-court criminal cases delayed for want of counsel (NJDG, July 2026; Reported) | Free legal-aid check and drafted application; advocate tools for file review |
+| Undertrials not identified | 14,387 identified (2.70% of 5,31,949 prisoners) and 5,864 released, Oct–Dec 2025 (NALSA; Reported); about 41% identified-to-released (Derived) | Section 479 check with itemised arithmetic and lawyer approval |
+| Long detention | 3,71,440 undertrials; 60,130 held over two years and about 9,000 over five (NCRB PSI 2024; Reported) | Flags eligible people for lawyer review |
+| Legal-aid reach | 16,60,249 reached in FY 2025–26 through January 2026, about 0.15% of roughly 110 crore eligible (Law Ministry; India Justice Report; Reported / Derived) | Citizen door in English, Hindi and Telugu, without login |
+
+**Modeled time comparison (Estimate, not field measurement).** Server times are measured; manual baselines and human-review time are assumptions. We include human review because no output is acted on automatically.
+
+| Task | Manual baseline (assumption) | Tool time plus review | Estimated saving |
+|---|---|---|---|
+| Read a 40-page file and list issues/facts | 30–80 min | About 46 s server time plus 5–10 min review | About 25–70 min |
+| Brief a long document | 20–60 min | About 32 s server time plus 3–5 min review | About 15–55 min |
+| Assemble a paper-book | 1–3 hours | Studio operations average 2.9 s server time each plus 10–20 min user steps | About 40 min–2.5 hours |
+| Check Section 479 eligibility for a 50-person docket | 4–8 hours | About 1.7 s per request plus assumed lawyer review | About 2.5–6.5 hours |
+
+These estimates use stated assumptions, not timed manual comparisons. Replace the assumed baseline with local measurements for a meaningful pilot comparison.
+
+**Illustrative direct custody-cost formula (Estimate / Derived).** The derived average direct cost is about ₹4,195 per inmate per month. If 100 people confirmed eligible by a lawyer were actually released three months earlier, the corresponding direct custody cost avoided would be 100 × 3 × ₹4,195, or about **₹12.6 lakh**. This excludes household and wider economic effects. One release application has been approved to date; no release or cost saving is claimed.
+
+### 7.5 Evidence boundaries
+
+- Activity is not outcome: visits, requests and drafts do not show that anyone obtained a lawyer or was released.
+- Feedback is voluntary and self-reported. The sample is too small to generalize.
+- Nothing is filed without human review and a decision; an approved draft is not proof of filing or release.
+- Seeded demo data is labelled and excluded from reach figures. Some staff-workflow totals include synthetic and uploaded records as stated above.
+- National figures are public-source benchmarks, not pilot results.
+- Time saved and custody cost effects are modeled estimates with stated assumptions, not observed field comparisons.
+- The Section 479 test cases and offline evaluations use synthetic inputs; they show designed behavior, not real-court accuracy.
+
+**Privacy and measurement.** The metrics system stores aggregate counts and pseudonymous browser hashes, not names, contact details, IP addresses, request text or uploaded-document contents. Browser identifiers are not people identifiers: use across multiple devices can inflate counts, and shared devices can undercount. The public `GET /api/demo/metrics` endpoint returns aggregates only; detailed operations and CSV export require staff authentication. The [metrics page](https://nyayavedika.delightfulmushroom-95327f3a.koreacentral.azurecontainerapps.com/metrics) reports per-door and feature usage, browser estimates, success/failure, latency and summarized feedback.
+
+**Claims we do not make.** We do not claim verified releases, custody days avoided, independently measured hours saved or households helped. The problem-scale and severity figures in Sections 1–5 describe the national context, not NyayaVedika's results.
 
 ### Ethics and data handling
 
 - Real case files are not uploaded to a hosted model without consent. Names and addresses are **not** masked, so only anonymised or invented documents go into the demo.
-- Case references are anonymised and events never hold personal data.
+- Activity events do not contain personal data; browser identifiers are stored as pseudonymous hashes. Case references are anonymised.
 - Household follow-up needs informed, voluntary consent and may be refused without any effect on help received.
 - Every output is legal information for a lawyer to review, and nothing is filed without a human decision.
 

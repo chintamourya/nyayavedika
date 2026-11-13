@@ -2,7 +2,7 @@
 
 **Track:** Timely Justice, Legal Backlog (Code for a Billion, impact area 07)
 **Live demo:** [NYAYAVEDIKA](https://nyayavedika.delightfulmushroom-95327f3a.koreacentral.azurecontainerapps.io/) · **Demo video (3 min):** https://youtu.be/D3xo-yJMhwg · **Licence:** MIT
-**Detailed evidence and research:** [docs/RESEARCH_EVIDENCE.md](docs/RESEARCH_EVIDENCE.md)
+**Live impact dashboard:** [Metrics](https://nyayavedika.delightfulmushroom-95327f3a.koreacentral.azurecontainerapps.io/metrics) · **Detailed evidence and research:** [docs/RESEARCH_EVIDENCE.md](docs/RESEARCH_EVIDENCE.md)
 
 This repository now includes the full three-door product set: citizen legal-aid / problem-research flows, advocate document studio and grounded insight tools, and staff intake / triage / cause-list / undertrial-watch workflows. It also includes public impact metrics, a consent-based feedback wall, worker-driven ingestion and offline-safe fallback modes.
 
@@ -14,7 +14,7 @@ Latest updates reflected in this branch:
 - advocate workspace isolation, studio tooling and page-grounded chat
 - offline-compatible rules engine and deterministic fallback behavior
 
-Figures are tagged **Reported** (published by the named source), **Derived** (our arithmetic on reported figures) or **Estimate** (our model, assumptions stated).
+Figures are tagged **Measured** (our product logs), **Reported** (published by the named source), **Derived** (our arithmetic on reported or measured figures) or **Estimate** (our model, assumptions stated).
 
 ---
 
@@ -57,7 +57,7 @@ NyayaVedika is a set of AI agents and a lawyer workbench with three doors. Every
 | | Cause list | Conflict-free weekly hearing list sized by adjournment risk; registrar approves | Clashes and adjourned hearings | Cases listed, conflicts avoided, critical wait gained |
 | | **Undertrial Watch** (nightly) | Computes the Section 479 threshold, itemises the arithmetic, drafts the release application; lawyer approves | Eligible people missed because nobody checked the date | People flagged, applications approved, custody days over the limit |
 | | Document summary, ADR routing, Insights tab | Briefs any document; routes suitable cases to Lok Adalat; weekly docket health | Reading time; cases that need not go to trial | Documents analysed, ADR candidates |
-| **All** | Feedback wall `/feedback` | Public ratings and notes from field users | No evidence of real-world use | Responses, average rating, share whose situation changed |
+| **All** | Feedback wall `/feedback` | Public ratings and notes from field users | Early activity and self-reported feedback; legal outcomes are not independently verified | Responses, average rating, share whose situation changed |
 
 ```mermaid
 flowchart LR
@@ -129,15 +129,51 @@ The cycle reinforces itself. The people not identified are the least able to fin
 
 ## Proven impact
 
-**Honest status:** early voluntary feedback is available, but there is not yet a partner-verified field pilot or measured legal outcome study. What exists today:
-- **Synthetic checks.** 21 hand-derived Section 479 cases (`tests/gold_479.json`, **not yet verified by a lawyer**) and an offline evaluation (`python scripts/eval_demo.py`). These use invented cases, so they show the system behaves as designed, not how a real court performs.
-- **Automatic service-use measurement.** Citizen, advocate and staff door visits are counted, plus business API requests with success/failure status and server processing time. `/api/impact` provides combined totals, per-door totals, per-feature totals, and per-door/per-feature breakdowns; the CSV export contains event-level measurements. No request bodies, messages, uploaded files, raw URLs, IP addresses or user identifiers are stored in these usage events. Request counts and door visits are not unique people; server time is not end-to-end task time. Requests whose role cannot be resolved are grouped as unknown.
-- **Public activity metrics API.** `GET /api/demo/metrics` is an unauthenticated, aggregate-only JSON endpoint for the public activity dashboard. It exposes distinct-browser estimates, portal visits, grouped API usage, selected product totals, and summarized feedback—never raw feedback, individual records, or browser IDs. Detailed operational metrics and CSV export remain behind staff authentication.
-- **Public metrics page.** Open `/metrics` for combined totals and separate Citizen, Advocate and Staff sections, each with its own tool-level request counts, distinct-browser counts, success/failure and average server time. These are activity counts, not individual people or completed legal outcomes. The page is backed by `/api/demo/metrics`. Detailed operational metrics and CSV export remain behind Staff portal authentication; the public page does not include case details, individual feedback or raw event data.
-- **Before/after pilot comparison.** The public metrics API reads only aggregate results from `pilot/pilot_log.csv` when present. Download the template at `/pilot/template.csv`, fill it with anonymized, authorized real-pilot measurements (initial manual result, tool result, and lawyer-reviewed verdict), and place the completed CSV at that path on the server. The page compares manual-baseline and tool accuracy against lawyer verdicts on the same cases, and displays matched manual/tool timing plus tool precision/recall. Without rows, it labels the comparison unavailable rather than showing zero as an outcome.
-- **Distinct-browser activity counts.** A random UUID is stored in the browser and sent with public-site and portal activity; the server stores only its SHA-256 hash and counts distinct browsers overall, per door, and per feature. The identifier is pseudonymous, not a name or login, and is not linked to case or document content by the metrics system. A person using multiple browsers/devices may count more than once, and a shared browser may count as one. Activity metrics do not store names, contact details, IP addresses, request text, or uploaded-document contents.
-- **Voluntary user feedback.** The feedback wall collects role, features used, ratings, reported outcomes and estimated time saved. Users can optionally enter paired before/with-tool task times and say whether they estimated or timed them. These answers are self-reported unless marked observed, and are not independent verification. Paired times are excluded from public individual cards; public medians are suppressed until at least five responses, while staff can see aggregate pilot metrics.
-- **Outcome verification and pilot timing.** Partners can report legal-aid follow-up through the partner outcome endpoint. For a comparable task-time evaluation, use the per-case pilot log and `scripts/pilot_report.py`; do not treat survey estimates or a demo run as field outcomes.
+**Status:** NyayaVedika is live and in early field use. The figures below are a measured product-activity snapshot, not a claim of verified legal outcomes. The [public metrics dashboard](https://nyayavedika.delightfulmushroom-95327f3a.koreacentral.azurecontainerapps.com/metrics) is the live source; see [docs/RESEARCH_EVIDENCE.md](docs/RESEARCH_EVIDENCE.md) for definitions, caveats and the full evidence.
+
+### Reach and use (Measured)
+
+| Measure | Snapshot |
+|---|---:|
+| Distinct browsers, all activity | **49** (44 public-site browsers) |
+| Portal visits | **111** (Citizen 32, Advocate 27, Staff 52) |
+| Distinct browsers per door | Citizen 18, Advocate 13, Staff 11 |
+| Browsers that used an API feature | **17** |
+| Tool requests | **374** (Citizen 39, Advocate 41, Staff 293, one role unresolved) |
+| Voluntary feedback responses | **7** |
+
+Browser counts are not counts of people: one person may use multiple devices, and a shared browser may represent multiple people. Staff-door request volume includes reviewer activity, not just ordinary product usage.
+
+| Product activity | Measured total |
+|---|---:|
+| Citizen sessions / completed five-question legal-aid checks | 51 / **50** |
+| Draft legal-aid applications | **23** (46% of checks; Derived) |
+| Court documents analysed | **7** |
+| Undertrials flagged by Undertrial Watch | **23** |
+| Release applications approved by a lawyer | **1** |
+| Cases triaged by the registry agent | **607** |
+| Cause lists published / cases scheduled | **3 / 1,209** |
+
+The case-triage and scheduling totals include synthetic demo data as well as uploaded cases. An approved application is not evidence that a person was released. Drafts are not filed applications.
+
+### Reliability, speed and feedback (Measured / Reported)
+
+- **367 of 374 tool requests succeeded (98.1%, Derived).** The seven logged failures were in Undertrial Watch; they were attributed to internal code testing and have since been fixed. Other features had no logged failures in this snapshot.
+- Typical server latency ranged from 0.08 seconds for case intake to about 32 seconds for document summaries. These are small per-feature samples (1–71 requests), not end-to-end task times or benchmarks.
+- Seven voluntary feedback responses averaged **4.9/5**. Excluding one team member, six external responses (three lawyers, one advocate and two citizens) averaged **4.8/5**. This feedback is self-reported and the sample is small.
+
+### Estimated time and cost effects (Estimate, not field measurements)
+
+Measured server processing times suggest where work may be shortened, but the manual baselines and human-review times below are assumptions, not observed comparisons:
+
+| Task | Estimated time saved |
+|---|---:|
+| Read a 40-page file and list issues/facts | About **25–70 minutes** |
+| Brief a long document | About **15–55 minutes** |
+| Assemble a paper-book | About **40 minutes–2.5 hours** |
+| Check Section 479 eligibility for 50 undertrials | About **2.5–6.5 hours** |
+
+At the derived direct custody cost of about **₹4,195 per inmate per month**, 100 people released three months earlier would correspond to about **₹12.6 lakh** in avoided direct custody cost. This is a formula, not a realized saving; one release application has been approved to date, and no release outcome is claimed. Full assumptions and calculations are in [docs/RESEARCH_EVIDENCE.md](docs/RESEARCH_EVIDENCE.md).
 
 
 

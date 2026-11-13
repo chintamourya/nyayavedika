@@ -316,11 +316,11 @@ After hearings, `record_outcome` (heard, adjourned, disposed, not reached) feeds
 
 ## 7. Measurement and feedback
 
-**Impact log.** Each feature writes counts-only events with no personal data: citizen sessions, legal-aid checks, applications and partner-reported outcomes, documents analysed (with pages and OCR pages), people flagged, release applications approved, cases triaged, ADR candidates, cause lists published (with conflicts avoided and critical wait gained), feedback and human decisions. `GET /api/impact` aggregates them and `/api/impact/export.csv` exports the raw log.
+**Impact log.** Each feature writes counts-only events: citizen sessions, legal-aid checks, applications and partner-reported outcomes, documents analysed (with pages and OCR pages), people flagged, release applications approved, cases triaged, ADR candidates, cause lists published (with conflicts avoided and critical wait gained), feedback and human decisions. `GET /api/impact` aggregates them and `/api/impact/export.csv` exports the raw log for staff. The public `GET /api/demo/metrics` endpoint exposes aggregate activity and summarized feedback only; open the [public metrics dashboard](https://nyayavedika.delightfulmushroom-95327f3a.koreacentral.azurecontainerapps.com/metrics) for per-door and feature totals, distinct-browser estimates, success rates and server latency. Browser counts are not counts of people, and activity does not prove a legal outcome. [docs/RESEARCH_EVIDENCE.md](RESEARCH_EVIDENCE.md) documents the current live-use snapshot and its limits.
 
 **Feedback wall** (`/feedback`). A short form (about three minutes) for advocates, lawyers, court staff and citizens. Only role and star rating are required. The questions map to the four judging criteria: how often the problem occurs and how many people it affects, the costs it causes, the rating and accuracy of the tool, and outcomes and time saved. Free text is masked, names are cut to a first name, and staff can hide an entry.
 
-**Pilot tooling.** `pilot/pilot_log_template.csv` and `scripts/pilot_report.py` turn a per-case log into agreement with lawyer verdicts, minutes saved and flagged cases. The plan is in `docs/RESEARCH_EVIDENCE.md`.
+**Pilot tooling.** `pilot/pilot_log_template.csv` and `scripts/pilot_report.py` turn an authorized, anonymized per-case log into agreement with lawyer verdicts, minutes saved and flagged cases. Early live-use activity and voluntary feedback are available, but no verified legal-outcome or manual-versus-tool time study is claimed. Measurement definitions and the evidence boundary are in [docs/RESEARCH_EVIDENCE.md](RESEARCH_EVIDENCE.md).
 
 ## 8. Safety, privacy and access control
 
