@@ -82,12 +82,13 @@ class LongDocumentTests(unittest.TestCase):
     def setUp(self):
         self.backend = RecordingBackend()
         llm.set_backend(self.backend)
-        self.old = (config.MAP_PART_TOKENS, config.SINGLE_PASS_TOKENS, summarise.BUDGET)
+        self.old = (config.MAP_PART_TOKENS, config.SINGLE_PASS_TOKENS, config.LLM_TPM_LIMIT, summarise.BUDGET)
+        config.LLM_TPM_LIMIT = 10_000
         summarise.BUDGET = summarise.RateBudget(10_000)  # own budget: the process-wide one is left untouched
 
     def tearDown(self):
         llm.set_backend(None)
-        config.MAP_PART_TOKENS, config.SINGLE_PASS_TOKENS, summarise.BUDGET = self.old
+        config.MAP_PART_TOKENS, config.SINGLE_PASS_TOKENS, config.LLM_TPM_LIMIT, summarise.BUDGET = self.old
 
     def test_small_file_is_one_call_with_type_brief_and_grounded_fields(self):
         pages = [{"page": 1, "text": (SAMPLES / "order_02_adjournment.txt").read_text(encoding="utf-8"), "source": "text"}]

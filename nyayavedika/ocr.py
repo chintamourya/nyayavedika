@@ -92,22 +92,25 @@ def extract(data: bytes, filename: str) -> List[Dict]:
     if not caps["pypdf"]:
         raise RuntimeError("PDF support needs pypdf installed")
     import pypdf
-    reader = pypdf.PdfReader(io.BytesIO(data))
-    pages = []
-    pdfium_doc = None
-    for i, page in enumerate(reader.pages):
-        native = page.extract_text() or ""
-        w, h = float(page.mediabox.width), float(page.mediabox.height)
-        entry = {"page": i + 1, "text": native, "source": "native", "confidence": None}
-        if page_needs_ocr(native, w, h):
-            if caps["pypdfium2"] and caps["pytesseract"]:
-                import pypdfium2 as pdfium
-                pdfium_doc = pdfium_doc or pdfium.PdfDocument(data)
-                img = pdfium_doc[i].render(scale=config.OCR_DPI / 72).to_pil()
-                r = _ocr_image(img)
-                if len(re.sub(r"\W", "", r["text"])) > len(re.sub(r"\W", "", native)):
-                    entry.update(text=r["text"], source="ocr", confidence=r["confidence"])
-            else:
-                entry["source"] = "needs_ocr_unavailable"
-        pages.append(entry)
+    try:
+        reader = pypdf.PdfReader(io.BytesIO(data))
+        pages = []
+        pdfium_doc = None
+        for i, page in enumerate(reader.pages):
+            native = page.extract_text() or ""
+            w, h = float(page.mediabox.width), float(page.mediabox.height)
+            entry = {"page": i + 1, "text": native, "source": "native", "confidence": None}
+            if page_needs_ocr(native, w, h):
+                if caps["pypdfium2"] and caps["pytesseract"]:
+                    import pypdfium2 as pdfium
+                    pdfium_doc = pdfium_doc or pdfium.PdfDocument(data)
+                    img = pdfium_doc[i].render(scale=config.OCR_DPI / 72).to_pil()
+                    r = _ocr_image(img)
+                    if len(re.sub(r"\W", "", r["text"])) > len(re.sub(r"\W", "", native)):
+                        entry.update(text=r["text"], source="ocr", confidence=r["confidence"])
+                else:
+                    entry["source"] = "needs_ocr_unavailable"
+            pages.append(entry)
+    except pypdf.errors.PdfReadError as exc:
+        raise ValueError(f"Invalid or unreadable PDF: {exc}") from exc
     return pages

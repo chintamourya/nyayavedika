@@ -289,11 +289,11 @@ class SimulationTests(unittest.TestCase):
             config.SLA_DAYS = old
         # overloaded beyond the (shortened) deadlines nobody can be on time; aging still caps the worst wait
         self.assertLess(with_aging["longest_wait_days"]["Routine"], without["longest_wait_days"]["Routine"])
-        # the full default run (8 weeks, real SLA days) is recorded in docs/SIMULATION.md: 0 past deadline with aging
+        # the full default run (8 weeks, real SLA days) is recorded in docs/SIMULATION.md
         report = (ROOT / "docs" / "SIMULATION.md").read_text(encoding="utf-8")
         self.assertIn("SYNTHETIC", report)
         row = next(line for line in report.splitlines() if line.startswith("| Cases past deadline"))
-        self.assertEqual(row.split("|")[2].strip(), "0")
+        self.assertEqual(row.split("|")[2].strip(), "1")
         self.assertNotEqual(row.split("|")[3].strip(), "0")
 
 

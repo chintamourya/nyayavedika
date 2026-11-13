@@ -3,6 +3,9 @@
 **Track:** Timely Justice, Legal Backlog (Code for a Billion, impact area 07)
 **Live demo:** [NYAYAVEDIKA](https://nyayavedika.delightfulmushroom-95327f3a.koreacentral.azurecontainerapps.io/) · **Demo video (3 min):** https://youtu.be/D3xo-yJMhwg · **Licence:** MIT
 **Live impact dashboard:** [Metrics](https://nyayavedika.delightfulmushroom-95327f3a.koreacentral.azurecontainerapps.io/metrics) · **Detailed evidence and research:** [docs/RESEARCH_EVIDENCE.md](docs/RESEARCH_EVIDENCE.md)
+**Detailed operational metrics:** [live metrics dashboard](https://nyayavedika.delightfulmushroom-95327f3a.koreacentral.azurecontainerapps.io/metrics)
+
+[![Python tests](https://github.com/chintamourya/nyayavedika/actions/workflows/tests.yml/badge.svg)](https://github.com/chintamourya/nyayavedika/actions/workflows/tests.yml)
 
 This repository now includes the full three-door product set: citizen legal-aid / problem-research flows, advocate document studio and grounded insight tools, and staff intake / triage / cause-list / undertrial-watch workflows. It also includes public impact metrics, a consent-based feedback wall, worker-driven ingestion and offline-safe fallback modes.
 
@@ -181,13 +184,13 @@ At the derived direct custody cost of about **₹4,195 per inmate per month**, 1
 
 ```bash
 pip install -r requirements.txt     # Python 3.12
-cp .env.example .env                # set distinct long random DEMO_TOKEN_* values
+cp .env.example .env                # SQLite + no API keys; set distinct long random DEMO_TOKEN_* values to run the app
 python scripts/reset_demo.py        # seeds synthetic data
 python server.py                    # http://127.0.0.1:8000
 python -m unittest discover -s tests
 ```
 
-Open `/citizen`, `/advocate` or `/staff`. Add `AZURE_OPENAI_*`, `PINECONE_API_KEY` and `TAVILY_API_KEY` to `.env` to switch on the LLM, vector search (needed for document chat) and web search. Scanned pages need Tesseract with language packs (`apt install tesseract-ocr tesseract-ocr-hin tesseract-ocr-tel`). `docker compose up --build` runs the full stack.
+Open `/citizen`, `/advocate` or `/staff`. Add `AZURE_OPENAI_*`, `PINECONE_API_KEY` and `TAVILY_API_KEY` to `.env` to switch on the LLM, vector search (needed for document chat) and web search. For Docker Compose, configure the database settings in `.env` as described at the top of `docker-compose.yml`. Scanned pages need Tesseract with language packs (`apt install tesseract-ocr tesseract-ocr-hin tesseract-ocr-tel`). `docker compose up --build` runs the full stack.
 
 ## Known limits
 

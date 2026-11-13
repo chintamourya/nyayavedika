@@ -88,7 +88,7 @@ POLICY = {
     "POST /api/field-feedback": ALL_ROLES,
     "POST /api/field-feedback/{feedback_id}/hide": (STAFF,),
 }
-PUBLIC = {"GET /api/health"}
+PUBLIC = {"GET /api/health", "POST /api/reach/{door}", "DELETE /api/reach", "GET /api/demo/metrics"}
 
 
 @dataclass(frozen=True)

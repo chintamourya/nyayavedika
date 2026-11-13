@@ -407,7 +407,8 @@ class IntakeApiTests(IntakeTestCase):
         self.assertEqual(r.status_code, 202)
         worker.run(once=True)
         status = self.client.get(f"/api/intake/batches/{r.json()['batch_id']}", headers=self.h).json()
-        self.assertEqual([f["stage"] for f in status["files"]], ["scored"] * 3)
+        self.assertEqual([f["stage"] for f in status["files"]], ["scored", "scored", "proposed"])
+        self.assertIsNotNone(status["files"][2]["result"]["proposed_slot"])
         six = [("files", (f"f{i}.txt", b"FIR", "text/plain")) for i in range(6)]
         self.assertEqual(self.client.post("/api/intake/batches", files=six, headers=self.h).status_code, 400)
 

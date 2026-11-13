@@ -2,7 +2,8 @@
 
 Every value comes from the .env file (nyayavedika/envfile.py) and nowhere else: not from the shell environment, not from literals in
 the modules. A key missing from .env stops start-up with one error that lists all of them. This file is the complete list of
-keys (one line each, with a comment); .env is the only place their values live. Modules read `config.NAME`; they never read the environment and never hardcode a tunable.
+keys (one line each, with a comment); `.env.example` provides non-secret placeholders to copy into `.env`. Modules read
+`config.NAME`; they never read the environment and never hardcode a tunable.
 """
 import json  # noqa: F401  (kept: some callers import config.json-compatible helpers)
 

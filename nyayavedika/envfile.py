@@ -5,7 +5,8 @@ Rules:
     in code. A key missing from the file stops start-up with one error that lists every missing key.
   * An empty value is allowed (e.g. an optional API key); an absent key is not.
   * The file is always <repo root>/.env (in Docker: /app/.env, mounted at run time, never baked into the image).
-    There is no other settings file, no redirect variable and no template file to keep in sync.
+    The checked-in .env.example is a placeholder template; it is not loaded by the application.
+    There is no redirect variable or other runtime settings file.
 Values are never printed or logged; loaded_from() reports the path only.
 """
 import json

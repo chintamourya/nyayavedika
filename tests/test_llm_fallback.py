@@ -68,7 +68,7 @@ class LLMFallbackTests(unittest.TestCase):
 
         with mock.patch.dict(sys.modules, {"openai": openai_module}):
             backend = llm.AzureOpenAIBackend()
-            result = backend.text("ignored-primary-model", "system", [{"role": "user", "content": "hello"}])
+            result = backend.text("", "system", [{"role": "user", "content": "hello"}])
 
         self.assertEqual(result, "Azure response")
         azure_client.assert_called_once_with(
