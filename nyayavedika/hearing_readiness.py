@@ -44,6 +44,7 @@ def system_signals(review_fields: List[str], conflicts: List[Dict], documents_li
                 "key": f"conflict:{field}",
                 "title": "Documents disagree on a case field",
                 "detail": field.replace("_", " "),
+                "field": field,
             })
     for document in documents_list:
         pages = document.get("low_confidence_pages") or []
@@ -52,6 +53,8 @@ def system_signals(review_fields: List[str], conflicts: List[Dict], documents_li
                 "key": f"ocr:{document['doc_id']}",
                 "title": "Low OCR confidence",
                 "detail": f"{document['filename']}: page(s) {', '.join(str(page) for page in pages)}",
+                "doc_id": document["doc_id"],
+                "page": pages[0],
             })
     return signals
 

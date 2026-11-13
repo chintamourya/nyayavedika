@@ -6,7 +6,7 @@
 <meta name="theme-color" content="#0866ff">
 <title>NyayaVedika - Staff</title>
 <link rel="icon" href="/static/favicon.svg?v=3" type="image/svg+xml">
-<link rel="stylesheet" href="/static/styles.css?v=16">
+<link rel="stylesheet" href="/static/styles.css?v=18">
 </head>
 <body class="staff-page">
 <header class="top">
@@ -21,7 +21,10 @@
   </form>
   <div class="row gap wrap signed-in hidden" id="signedIn">
     <span id="who" class="pill">not signed in</span>
+    <span id="portalSyncStatus" class="pill" role="status" aria-live="polite">Waiting for refresh</span>
     <span class="hint" id="signedInTokenHint">Demo staff token: mourya</span>
+    <button class="btn ghost small" type="button" id="roleSwitch"
+      title="Switch views; the server still checks whether this token has the selected role">Switch to lawyer review</button>
     <button class="btn ghost small" type="button" id="tokenChange">Switch user</button>
   </div>
   <a class="portal-home" href="/">Home</a>
@@ -145,6 +148,7 @@
     <p class="purpose">Step 2. Uploaded and imported cases appear first, with highest priority first within each group, followed by synthetic examples.
       Click a row to see why it scored what it did,
       its facts with source pages, timeline and history.</p>
+    <p class="hint">Priority is a work-order signal, not a legal decision or confirmation that a case is ready for hearing. Open a case to verify facts against the source papers.</p>
     <div data-how="docket"></div>
     <div class="card docket-bar" id="docketFilters">
       <div class="row gap wrap docket-main">
@@ -201,17 +205,39 @@
   <!-- UNDERTRIAL -->
   <section id="tab-undertrial" class="panel" aria-label="Undertrial">
     <h2>Undertrial Watch</h2>
-    <p class="purpose">Custody cases from the Docket are checked every day against Sec. 479 BNSS. Anyone past the
-      limit gets an alert with a draft release application for a legal-aid lawyer. Staff can open and correct case facts,
-      track custody-record follow-up and flag lawyer review; only a legal-aid lawyer can approve or dismiss. These tracking
-      actions do not send messages or assign a lawyer. Uploaded and imported cases appear before synthetic examples.</p>
+    <p class="purpose">Custody cases from the Docket are checked every day against Sec. 479 BNSS. A possible case for review gets an alert and draft application. A lawyer reviews the draft and may file it; only the court decides whether to release the person. Staff can assign a pending alert to a lawyer they have checked against the official legal-aid roster. Assignments appear in a shared queue visible to every lawyer account and do not send email or SMS.</p>
     <div data-how="undertrial"></div>
     <div class="card">
-      <p>Each alert moves through:</p>
-      <ol class="flow small" id="utFlow"><li>Found</li><li>Lawyer approves</li><li>Filed in court</li><li>Heard</li><li>Released / denied</li></ol>
+      <p>Workflow: lawyer review → application filing → court hearing → court order and, if granted, release.</p>
+      <ol class="flow small" id="utFlow"><li>Alert found</li><li>Lawyer review</li><li>Filed in court</li><li>Hearing held</li><li>Court outcome</li></ol>
       <div class="row gap wrap"><span class="hint" id="utRole"></span>
         <button class="btn ghost small" id="utScan" data-staff>Check again now</button></div>
     </div>
+    <details class="card" id="legalAidRosterPanel" data-staff>
+      <summary><b>Manage staff-verified legal-aid roster</b></summary>
+      <p class="hint">Add a lawyer only after checking an official panel list. The system records your verification reference but does not independently verify it. No phone or email is stored; every lawyer account can see assignments in this shared demo.</p>
+      <form id="legalAidRosterForm" class="row gap wrap">
+        <label for="rosterLawyerName">Lawyer name</label><input id="rosterLawyerName" maxlength="120" required>
+        <label for="rosterDistrict">District</label><input id="rosterDistrict" maxlength="80" required>
+        <label for="rosterVerification">Official roster/source reference</label><input id="rosterVerification" maxlength="240" required placeholder="Official list title, date, or URL">
+        <label><input id="rosterVerified" type="checkbox" required> I checked this lawyer against the official legal-aid roster</label>
+        <button class="btn small" type="submit">Add staff-verified lawyer</button>
+      </form>
+      <p id="legalAidRosterError" class="error" role="alert"></p>
+      <ul id="legalAidRosterList"></ul>
+    </details>
+    <div class="ut-queue-toolbar" role="region" aria-label="Undertrial alert queue controls">
+      <label class="ut-search-field" for="utSearch">Find a case or assigned lawyer
+        <input id="utSearch" type="search" autocomplete="off" placeholder="Search case number or lawyer">
+      </label>
+      <button class="btn ghost small" type="button" id="utRefresh">Refresh queue</button>
+      <nav class="ut-queue-jumps" aria-label="Jump to alert queue">
+        <a class="btn ghost small" href="#utNeedH">Needs a decision</a>
+        <a class="btn ghost small" href="#utProgH">In progress</a>
+      </nav>
+      <span id="utQueueStatus" class="hint" role="status" aria-live="polite">Waiting for alerts</span>
+    </div>
+    <p id="utSearchSummary" class="hint" aria-live="polite"></p>
     <h3 id="utNeedH">Needs a decision</h3>
     <div id="utDecide"></div>
     <h3 id="utProgH">In progress</h3>
@@ -223,20 +249,23 @@
 </main>
 
 <aside class="drawer" id="drawer" aria-label="Case details" aria-hidden="true">
-  <header><div><b id="dTitle">Case</b> <span id="dBand"></span></div>
+  <header><div><b id="dTitle">Case</b> <span class="hint">Triage priority</span> <span id="dBand"></span></div>
     <button class="btn ghost small" id="dClose" aria-label="Close case details">Close ✕</button></header>
   <nav class="tabs" role="tablist">
-    <button class="tab active" data-dtab="brief">Brief</button><button class="tab" data-dtab="priority">Priority</button>
-    <button class="tab" data-dtab="timeline">Timeline</button><button class="tab" data-dtab="documents">Documents</button>
-    <button class="tab" data-dtab="readiness">Readiness</button><button class="tab" data-dtab="history">History</button>
+    <button id="dtab-brief" class="tab active" role="tab" aria-selected="true" aria-controls="dBody" data-dtab="brief" tabindex="0">Overview</button>
+    <button id="dtab-priority" class="tab" role="tab" aria-selected="false" aria-controls="dBody" data-dtab="priority" tabindex="-1">Priority</button>
+    <button id="dtab-timeline" class="tab" role="tab" aria-selected="false" aria-controls="dBody" data-dtab="timeline" tabindex="-1">Timeline</button>
+    <button id="dtab-documents" class="tab" role="tab" aria-selected="false" aria-controls="dBody" data-dtab="documents" tabindex="-1">Documents</button>
+    <button id="dtab-readiness" class="tab" role="tab" aria-selected="false" aria-controls="dBody" data-dtab="readiness" tabindex="-1">Hearing prep</button>
+    <button id="dtab-history" class="tab" role="tab" aria-selected="false" aria-controls="dBody" data-dtab="history" tabindex="-1">History</button>
   </nav>
-  <div class="body" id="dBody"></div>
+  <div class="body" id="dBody" role="tabpanel" aria-labelledby="dtab-brief" tabindex="0"></div>
 </aside>
 
 <dialog id="dialog"><div id="dialogBody"></div><div class="row gap" style="justify-content:flex-end;margin-top:12px"><button class="btn ghost" id="dialogClose">Close</button></div></dialog>
 
-<script src="/static/common.js?v=14"></script>
-<script src="/static/explain.js?v=2"></script>
-<script src="/static/staff.js?v=28"></script>
+<script src="/static/common.js?v=15"></script>
+<script src="/static/explain.js?v=3"></script>
+<script src="/static/staff.js?v=37"></script>
 </body>
 </html>

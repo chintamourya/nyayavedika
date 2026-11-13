@@ -59,6 +59,10 @@ POLICY = {
     "POST /api/alerts/decide": (LAWYER,),
     "POST /api/alerts/{alert_id}/state": COURT,   # lawyer approves/dismisses; staff records later case progress
     "POST /api/alerts/{alert_id}/staff-action": (STAFF,),
+    "POST /api/alerts/{alert_id}/assign-lawyer": (STAFF,),
+    "GET /api/legal-aid/roster": (STAFF,),
+    "POST /api/legal-aid/roster": (STAFF,),
+    "POST /api/legal-aid/roster/{lawyer_id}/deactivate": (STAFF,),
     "GET /api/alerts/data-needed": COURT,
     "POST /api/legal-aid/{request_id}/outcome": COURT,
     # everyone: legal-aid check, assistant (agent chosen by role), feedback

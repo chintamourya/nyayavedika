@@ -73,6 +73,12 @@ SCHEMA: Dict[str, Dict] = {
     "advocates": {
         "columns": [("advocate_id", "text", ""), ("name", "text", ""), ("source", "text", "")],
         "pk": ("advocate_id",), "indexes": []},
+    "legal_aid_roster": {
+        "columns": [("lawyer_id", "text", ""), ("name", "text", ""), ("district", "text", ""),
+                    ("verification_reference", "text", ""), ("verified_by", "text", ""),
+                    ("verified_at", "ts", ""), ("active", "bool", "DEFAULT TRUE"),
+                    ("created_at", "ts", NOW)],
+        "pk": ("lawyer_id",), "indexes": [("ix_legal_aid_roster_active_district", "active, district", None, False, False)]},
     "case_advocates": {
         "columns": [("case_id", "text", ""), ("advocate_id", "text", ""), ("role", "text", "")],
         "pk": ("case_id", "advocate_id"), "indexes": [("ix_case_advocates_adv", "advocate_id", None, False, False)]},

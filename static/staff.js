@@ -60,11 +60,19 @@ function signedIn(on) {  // signed in: show who you are + "Switch user"; signed 
   $("#signinForm").classList.toggle("hidden", on);
   $("#signedIn").classList.toggle("hidden", !on);
 }
+function markPortalStatus(message) {
+  const time = new Intl.DateTimeFormat(undefined, { hour: "numeric", minute: "2-digit" }).format(new Date());
+  const status = `${message} · ${time}`;
+  $("#portalSyncStatus").textContent = status;
+  $("#utQueueStatus").textContent = status;
+}
 async function whoami() {
   try {
     const me = await api("/api/whoami");
     ROLE = me.role;
     $("#who").textContent = `Signed in · ${ROLE_NAME[me.role] || me.role} (${me.actor})`;
+    $("#signedInTokenHint").textContent = `Current access role: ${ROLE_NAME[ROLE] || ROLE}`;
+    markPortalStatus("Connected");
     const roleAllowed = ADVOCATE_DOOR ? ROLE === "lawyer" : ["staff", "lawyer"].includes(ROLE);
     signedIn(roleAllowed);
     if (!roleAllowed) {
@@ -76,6 +84,7 @@ async function whoami() {
       $$("main .panel").forEach((panel) => panel.classList.remove("active"));
       return;
     }
+    $("#roleSwitch").textContent = ROLE === "lawyer" ? "Switch to court staff view" : "Switch to lawyer review";
     $$("[data-staff]").forEach((el) => el.classList.toggle("hidden", ROLE !== "staff"));
     $$("[data-court]").forEach((el) => el.classList.toggle("hidden", !["staff", "lawyer"].includes(ROLE)));
     if (ROLE === "citizen") toast("This token is a citizen token - use the citizen portal.", "error");
@@ -93,8 +102,11 @@ async function whoami() {
   } catch (e) {
     signedIn(false);
     $("#who").textContent = "not signed in";
+    const requestedRole = new URLSearchParams(location.search).get("role");
     $("#portalAccessMessage").textContent = ADVOCATE_DOOR
       ? "Enter a lawyer access token to use the Advocate portal."
+      : requestedRole === "lawyer"
+        ? "This token does not have the lawyer role. Use a lawyer token configured by your administrator."
       : "Enter a staff or lawyer access token to use this portal.";
     $("#portalAccessMessage").classList.remove("hidden");
     $("#portalTabs").classList.add("hidden");
@@ -114,6 +126,9 @@ $("#signinForm").addEventListener("submit", (e) => {  // Enter or the Sign in bu
   whoami();
 });
 $("#tokenChange").addEventListener("click", () => { signedIn(false); $("#demoToken").select(); $("#demoToken").focus(); });
+$("#roleSwitch").addEventListener("click", () => {
+  location.assign(ROLE === "lawyer" ? "/staff" : "/staff?role=lawyer");
+});
 whoami();
 
 // ---------------------------------------------------------------- TODAY
@@ -122,13 +137,17 @@ async function loadToday() {
   try {
     const t = await api("/api/today");
     $("#todayMix").innerHTML = mixLine(t.data_mix);
-    $("#pipeline").innerHTML = pipelineStrip(t.pipeline);
+    $("#pipeline").innerHTML = pipelineStrip(t.pipeline, ROLE);
     $$("#pipeline [data-pipe]").forEach((b) => b.addEventListener("click", () => {
       if (b.dataset.pipe === "docket") setDocketFilters({});
       showTab(b.dataset.pipe);
     }));
-    const k = (key, value, label, why, filter) =>
-      `<button class="kpi click" data-filter='${esc(JSON.stringify(filter || {}))}' data-key="${key}"><b>${esc(value)}</b><span>${esc(label)}</span><small class="why">${esc(why)}</small></button>`;
+    const k = (key, value, label, why, filter) => {
+      const actionable = ROLE === "staff" || key === "rel";
+      const tag = actionable ? "button" : "div";
+      return `<${tag} class="kpi${actionable ? " click" : ""}"${actionable ? ` data-filter='${esc(JSON.stringify(filter || {}))}' data-key="${key}"` : ""}
+        ${tag === "button" ? 'type="button"' : ""}><b>${esc(value)}</b><span>${esc(label)}</span><small class="why">${esc(why)}</small></${tag}>`;
+    };
     box.innerHTML = [
       k("crit", t.critical_waiting, "Critical waiting", "Critical band, not yet on an upcoming list", { band: "Critical", not_listed: true }),
       k("rel", t.release_eligible, "Release-eligible", "Past the Sec. 479 BNSS limit", { flag: "UNDERTRIAL_RELEASE_ELIGIBLE" }),
@@ -137,28 +156,33 @@ async function loadToday() {
       k("up", t.uploaded_today, "Uploaded today", "Files received through Intake", null),
       k("def", t.deferred_3_plus, "Deferred 3+ times", "Left out of 3 published lists in a row - must-list next", { deferred3: true }),
     ].join("");
-    $$("#todayKpis .kpi").forEach((b) => b.addEventListener("click", () => {
+    $$("#todayKpis button[data-key]").forEach((b) => b.addEventListener("click", () => {
       if (b.dataset.key === "up") return showTab("intake");
-      if (b.dataset.key === "rel" && ROLE === "lawyer") return showTab("undertrial");
+      if (b.dataset.key === "rel") return showTab("undertrial");
       setDocketFilters(JSON.parse(b.dataset.filter)); showTab("docket");
     }));
     const todo = [];
     const proposals = capSyntheticExamples(t.fast_lane_proposals);
-    proposals.rows.forEach((p) => todo.push(`<li>${band(p.band)} <b>${esc(p.case_id)}</b> ${p.source === "synthetic" ? srcBadge(p.source) : ""} proposed for ${esc(p.day)} ${esc(p.slot)} on ${esc(p.bench_id)} -
-      <button class="btn small" data-accept="${esc(p.case_id)}" data-cl="${esc(p.cause_list_id ?? "")}">Accept slot</button> <button class="btn ghost small" data-open="${esc(p.case_id)}">Open case</button>
-      <br><span class="hint">Why: ${esc(p.band)} cases are offered the first free slot at once (fast lane) instead of waiting for the weekly list.</span></li>`));
-    if (proposals.omitted) todo.push(`<li>${syntheticLimitNote(proposals.omitted)}</li>`);
-    if (t.needs_review) todo.push(`<li>${t.needs_review} case(s) need one field fixed - <button class="btn ghost small" data-goto="review">Show them</button></li>`);
+    if (ROLE === "staff") {
+      proposals.rows.forEach((p) => todo.push(`<li>${band(p.band)} <b>${esc(p.case_id)}</b> ${p.source === "synthetic" ? srcBadge(p.source) : ""} proposed for ${esc(p.day)} ${esc(p.slot)} on ${esc(p.bench_id)} -
+        <button class="btn small" data-accept="${esc(p.case_id)}" data-cl="${esc(p.cause_list_id ?? "")}">Accept slot</button> <button class="btn ghost small" data-open="${esc(p.case_id)}">Open case</button>
+        <br><span class="hint">Why: Critical cases are offered the first free slot instead of waiting for the weekly list. Accepting keeps it in a draft; it does not publish the hearing.</span></li>`));
+      if (proposals.omitted) todo.push(`<li>${syntheticLimitNote(proposals.omitted)}</li>`);
+    }
+    if (t.needs_review && ROLE === "staff") todo.push(`<li>${t.needs_review} case(s) need a field checked - <button class="btn ghost small" data-goto="review">Review them in the Docket</button></li>`);
     if (t.release_eligible) todo.push(`<li>${t.release_eligible} person(s) appear past the Sec. 479 limit - <button class="btn ghost small" data-goto="ut">Open Undertrial</button></li>`);
-    if (t.past_deadline) todo.push(`<li>${t.past_deadline} case(s) are past their listing deadline - they will be must-list in the next draft. <button class="btn ghost small" data-goto="past">Show them</button></li>`);
-    if (t.pipeline && !t.pipeline.latest_cause_list) todo.push(`<li>No cause list yet - <button class="btn ghost small" data-goto="cause">Prepare next week's draft</button></li>`);
-    else if (t.pipeline?.latest_cause_list?.status === "draft") todo.push(`<li>Draft cause list #${esc(t.pipeline.latest_cause_list.id)} (week of ${esc(t.pipeline.latest_cause_list.start_date)}) is waiting for approval - <button class="btn ghost small" data-goto="cause">Review it</button></li>`);
+    if (t.past_deadline && ROLE === "staff") todo.push(`<li>${t.past_deadline} case(s) are past their listing deadline - check them in the next draft. <button class="btn ghost small" data-goto="past">Review in the Docket</button></li>`);
+    if (ROLE === "staff" && t.pipeline && !t.pipeline.latest_cause_list) todo.push(`<li>No cause list yet - <button class="btn ghost small" data-goto="cause">Prepare next week's draft</button></li>`);
+    else if (ROLE === "staff" && t.pipeline?.latest_cause_list?.status === "draft") todo.push(`<li>Draft cause list #${esc(t.pipeline.latest_cause_list.id)} (week of ${esc(t.pipeline.latest_cause_list.start_date)}) is waiting for review - <button class="btn ghost small" data-goto="cause">Review it</button></li>`);
     $("#todoList").innerHTML = todo.join("") || "<li>Nothing urgent right now.</li>";
     wireCaseButtons($("#todoList"));
     $$("[data-goto]", $("#todoList")).forEach((b) => b.addEventListener("click", () => {
       if (b.dataset.goto === "ut") return showTab("undertrial");
       if (b.dataset.goto === "cause") return showTab("cause");
-      setDocketFilters(b.dataset.goto === "past" ? { past_deadline: true } : { needs_review: true }); showTab("docket");
+      if (ROLE === "staff") {
+        setDocketFilters(b.dataset.goto === "past" ? { past_deadline: true } : { needs_review: true });
+        showTab("docket");
+      }
     }));
   } catch (e) { box.innerHTML = `<p class="error">${esc(e.message)}</p>`; }
 }
@@ -167,10 +191,14 @@ function wireCaseButtons(root) {
   $$("[data-open]", root).forEach((b) => b.addEventListener("click", () => openDrawer(b.dataset.open)));
   $$("[data-accept]", root).forEach((b) => b.addEventListener("click", () => busy(b, async () => {
     const clId = b.dataset.cl || (cl && cl.status === "draft" ? cl.id : "");
-    await api(`/api/cases/${b.dataset.accept}/accept-slot`, { json: { action: "accept", cause_list_id: clId ? Number(clId) : null } });
+    await api(caseApiPath(b.dataset.accept, "/accept-slot"), { json: { action: "accept", cause_list_id: clId ? Number(clId) : null } });
     toast("Slot accepted - it stays in the draft list until the Registrar publishes."); b.closest("li, .result")?.classList.add("hint");
   })));
   $$("[data-fix]", root).forEach((b) => b.addEventListener("click", () => correctDialog(b.dataset.fix, b.dataset.field)));
+}
+function caseApiPath(caseId, suffix = "") {
+  const encoded = String(caseId).split("/").map(encodeURIComponent).join("/");
+  return `/api/cases/${encoded}${suffix}`;
 }
 
 // ---------------------------------------------------------------- INTAKE
@@ -358,7 +386,7 @@ function correctDialog(caseId, field) {
     <button class="btn" id="cfSave">Save</button> <span id="cfOut"></span>`;
   $("#dialog").showModal();
   $("#cfSave").addEventListener("click", (e) => busy(e.target, async () => {
-    const out = await api(`/api/cases/${caseId}`, { method: "PATCH", json: { [$("#cfField").value]: $("#cfValue").value } });
+    const out = await api(caseApiPath(caseId), { method: "PATCH", json: { [$("#cfField").value]: $("#cfValue").value } });
     $("#cfOut").innerHTML = `${band(out.priority.band)} ${esc(out.priority.score)} · ${out.data_quality === "complete" ? "✓ complete" : "still needs: " + esc(out.review_fields.join(", "))}`;
     toast("Saved and re-scored.");
   }));
@@ -416,7 +444,12 @@ async function loadDocket() {
     $("#docketClear")?.addEventListener("click", () => { setDocketFilters({}); loadDocket(); });
     $$("#docketTable tr[data-case]").forEach((tr) => {
       tr.addEventListener("click", () => openDrawer(tr.dataset.case));
-      tr.addEventListener("keydown", (e) => { if (e.key === "Enter") openDrawer(tr.dataset.case); });
+      tr.addEventListener("keydown", (e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          openDrawer(tr.dataset.case);
+        }
+      });
     });
   } catch (e) {
     if (seq === docketSeq) $("#docketCount").innerHTML = `<span class="error">${esc(e.message)}</span>`;
@@ -434,7 +467,7 @@ function todayIso() { const d = new Date(), p = (n) => String(n).padStart(2, "0"
 let current = null;
 async function openDrawer(caseId) {
   try {
-    [current] = await Promise.all([api(`/api/cases/${caseId}/detail`), loadRules()]);
+    [current] = await Promise.all([api(caseApiPath(caseId, "/detail")), loadRules()]);
     $("#dTitle").textContent = caseId; $("#dBand").innerHTML = band(current.priority.band);
     $("#drawer").classList.add("open"); $("#drawer").setAttribute("aria-hidden", "false");
     drawerTab("brief"); $("#dClose").focus();
@@ -442,7 +475,20 @@ async function openDrawer(caseId) {
 }
 $("#dClose").addEventListener("click", () => { $("#drawer").classList.remove("open"); $("#drawer").setAttribute("aria-hidden", "true"); });
 document.addEventListener("keydown", (e) => { if (e.key === "Escape") $("#dClose").click(); });
-$$("#drawer [data-dtab]").forEach((t) => t.addEventListener("click", () => drawerTab(t.dataset.dtab)));
+$$("#drawer [data-dtab]").forEach((t) => {
+  t.addEventListener("click", () => drawerTab(t.dataset.dtab));
+  t.addEventListener("keydown", (event) => {
+    const tabs = $$("#drawer [data-dtab]");
+    const index = tabs.indexOf(t);
+    const next = event.key === "ArrowRight" ? (index + 1) % tabs.length
+      : event.key === "ArrowLeft" ? (index - 1 + tabs.length) % tabs.length
+        : event.key === "Home" ? 0 : event.key === "End" ? tabs.length - 1 : -1;
+    if (next < 0) return;
+    event.preventDefault();
+    tabs[next].focus();
+    drawerTab(tabs[next].dataset.dtab);
+  });
+});
 
 function srcLink(prov) {
   if (!prov) return "";
@@ -453,7 +499,7 @@ function srcLink(prov) {
   return `<span class="src">${esc(prov.source || "")}</span>`;
 }
 function readinessPath(caseId) {
-  return `/api/cases/${String(caseId).split("/").map(encodeURIComponent).join("/")}/readiness`;
+  return caseApiPath(caseId, "/readiness");
 }
 async function saveReadiness(action) {
   const out = await api(readinessPath(current.case_id), { json: action });
@@ -462,16 +508,23 @@ async function saveReadiness(action) {
   drawerTab("readiness");
 }
 function wireReadiness(body) {
-  body.querySelector("#readinessAdd")?.addEventListener("click", async (event) => {
+  body.querySelector("#readinessForm")?.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const form = event.currentTarget;
     const input = body.querySelector("#readinessLabel");
-    const button = event.currentTarget;
+    const button = form.querySelector('button[type="submit"]');
+    input.value = input.value.trim();
+    if (!input.value) {
+      input.reportValidity();
+      return;
+    }
     button.disabled = true;
     try {
       await saveReadiness({ action: "add", label: input.value });
     } catch (e) {
       toast(e.message, "error");
     } finally {
-      button.disabled = false;
+      if (button.isConnected) button.disabled = false;
     }
   });
   $$("[data-readiness-state]", body).forEach((button) => button.addEventListener("click", async () => {
@@ -494,19 +547,29 @@ function wireReadiness(body) {
   }));
 }
 function drawerTab(tab) {
-  $$("#drawer [data-dtab]").forEach((t) => t.classList.toggle("active", t.dataset.dtab === tab));
+  $$("#drawer [data-dtab]").forEach((t) => {
+    const selected = t.dataset.dtab === tab;
+    t.classList.toggle("active", selected);
+    t.setAttribute("aria-selected", String(selected));
+    t.tabIndex = selected ? 0 : -1;
+  });
   const c = current, body = $("#dBody");
+  body.setAttribute("aria-labelledby", `dtab-${tab}`);
   if (tab === "brief") {
-    body.innerHTML = `${c.glance ? `<ul class="reasons">${c.glance.map((l) => `<li>${esc(l)}</li>`).join("")}</ul>` : ""}
-      ${c.review_fields.length ? `<p class="banner-warn">⚠ Needs review: ${c.review_fields.map((f) => `<button class="btn small" data-fix="${esc(c.case_id)}" data-field="${esc(f)}">Fill in ${pretty(f)}</button>`).join(" ")}</p>` : ""}
+    body.innerHTML = `<p class="hint">Start with the case facts and their source pages. Triage priority helps organize work; it is not a legal decision or a readiness approval.</p>
+      ${c.glance ? `<ul class="reasons">${c.glance.map((l) => `<li>${esc(l)}</li>`).join("")}</ul>` : ""}
+      ${c.review_fields.length ? `<p class="banner-warn">Needs review: ${c.review_fields.map((f) => `<button class="btn small" data-fix="${esc(c.case_id)}" data-field="${esc(f)}">Review ${pretty(f)}</button>`).join(" ")}</p>` : ""}
       ${Object.entries(c.facts).map(([k, v]) => `<div class="fact"><span class="hint">${pretty(k)}</span><span>${esc(v ?? "-")} ${srcLink(c.provenance[k])}</span></div>`).join("")}
+      ${c.legal_aid_assignment ? `<p class="banner-neutral"><b>Undertrial alert:</b> assigned to ${esc(c.legal_aid_assignment.lawyer_name)} · ${esc(c.legal_aid_assignment.district)}.
+        Review requested ${esc((c.legal_aid_assignment.review_requested_at || "").slice(0, 10))} · alert status: ${pretty(c.legal_aid_assignment.alert_status)}.</p>` : ""}
       <p class="hint">Source: ${srcBadge(c.source)} · queue: deferred ${esc(c.queue.consecutive_deferrals || 0)}× · due by ${esc(c.queue.sla_due_on || "-")}</p>
       ${c.listings.length ? `<p>Listing: ${c.listings.map((l) => `${esc(l.day)} ${esc(l.slot_start)} ${esc(l.bench_id)} (${esc(l.status)})`).join("; ")}
-        <button class="btn ghost small" data-accept="${esc(c.case_id)}">Accept slot</button></p>` : ""}
-      <button class="btn ghost small" data-fix="${esc(c.case_id)}">Correct field</button>`;
+        ${ROLE === "staff" ? `<button class="btn ghost small" data-accept="${esc(c.case_id)}">Accept slot</button>` : ""}</p>` : ""}
+      ${ROLE === "staff" ? `<button class="btn ghost small" data-fix="${esc(c.case_id)}">Correct field</button>` : ""}`;
   } else if (tab === "priority") {
     const p = c.priority, q = c.queue || {};
-    body.innerHTML = `<p>${band(p.band)} <b>${esc(p.score)}</b> · ${esc(p.route || "")} <span class="hint">(${esc(p.rules_version || "")})</span></p>
+    body.innerHTML = `<p><b>Triage priority</b> — ${band(p.band)} <b>${esc(p.score)}</b> · ${esc(p.route || "")} <span class="hint">(${esc(p.rules_version || "")})</span></p>
+      <p class="hint">This helps staff order administrative follow-up. It does not decide bail, guilt, or whether a hearing should proceed.</p>
       ${scoreBreakdown(p)}
       <p>${p.flags.map((f) => `<span class="flag" title="${esc(f)}">${flagLabel(f)}</span>`).join("")}</p>
       <h3>In the scheduling queue</h3>
@@ -521,28 +584,36 @@ function drawerTab(tab) {
     body.innerHTML = c.documents.map((d) => `<div class="card"><b>${esc(d.filename)}</b> · ${pretty(d.doc_type)} · ${esc(d.pages)} page(s) ${engineBadge(d.label)} <span class="hint">${esc(d.label || "")}</span>
       ${(d.glance || []).length ? `<ul class="reasons">${d.glance.map((l) => `<li>${esc(l)}</li>`).join("")}</ul>` : ""}
       ${d.low_confidence_pages.length ? `<p class="banner-warn">Check pages ${esc(d.low_confidence_pages.join(", "))}: low OCR confidence</p>` : ""}
-      <details><summary>One-page brief</summary><pre class="doc">${esc(d.brief || "")}</pre></details></div>`).join("") || "<p class='hint'>No documents.</p>";
+      <details><summary>One-page brief</summary><pre class="doc">${esc(d.brief || "")}</pre></details></div>`).join("") ||
+      `<p class="hint">No documents are attached to this case.</p>${ROLE === "staff" ? `<button class="btn ghost small" data-attach-case>Open Intake to attach a document</button>` : ""}`;
   } else if (tab === "readiness") {
     const readiness = c.readiness || { items: [], signals: [] };
     const signals = readiness.signals || [];
     const items = readiness.items || [];
-    body.innerHTML = `<p class="hint">Preparation prompts from the case record, plus checks entered by staff. Confirm what applies; these checks do not determine whether a hearing should proceed.</p>
-      <h3>System follow-ups</h3>
+    const openCount = items.filter((item) => item.status === "open" || !item.status).length;
+    const checkedCount = items.filter((item) => item.status === "ready").length;
+    const notApplicableCount = items.filter((item) => item.status === "not_applicable").length;
+    body.innerHTML = `<p class="hint">Use these prompts to organize preparation. Verify relevant facts against current court records. This panel does not decide whether a hearing should proceed.</p>
+      <h3>Automatic follow-up flags</h3>
       ${signals.length ? signals.map((signal) => `<div class="card"><b>${esc(signal.title)}</b><p class="hint">${esc(signal.detail)}</p>
-        ${signal.field ? `<button class="btn ghost small" data-fix="${esc(c.case_id)}" data-field="${esc(signal.field)}">Review field</button>` : ""}</div>`).join("")
-        : "<p class='banner-ok'>No follow-up signals from the available case data.</p>"}
-      <h3>Staff checklist <span class="hint">(${items.filter((item) => item.status === "open").length} open)</span></h3>
-      <p class="hint">Add only items relevant to this hearing. Checklist labels are kept out of audit and impact logs.</p>
-      <div class="row gap wrap"><input id="readinessLabel" maxlength="500" aria-label="Checklist item" placeholder="Add a hearing-preparation check">
-        <button id="readinessAdd" class="btn small" type="button">Add check</button></div>
+        ${ROLE === "staff" && signal.field ? `<button class="btn ghost small" data-fix="${esc(c.case_id)}" data-field="${esc(signal.field)}">Review this field</button>` : ""}
+        ${signal.doc_id && signal.page ? `<button class="btn ghost small" data-page="${esc(signal.doc_id)}|${esc(signal.page)}">Review source page ${esc(signal.page)}</button>` : ""}
+        ${ROLE === "staff" && signal.key === "no_documents" ? `<button class="btn ghost small" data-attach-case>Open Intake to attach a document</button>` : ""}</div>`).join("")
+        : "<p class='banner-neutral'>No automatic follow-up flags were found. This is not a readiness approval. Verify the latest orders and actual hearing requirements.</p>"}
+      <h3>Staff checklist <span class="hint">(${openCount} open · ${checkedCount} checked · ${notApplicableCount} not applicable)</span></h3>
+      <p class="hint">Add a hearing-preparation check only when it applies to this hearing. Mark it checked after verification; use Not applicable when it does not apply. This list is a reminder, not proof of legal readiness.</p>
+      ${ROLE === "staff" ? `<form id="readinessForm" class="row gap wrap">
+        <input id="readinessLabel" maxlength="180" required aria-label="Checklist item" aria-describedby="readinessHint" placeholder="e.g. Verify the latest order is on file">
+        <button class="btn small" type="submit">Add check</button>
+      </form><span id="readinessHint" class="hint">Keep the item short and relevant to this hearing.</span>` : ""}
       ${items.length ? items.map((item) => `<div class="card">
-        <div class="row between gap wrap"><b>${esc(item.label)}</b><span class="badge">${pretty(item.status || "open")}</span></div>
-        <div class="row gap wrap">
-          ${item.status !== "ready" ? `<button class="btn small" data-readiness-state="ready" data-item-id="${esc(item.id)}">Mark checked</button>` : ""}
-          ${item.status !== "not_applicable" ? `<button class="btn ghost small" data-readiness-state="not_applicable" data-item-id="${esc(item.id)}">Not applicable</button>` : ""}
-          ${item.status !== "open" ? `<button class="btn ghost small" data-readiness-state="open" data-item-id="${esc(item.id)}">Reopen</button>` : ""}
-          <button class="btn ghost small" data-readiness-remove="${esc(item.id)}">Remove</button>
-        </div></div>`).join("") : "<p class='hint'>No staff checklist items yet.</p>"}`;
+        <div class="row between gap wrap"><b>${esc(item.label)}</b><span class="badge">${item.status === "ready" ? "Checked" : item.status === "not_applicable" ? "Not applicable" : "Open"}</span></div>
+        ${ROLE === "staff" ? `<div class="row gap wrap">
+          ${item.status !== "ready" ? `<button type="button" class="btn small" data-readiness-state="ready" data-item-id="${esc(item.id)}">Mark checked</button>` : ""}
+          ${item.status !== "not_applicable" ? `<button type="button" class="btn ghost small" data-readiness-state="not_applicable" data-item-id="${esc(item.id)}">Not applicable</button>` : ""}
+          ${item.status !== "open" ? `<button type="button" class="btn ghost small" data-readiness-state="open" data-item-id="${esc(item.id)}">Reopen</button>` : ""}
+          <button type="button" class="btn ghost small" data-readiness-remove="${esc(item.id)}">Remove</button>
+        </div>` : ""}</div>`).join("") : "<p class='hint'>No manual checks recorded. That does not mean the hearing is ready; add a relevant check only after reviewing the case.</p>"}`;
   } else {
     const h = c.history;
     const hearings = c.source === "synthetic" ? h.hearings.slice(0, SYNTHETIC_EXAMPLE_LIMIT) : h.hearings;
@@ -550,11 +621,23 @@ function drawerTab(tab) {
     const historyNote = c.source === "synthetic"
       ? syntheticLimitNote(Math.max(0, h.hearings.length - hearings.length) + Math.max(0, h.deferrals.length - deferrals.length))
       : "";
-    body.innerHTML = `${historyNote}<h3>Hearings (adjourned in court)</h3><table><tr><th>Date</th><th>Bench</th><th>Outcome</th></tr>${hearings.map((x) => `<tr><td>${esc(x.hearing_date)}</td><td>${esc(x.bench_id)}</td><td>${pretty(x.outcome || "to be recorded")} ${esc(x.reason || "")}</td></tr>`).join("")}</table>
+    body.innerHTML = `${historyNote}<h3>Hearings (adjourned in court)</h3><table><tr><th>Date</th><th>Bench</th><th>Outcome</th></tr>${hearings.map((x) => `<tr><td>${esc(x.hearing_date)}</td><td>${esc(x.bench_id)}</td><td>${pretty(x.outcome || "to be recorded")} ${esc(x.reason || "")}</td></tr>`).join("") || "<tr><td colspan=3>No hearing outcomes recorded.</td></tr>"}</table>
       <h3>Deferred by the scheduler</h3><table><tr><th>Run</th><th>Reason</th><th>Band</th></tr>${deferrals.map((x) => `<tr><td>${esc((x.run_at || "").slice(0, 10))}</td><td>${pretty(x.reason)}</td><td>${band(x.band)}</td></tr>`).join("") || "<tr><td colspan=3>None</td></tr>"}</table>`;
   }
   wireCaseButtons(body);
   if (tab === "readiness") wireReadiness(body);
+  $$("[data-attach-case]", body).forEach((button) => button.addEventListener("click", () => {
+    const mode = $('input[name="mode"][value="existing_case"]');
+    if (!mode) {
+      toast("The case-attachment intake form is unavailable.", "error");
+      return;
+    }
+    mode.checked = true;
+    mode.dispatchEvent(new Event("change", { bubbles: true }));
+    $("#caseNumber").value = c.case_id;
+    showTab("intake");
+    $("#caseNumber").focus();
+  }));
   $$("[data-page]", body).forEach((b) => b.addEventListener("click", async () => {
     const [doc, page] = b.dataset.page.split("|");
     try {
@@ -792,12 +875,12 @@ function moveDialog(caseId) {
   $("#mvBench").addEventListener("change", updateMoveAvailability);
   updateMoveAvailability();
   $("#mvGo").addEventListener("click", (e) => busy(e.target, async () => {
-    const out = await api(`/api/cases/${caseId}/accept-slot`, { json: { action: "move", day: $("#mvDay").value || null, bench_id: $("#mvBench").value || null, cause_list_id: cl.id } });
+    const out = await api(caseApiPath(caseId, "/accept-slot"), { json: { action: "move", day: $("#mvDay").value || null, bench_id: $("#mvBench").value || null, cause_list_id: cl.id } });
     toast(`Moved to ${out.slot.day} ${out.slot.slot_start} on ${out.slot.bench_id}.`); $("#dialog").close();
     relocate(caseId, out.slot);
   }));
   $("#mvHold").addEventListener("click", (e) => busy(e.target, async () => {
-    await api(`/api/cases/${caseId}/accept-slot`, { json: { action: "hold", cause_list_id: cl.id } });
+    await api(caseApiPath(caseId, "/accept-slot"), { json: { action: "hold", cause_list_id: cl.id } });
     toast("On hold for 7 days."); $("#dialog").close(); relocate(caseId, null);
   }));
 }
@@ -815,25 +898,39 @@ function relocate(caseId, slot) { // reflect a move / hold in the draft view
   renderCauseList();
 }
 
-// ---------------------------------------------------------------- UNDERTRIAL (found -> lawyer approves -> filed -> heard -> released)
-const UT_NEXT = { approved: [["filed", "Mark as filed in court"]], filed: [["heard", "Mark as heard"]],
-  heard: [["released", "Released on bond"], ["denied", "Release denied"]] };
+// ---------------------------------------------------------------- UNDERTRIAL (alert -> lawyer review -> court filing/hearing/order)
+const UT_NEXT = { approved: [["filed", "Record application filed in court"]], filed: [["heard", "Record court hearing held"]],
+  heard: [["released", "Record release after court order"], ["denied", "Record court order denying release"]] };
 const UT_STEP = { pending: 1, approved: 2, filed: 3, heard: 4, released: 5, denied: 5, dismissed: 1 };
-function alertCard(a) {
+const UT_STATUS_LABEL = {
+  approved: "Lawyer review complete",
+  filed: "Application filed in court",
+  heard: "Court hearing held",
+  released: "Released after court order",
+  denied: "Court denied release",
+};
+function alertCard(a, lawyers = []) {
   const over = a.days_over_limit > 0;
   const lawyer = ROLE === "lawyer";
   const releaseReview = ["undertrial_release", "release_review_request"].includes(a.kind);
   const staffWorkflow = a.details || {};
   const custodyRecordStatus = staffWorkflow.custody_record_status || "not_requested";
+  const lawyerReviewRequestedAt = staffWorkflow.lawyer_review_requested_at;
+  const assignedLawyerName = staffWorkflow.legal_aid_lawyer_name;
   const staffCanTrack = ROLE === "staff" && ["pending", "approved", "filed", "heard"].includes(a.status);
   const next = UT_NEXT[a.status];
   const primary = a.status === "pending"
-    ? (lawyer ? `<button class="btn" data-approve="${a.id}">Approve - file a release application</button>`
-              : `<span class="hint">Waiting for a legal-aid lawyer to approve.</span>`)
+    ? (lawyer ? `<button class="btn" data-approve="${a.id}">Mark lawyer review complete</button>
+        <p class="hint">This records the lawyer's review only. It does not file the application or decide release; the court decides.</p>`
+              : `<span class="hint">Waiting for a legal-aid lawyer to review the draft.</span>`)
     : next ? next.map(([to, label], i) => `<button class="btn ${i ? "ghost" : ""}" data-advance="${a.id}" data-to="${to}">${label}</button>`).join(" ") : "";
   const step = UT_STEP[a.status] || 1;
-  const track = ["Found", "Approved", "Filed", "Heard", a.status === "denied" ? "Denied" : "Released"]
+  const track = ["Alert found", "Lawyer review complete", "Filed in court", "Hearing held",
+    a.status === "denied" ? "Court denied release" : "Released after court order"]
     .map((s, i) => `<li class="${i + 1 < step ? "done" : i + 1 === step ? "now" : ""}">${s}</li>`).join("");
+  const lawyerReviewNotice = lawyer && a.status === "pending" && lawyerReviewRequestedAt
+    ? `<p class="banner-warn" role="status"><b>Staff flagged this alert for your review</b> · ${esc(lawyerReviewRequestedAt.slice(0, 10))}. This is an in-app flag, not an external notification.</p>`
+    : "";
   const staffFollowUp = staffCanTrack ? `<div class="card">
     <b>Staff follow-up</b>
     <p>Custody record: <b>${pretty(custodyRecordStatus)}</b></p>
@@ -843,20 +940,31 @@ function alertCard(a) {
       ${a.status === "pending" && !staffWorkflow.lawyer_review_requested_at
         ? `<button class="btn small" data-staff-action="request_lawyer_review" data-alert-id="${a.id}">Flag for lawyer review</button>` : ""}
     </div>
-    ${staffWorkflow.lawyer_review_requested_at ? `<p class="hint">Flagged for lawyer review on ${esc(staffWorkflow.lawyer_review_requested_at.slice(0, 10))}.</p>` : ""}
-    <p class="hint">These actions record staff follow-up only; they do not send a message or approve the application.</p>
+    ${a.status === "pending" ? lawyers.length
+      ? `<label class="hint" for="lawyer-choice-${a.id}">Assign this alert to a staff-verified legal-aid lawyer</label>
+        <div class="row gap wrap"><select id="lawyer-choice-${a.id}" data-lawyer-choice="${a.id}" aria-label="Assign lawyer for ${esc(a.case_id)}">
+          <option value="">Choose lawyer</option>${lawyers.map((lawyer) => `<option value="${esc(lawyer.lawyer_id)}" ${lawyer.lawyer_id === staffWorkflow.legal_aid_lawyer_id ? "selected" : ""}>${esc(lawyer.name)} · ${esc(lawyer.district)}</option>`).join("")}
+        </select><button type="button" class="btn small" data-assign-lawyer="${a.id}">${assignedLawyerName ? "Reassign and flag" : "Assign and flag for review"}</button></div>`
+      : `<p class="hint">No active staff-verified lawyer in the roster. Add one under “Manage staff-verified legal-aid roster” before assigning.</p>` : ""}
+    ${lawyerReviewRequestedAt ? `<p class="hint">Flagged for lawyer review on ${esc(lawyerReviewRequestedAt.slice(0, 10))}.</p>` : ""}
+    <p class="hint">These actions record staff follow-up only; they do not contact officials, file an application, or decide release.</p>
   </div>` : "";
+  const assignmentNotice = assignedLawyerName
+    ? `<p class="hint"><b>Assigned legal-aid lawyer:</b> ${esc(assignedLawyerName)} · ${esc(staffWorkflow.legal_aid_lawyer_district || "district not recorded")} (shared demo queue)</p>`
+    : "";
   return `<div class="card ut">
     <div class="row between wrap">
       <div><b>${esc(a.case_id)}</b> ${srcBadge(a.source)}
         <span class="badge ${a.days_over_limit >= 0 ? "band-critical" : "band-high"}">${over ? "‼ " + esc(a.days_over_limit) + " days over the limit" : a.days_over_limit === 0 ? "‼ at the limit today" : "▲ near the limit"}</span>
-        ${a.status !== "pending" ? `<span class="pill">now: ${pretty(a.status)}</span>` : ""}</div>
+        ${a.status !== "pending" ? `<span class="pill">now: ${UT_STATUS_LABEL[a.status] || pretty(a.status)}</span>` : ""}</div>
       <span class="hint">${esc(a.custody_days ?? "?")} days in custody · legal limit ${esc(a.threshold_days ?? "?")} days${a.basis ? ` (${esc(a.basis)})` : ""}${a.release_status && a.release_status !== "eligible" ? ` · ${esc(a.release_status.replace("_", " "))}` : ""}</span></div>
+    ${lawyerReviewNotice}
     <ol class="flow small">${track}</ol>
     ${custodyMath(a)}
     ${(a.release_notes || []).length ? `<p class="banner-warn">${a.release_notes.map(esc).join("<br>")}</p>` : ""}
+    ${assignmentNotice}
     <div class="actions">${primary}
-      ${a.kind === "undertrial_release" ? `<button class="btn ghost" data-open="${esc(a.case_id)}">Open case details</button>` : ""}
+      ${ROLE === "staff" && a.kind === "undertrial_release" ? `<button class="btn ghost" data-open="${esc(a.case_id)}">Open case details</button>` : ""}
       <button class="btn ghost" data-docx="${a.id}">Download application (Word)</button>
       ${releaseReview ? `<button class="btn ghost" data-superintendent="${a.id}" data-language="en">Custody-record review request (English)</button>
       <button class="btn ghost" data-superintendent="${a.id}" data-language="hi">निरुद्धि-अवधि जाँच निवेदन (हिन्दी)</button>
@@ -871,68 +979,166 @@ function alertCard(a) {
       <button class="btn ghost small" data-dismiss="${a.id}">Dismiss</button></details>` : ""}
   </div>`;
 }
-async function loadAlerts() {
-  loadRules();
-  $("#utRole").textContent = ROLE === "lawyer" ? "You are signed in as a legal-aid lawyer: you approve or dismiss."
-    : "Staff can open the case, track custody-record follow-up and flag lawyer review; only a legal-aid lawyer approves or dismisses.";
+let legalAidRoster = [];
+let latestUndertrialAlerts = [];
+function renderLegalAidRoster() {
+  const root = $("#legalAidRosterList");
+  root.innerHTML = legalAidRoster.map((lawyer) => `<li><b>${esc(lawyer.name)}</b> · ${esc(lawyer.district)}
+    <span class="hint">Verified by ${esc(lawyer.verified_by)} on ${esc((lawyer.verified_at || "").slice(0, 10))} · ${esc(lawyer.verification_reference)}</span>
+    <button type="button" class="btn ghost small" data-roster-deactivate="${esc(lawyer.lawyer_id)}">Deactivate</button></li>`).join("")
+    || "<li>No active verified lawyers yet.</li>";
+  $$("[data-roster-deactivate]", root).forEach((button) => button.addEventListener("click", () => busy(button, async () => {
+    await api(`/api/legal-aid/roster/${button.dataset.rosterDeactivate}/deactivate`, { json: {} });
+    await loadLegalAidRoster();
+    await loadAlerts("Roster updated");
+  })));
+}
+async function loadLegalAidRoster() {
   try {
-    // both lists load at once; a failure of the missing-information list does not hide the alerts
+    const out = await api("/api/legal-aid/roster");
+    legalAidRoster = out.lawyers;
+    $("#legalAidRosterError").textContent = "";
+    renderLegalAidRoster();
+  } catch (e) {
+    legalAidRoster = [];
+    $("#legalAidRosterError").textContent = `Could not load the legal-aid roster: ${e.message}`;
+    $("#legalAidRosterList").innerHTML = "";
+  }
+}
+$("#legalAidRosterForm").addEventListener("submit", (event) => {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const button = form.querySelector('button[type="submit"]');
+  busy(button, async () => {
+    await api("/api/legal-aid/roster", { json: {
+      name: $("#rosterLawyerName").value.trim(),
+      district: $("#rosterDistrict").value.trim(),
+      verification_reference: $("#rosterVerification").value.trim(),
+      verified: $("#rosterVerified").checked,
+    } });
+    form.reset();
+    toast("Verified lawyer added to the roster.");
+    await loadLegalAidRoster();
+    await loadAlerts("Lawyer added");
+  });
+});
+function renderAlertQueues(alerts) {
+  const search = $("#utSearch").value.trim();
+  const query = search.toLocaleLowerCase();
+  const matches = alerts.filter((a) => !query || [
+    a.case_id, a.details?.legal_aid_lawyer_name, a.details?.legal_aid_lawyer_district,
+  ].filter(Boolean).join(" ").toLocaleLowerCase().includes(query));
+  const decide = matches.filter((a) => a.status === "pending");
+  const progress = matches.filter((a) => UT_NEXT[a.status]);
+  const lawyerReviewCount = decide.filter((a) => a.details?.lawyer_review_requested_at).length;
+  $("#utNeedH").textContent = ROLE === "lawyer" && lawyerReviewCount
+    ? `Needs a decision (${decide.length}) · ${lawyerReviewCount} flagged by staff for review`
+    : `Needs a decision (${decide.length})`;
+  $("#utProgH").textContent = `In progress (${progress.length})`;
+  $("#utSearchSummary").textContent = query
+    ? `${matches.length} matching alert(s) out of ${alerts.length}.`
+    : `${alerts.length} alerts · ${decide.length} need a decision · ${progress.length} in progress.`;
+
+  const closed = alerts.filter((a) => ["released", "denied", "dismissed"].includes(a.status));
+  $("#utFlow").innerHTML = [["Alert found", "pending"], ["Lawyer review complete", "approved"], ["Filed in court", "filed"], ["Hearing held", "heard"]]
+    .map(([label, status]) => `<li title="${alerts.filter((a) => a.status === status).length} alert(s) at this step">${label} <b>${alerts.filter((a) => a.status === status).length}</b></li>`).join("")
+    + `<li title="released, denied or dismissed">Closed <b>${closed.length}</b></li>`;
+
+  const alertRows = ROLE === "lawyer" ? [...matches].sort((a, b) => {
+    const sourceOrder = Number(a.source === "synthetic") - Number(b.source === "synthetic");
+    if (sourceOrder) return sourceOrder;
+    const aFlagged = a.status === "pending" && a.details?.lawyer_review_requested_at;
+    const bFlagged = b.status === "pending" && b.details?.lawyer_review_requested_at;
+    return Number(!aFlagged) - Number(!bFlagged);
+  }) : matches;
+  const alertDisplay = capSyntheticExamples(alertRows.filter((a) => a.status === "pending"));
+  const visibleProgress = alertRows.filter((a) => UT_NEXT[a.status]);
+  $("#utDecide").innerHTML = alertDisplay.rows.length
+    ? alertDisplay.rows.map((a) => alertCard(a, legalAidRoster)).join("") + syntheticLimitNote(alertDisplay.omitted)
+    : `<p class="hint">${query ? "No matching alerts need a decision." : "Nothing is waiting for a decision. ✓"}</p>`;
+  $("#utProgress").innerHTML = visibleProgress.length
+    ? visibleProgress.map((a) => alertCard(a, legalAidRoster)).join("")
+    : `<p class="hint">${query ? "No matching alerts are in progress." : "Nothing in progress."}</p>`;
+  bindUndertrialActions();
+}
+
+function bindUndertrialActions() {
+  const root = $("#tab-undertrial");
+  wireCaseButtons(root);
+  $$("[data-staff-action]", root).forEach((button) => button.addEventListener("click", () => busy(button, async () => {
+    await api(`/api/alerts/${button.dataset.alertId}/staff-action`, { json: { action: button.dataset.staffAction } });
+    const message = button.dataset.staffAction === "request_lawyer_review" ? "Review flag saved" : "Custody record updated";
+    toast(button.dataset.staffAction === "request_lawyer_review" ? "Flagged for lawyer review." : "Custody-record status updated.");
+    await loadAlerts(message);
+  })));
+  $$("[data-assign-lawyer]", root).forEach((button) => button.addEventListener("click", () => busy(button, async () => {
+    const selected = $(`[data-lawyer-choice="${button.dataset.assignLawyer}"]`);
+    if (!selected || !selected.value) throw new Error("Choose a lawyer from the verified roster first.");
+    await api(`/api/alerts/${button.dataset.assignLawyer}/assign-lawyer`, { json: { lawyer_id: selected.value } });
+    toast("Lawyer assigned and alert flagged in the shared lawyer queue.");
+    await loadAlerts("Lawyer assigned");
+  })));
+  $$("[data-approve]", root).forEach((button) => button.addEventListener("click", () => busy(button, async () => {
+    await api("/api/alerts/decide", { json: { decisions: { [button.dataset.approve]: { approve: true } } } });
+    toast("Lawyer review recorded. This does not grant release or file the application.");
+    await loadAlerts("Lawyer review recorded");
+  })));
+  $$("[data-dismiss]", root).forEach((button) => button.addEventListener("click", () => busy(button, async () => {
+    const id = button.dataset.dismiss, reason = $(`[data-reason="${id}"]`).value.trim(), snooze = $(`[data-snooze="${id}"]`).value;
+    if (!reason) throw new Error("A dismissal needs a reason.");
+    await api("/api/alerts/decide", { json: { decisions: { [id]: { approve: false, reason, snooze_until: snooze || null } } } });
+    toast("Dismissed - it will not come back unless the facts change.");
+    await loadAlerts("Alert dismissed");
+  })));
+  $$("[data-advance]", root).forEach((button) => button.addEventListener("click", () => busy(button, async () => {
+    await api(`/api/alerts/${button.dataset.advance}/state`, { json: { status: button.dataset.to } });
+    const message = UT_STATUS_LABEL[button.dataset.to] || pretty(button.dataset.to);
+    toast(`${message} recorded.`);
+    await loadAlerts("Alert status updated");
+  })));
+  $$("[data-docx]", root).forEach((button) => button.addEventListener("click", () => busy(button, async () => {
+    toast(`Downloaded ${await downloadFrom(`/api/alerts/${button.dataset.docx}/release.docx`, {}, "release_application.docx")}`);
+  })));
+  $$("[data-superintendent]", root).forEach((button) => button.addEventListener("click", () => busy(button, async () => {
+    const language = button.dataset.language;
+    const filename = `custody_record_review_request_${language}.docx`;
+    toast(`Downloaded ${await downloadFrom(
+      `/api/alerts/${button.dataset.superintendent}/superintendent.docx?language=${language}`, {}, filename)}`);
+  })));
+}
+
+async function loadAlerts(updatedMessage = "Queue refreshed") {
+  loadRules();
+  $("#utRole").textContent = ROLE === "lawyer"
+    ? "Review the draft and mark your legal review complete. This does not grant release or file the application; the court decides. The demo queue is shared with every lawyer account."
+    : "Staff can verify custody records, assign a lawyer, and record filing, hearing, and court-order updates. Staff do not decide whether release is granted.";
+  markPortalStatus("Refreshing queue");
+  try {
     const needP = api("/api/alerts/data-needed").catch((e) => ({ error: e.message, data_needed: [] }));
     const { alerts } = await api("/api/alerts?status=all");
-    const decide = alerts.filter((a) => a.status === "pending");
-    const progress = alerts.filter((a) => UT_NEXT[a.status]);
-    $("#utNeedH").textContent = `Needs a decision (${decide.length})`;
-    $("#utProgH").textContent = `In progress (${progress.length})`;
-    const closed = alerts.filter((a) => ["released", "denied", "dismissed"].includes(a.status));
-    $("#utFlow").innerHTML = [["Found", "pending"], ["Lawyer approves", "approved"], ["Filed in court", "filed"], ["Heard", "heard"]]
-      .map(([l, s]) => `<li title="${alerts.filter((a) => a.status === s).length} alert(s) at this step">${l} <b>${alerts.filter((a) => a.status === s).length}</b></li>`).join("")
-      + `<li title="released, denied or dismissed">Closed <b>${closed.length}</b></li>`;
-    const alertDisplay = capSyntheticExamples(alerts);
-    const visibleDecide = alertDisplay.rows.filter((a) => a.status === "pending");
-    const visibleProgress = alertDisplay.rows.filter((a) => UT_NEXT[a.status]);
-    $("#utDecide").innerHTML = visibleDecide.map(alertCard).join("") + syntheticLimitNote(alertDisplay.omitted)
-      || "<p class='hint'>Nothing is waiting for a decision. ✓</p>";
-    $("#utProgress").innerHTML = visibleProgress.map(alertCard).join("")
-      || "<p class='hint'>Nothing in progress.</p>";
-    const root = $("#tab-undertrial");
-    wireCaseButtons(root);
-    $$("[data-staff-action]", root).forEach((b) => b.addEventListener("click", () => busy(b, async () => {
-      await api(`/api/alerts/${b.dataset.alertId}/staff-action`, { json: { action: b.dataset.staffAction } });
-      toast(b.dataset.staffAction === "request_lawyer_review" ? "Flagged for lawyer review." : "Custody-record status updated.");
-      loadAlerts();
-    })));
-    $$("[data-approve]", root).forEach((b) => b.addEventListener("click", () => busy(b, async () => {
-      await api("/api/alerts/decide", { json: { decisions: { [b.dataset.approve]: { approve: true } } } }); toast("Approved - now file it in court."); loadAlerts();
-    })));
-    $$("[data-dismiss]", root).forEach((b) => b.addEventListener("click", () => busy(b, async () => {
-      const id = b.dataset.dismiss, reason = $(`[data-reason="${id}"]`).value.trim(), snooze = $(`[data-snooze="${id}"]`).value;
-      if (!reason) throw new Error("A dismissal needs a reason.");
-      await api("/api/alerts/decide", { json: { decisions: { [id]: { approve: false, reason, snooze_until: snooze || null } } } });
-      toast("Dismissed - it will not come back unless the facts change."); loadAlerts();
-    })));
-    $$("[data-advance]", root).forEach((b) => b.addEventListener("click", () => busy(b, async () => {
-      await api(`/api/alerts/${b.dataset.advance}/state`, { json: { status: b.dataset.to } }); toast(`Marked ${b.dataset.to}.`); loadAlerts();
-    })));
-    $$("[data-docx]", root).forEach((b) => b.addEventListener("click", () => busy(b, async () => {
-      toast(`Downloaded ${await downloadFrom(`/api/alerts/${b.dataset.docx}/release.docx`, {}, "release_application.docx")}`);
-    })));
-    $$("[data-superintendent]", root).forEach((b) => b.addEventListener("click", () => busy(b, async () => {
-      const language = b.dataset.language;
-      const filename = `custody_record_review_request_${language}.docx`;
-      toast(`Downloaded ${await downloadFrom(
-        `/api/alerts/${b.dataset.superintendent}/superintendent.docx?language=${language}`, {}, filename)}`);
-    })));
+    if (ROLE === "staff") await loadLegalAidRoster();
+    else legalAidRoster = [];
+    latestUndertrialAlerts = alerts;
+    renderAlertQueues(latestUndertrialAlerts);
+    markPortalStatus(updatedMessage);
+
     const need = await needP;
     if (need.error) { $("#utNeeded").innerHTML = `<li class="error">${esc(need.error)}</li>`; return; }
     $("#utNeededH").textContent = `Missing information (${need.data_needed.length} case(s))`;
     const neededDisplay = capSyntheticExamples(need.data_needed);
     $("#utNeeded").innerHTML = neededDisplay.rows.map((d) => `<li><b>${esc(d.case_id)}</b> ${d.source === "synthetic" ? srcBadge(d.source) : ""}: missing ${d.missing.map(pretty).join(", ")} - ask ${esc(d.who_can_supply.join("; "))}</li>`).join("") || "<li>None.</li>";
     if (neededDisplay.omitted) $("#utNeeded").insertAdjacentHTML("beforeend", `<li>${syntheticLimitNote(neededDisplay.omitted)}</li>`);
-  } catch (e) { $("#utDecide").innerHTML = `<p class="error">${esc(e.message)}</p>`; }
+  } catch (e) {
+    markPortalStatus("Refresh failed");
+    $("#utDecide").innerHTML = `<p class="error">${esc(e.message)}</p>`;
+  }
 }
+$("#utSearch").addEventListener("input", () => renderAlertQueues(latestUndertrialAlerts));
+$("#utRefresh").addEventListener("click", (event) => busy(event.currentTarget, () => loadAlerts("Queue refreshed")));
 $("#utScan").addEventListener("click", (e) => busy(e.target, async () => {
   const out = await api("/api/jobs/undertrial_scan/run", { method: "POST" });
-  toast(`Checked: ${out.new_release_alerts} new, ${out.data_needed} need information.`); loadAlerts();
+  toast(`Checked: ${out.new_release_alerts} new, ${out.data_needed} need information.`);
+  await loadAlerts("Undertrial scan complete");
 }));
 
 renderFiles();

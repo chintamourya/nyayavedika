@@ -173,6 +173,7 @@ pre.draft { white-space: pre-wrap; font: 14px/1.55 Georgia, "Times New Roman", s
 .banner-warn { background: #fdecd3; color: #7a4a00; border: 1px solid #f0c27a; border-radius: 8px; padding: 10px 12px; margin: 10px 0; }
 .banner-bad { background: #fde3e1; color: #8b1a12; border: 1px solid #f2a39b; border-radius: 8px; padding: 10px 12px; margin: 10px 0; }
 .banner-ok { background: #e3f4e8; color: #1d5b31; border: 1px solid #a8d8b7; border-radius: 8px; padding: 10px 12px; margin: 10px 0; }
+.banner-neutral { background: var(--bg); color: var(--ink); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; margin: 10px 0; }
 .compare { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 8px; }
 .alertcard { display: grid; grid-template-columns: 1.3fr 1fr; gap: 14px; }
 @media (max-width: 860px) { .alertcard { grid-template-columns: 1fr; } }
@@ -1076,6 +1077,12 @@ body.staff-page #who {
   color: #f5f9ff;
   background: rgba(255,255,255,.1);
 }
+body.staff-page #portalSyncStatus {
+  border: 1px solid rgba(255,255,255,.24);
+  color: #e8f4ff;
+  background: rgba(255,255,255,.12);
+  white-space: nowrap;
+}
 body.staff-page > .top > .portal-home {
   position: relative;
   z-index: 1;
@@ -1139,6 +1146,27 @@ body.staff-page main > .panel > h2 {
   letter-spacing: -.035em;
 }
 body.staff-page .purpose { margin: 4px 0 14px; font-size: 14px; line-height: 1.6; }
+body.staff-page .ut-queue-toolbar {
+  position: sticky;
+  z-index: 18;
+  top: 60px;
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) auto auto minmax(120px, auto);
+  align-items: end;
+  gap: 8px 12px;
+  margin: 14px 0 8px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--card);
+  box-shadow: 0 5px 16px rgba(22, 53, 83, .09);
+}
+body.staff-page .ut-search-field { display: grid; gap: 3px; color: var(--muted); font-size: 12px; font-weight: 600; }
+body.staff-page #utSearch { width: 100%; }
+body.staff-page .ut-queue-jumps { display: flex; flex-wrap: wrap; gap: 6px; }
+body.staff-page #utQueueStatus { margin: 0; text-align: right; white-space: nowrap; }
+body.staff-page #utNeedH,
+body.staff-page #utProgH { scroll-margin-top: 128px; }
 body.staff-page .card {
   padding: 20px;
   border: 1px solid var(--line);
@@ -1230,6 +1258,12 @@ body.staff-page :focus-visible { outline: 3px solid color-mix(in srgb, var(--acc
   body.staff-page > nav#portalTabs { padding: 7px 10px; }
   body.staff-page > nav#portalTabs .tab { flex: 0 0 auto; padding: 8px 11px; }
   body.staff-page > main { padding: 14px 12px 36px; }
+  body.staff-page .ut-queue-toolbar {
+    top: 56px;
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+  body.staff-page .ut-queue-jumps { grid-column: 1 / -1; }
+  body.staff-page #utQueueStatus { grid-column: 1 / -1; text-align: left; }
   body.staff-page main > .legend { align-items: flex-start; font-size: 11px; }
   body.staff-page .card { padding: 15px; border-radius: 13px; }
   body.staff-page #docketFilters { align-items: stretch; }

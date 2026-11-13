@@ -1,15 +1,15 @@
 """Undertrial Watch - a proactive agent that runs nightly (python -m nyayavedika.jobs run undertrial_scan) or on demand.
 
-    START -> scan -> draft* (Send, one per new candidate) -> save -> review [interrupt: human approves] -> apply -> END
+    START -> scan -> draft* (Send, one per new candidate) -> save -> lawyer review -> filing / court outcome tracking -> END
 
 Three in four prisoners in India are undertrials (NCRB Prison Statistics). Sec. 479 BNSS entitles
 many to release, yet nobody tracks the threshold date. This agent does: it finds custody cases past
 (or within 25% of) the threshold, drafts the release application, and queues it for a legal-aid
-lawyer / Undertrial Review Committee member to approve. Nothing is filed without a human decision.
+lawyer to review before filing. Lawyer review does not grant release; only the court decides that.
 
 Phase 5 fixes: a dismissal needs a reason and may snooze; a dismissed case does not come back the next
 night (only after the snooze date, or when its custody facts change). Custody cases missing a custody date
-or sentence are listed as "data needed". Alerts follow a lifecycle a lawyer advances. Every draft carries
+or sentence are listed as "data needed". Alerts follow a lifecycle with lawyer review and court-process tracking. Every draft carries
 a checklist of the Sec. 479 conditions a lawyer must verify. The pure functions below need no LangGraph.
 """
 import logging
@@ -172,10 +172,10 @@ def run_scan(db=None, court_id: Optional[str] = None, case_ids: Optional[List[st
             "data_needed": found["data_needed"]}
 
 
-# ----------------------------------------------------------------------------- lawyer decisions
+# ----------------------------------------------------------------------------- lawyer review and court-process updates
 def advance_alert(alert_id: int, to_status: str, actor: str = "", role: str = "", note: Optional[str] = None,
                   reason: Optional[str] = None, snooze_until: Optional[str] = None, db=None) -> dict:
-    """Move an alert along pending -> approved -> filed -> heard -> released | denied (or dismissed)."""
+    """Record lawyer review, filing/hearing progress, a court outcome, or dismissal."""
     with store._session(db) as s:
         rows = s.select("alerts", {"id": int(alert_id)})
         if not rows:

@@ -62,6 +62,18 @@ advocate_documents = Table(
     Column("created_at", DateTime(timezone=True), default=_now),
 )
 
+legal_aid_roster = Table(
+    "legal_aid_roster", metadata,
+    Column("lawyer_id", String(64), primary_key=True),
+    Column("name", String(120), nullable=False),
+    Column("district", String(80), nullable=False),
+    Column("verification_reference", String(240), nullable=False),
+    Column("verified_by", String(128), nullable=False),
+    Column("verified_at", DateTime(timezone=True), nullable=False),
+    Column("active", Boolean, nullable=False, default=True),
+    Column("created_at", DateTime(timezone=True), default=_now),
+)
+
 legal_aid_requests = Table(
     "legal_aid_requests", metadata,
     Column("id", Integer, primary_key=True, autoincrement=True),

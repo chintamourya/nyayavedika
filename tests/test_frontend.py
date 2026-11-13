@@ -75,6 +75,30 @@ class StaffApiTests(SeededDb):
             finally:
                 db.update("cases", {"case_id": row["case_id"]}, original)
 
+    def test_docket_selects_the_earliest_upcoming_listing(self):
+        case_id = f"DOCKET/{uuid.uuid4().hex[:8]}"
+        today = date.today()
+        first_day = (today + timedelta(days=2)).isoformat()
+        later_day = (today + timedelta(days=9)).isoformat()
+        store.upsert_case({"case_id": case_id, "case_type": "criminal_trial", "stage": "trial"}, source="csv")
+        with store.connect() as db:
+            first_list = db.insert("cause_lists", [{
+                "court_id": "DEMO-DC", "start_date": first_day, "status": "draft", "plan": {}, "metrics": {},
+            }], returning="id")
+            later_list = db.insert("cause_lists", [{
+                "court_id": "DEMO-DC", "start_date": later_day, "status": "published", "plan": {}, "metrics": {},
+            }], returning="id")
+            for cause_list_id, day, status in (
+                (first_list, first_day, "accepted"),
+                (later_list, later_day, "published"),
+            ):
+                db.insert("listings", [{
+                    "cause_list_id": cause_list_id, "case_id": case_id, "day": day, "bench_id": "CR-1",
+                    "slot_start": "09:00", "slot_end": "09:30", "status": status,
+                }])
+            row = staff_api.docket(db, q=case_id)["rows"][0]
+        self.assertEqual((row["listed_on"], row["listing_status"]), (first_day, "accepted"))
+
     def test_case_drawer_and_source_page(self):
         data = (ROOT / "sample_docs" / "fir_01_theft.txt").read_bytes()
         batch = intake.create_batch([("fir.txt", data)])
@@ -106,7 +130,14 @@ class StaffApiTests(SeededDb):
         self.assertIn("no_documents", signal_keys)
         self.assertIn("field:filing_date", signal_keys)
         self.assertIn("conflict:filing_date", signal_keys)
+        conflict = next(signal for signal in detail["readiness"]["signals"] if signal["key"] == "conflict:filing_date")
+        self.assertEqual(conflict["field"], "filing_date")
         self.assertEqual(updated["readiness"]["items"][0]["label"], "Check papers for the hearing")
+
+    def test_readiness_system_signals_point_to_low_confidence_source(self):
+        signals = hearing_readiness.system_signals(
+            [], [], [{"doc_id": "doc-123", "filename": "order.pdf", "low_confidence_pages": [2, 4]}])
+        self.assertEqual((signals[0]["doc_id"], signals[0]["page"]), ("doc-123", 2))
 
     def test_alerts_sorted_by_days_over_limit(self):
         from nyayavedika.agents import undertrial_watch
@@ -180,12 +211,14 @@ class DevServerTests(SeededDb):
         cls.httpd.shutdown()
         super().tearDownClass()
 
-    def call(self, path, method="GET", body=None, token=None):
+    def call(self, path, method="GET", body=None, token=None, role_hint=None):
         req = urllib.request.Request(self.base + path, method=method, data=json.dumps(body).encode() if body is not None else None)
         if body is not None:
             req.add_header("Content-Type", "application/json")
         if token:
             req.add_header("Authorization", f"Bearer {token}")
+        if role_hint:
+            req.add_header("X-Demo-Role", role_hint)
         try:
             with urllib.request.urlopen(req) as r:
                 return r.status, dict(r.headers), r.read()
@@ -244,13 +277,22 @@ class DevServerTests(SeededDb):
         self.assertIn("current token does not have the lawyer role", staff_js)
         common_js = (STATIC / "common.js").read_text(encoding="utf-8")
         self.assertIn('"/advocate": "lawyer"', common_js)
+        self.assertIn('new URLSearchParams(window.location.search).get("role")', common_js)
         self.assertIn('headers["X-Demo-Role"] = portalRole', common_js)
+        self.assertIn('id="roleSwitch"', (STATIC / "staff.html").read_text(encoding="utf-8"))
 
     def test_roles_over_http(self):
         self.assertEqual(self.call("/api/today")[0], 401)
         self.assertEqual(self.call("/api/today", token="t-staff")[0], 200)
         self.assertEqual(self.call("/api/docket", token="t-lawyer")[0], 403)
         self.assertEqual(json.loads(self.call("/api/whoami")[2])["actor"], "anonymous-citizen")
+        old_tokens = config.DEMO_TOKEN_STAFF, config.DEMO_TOKEN_LAWYER
+        try:
+            config.DEMO_TOKEN_STAFF = config.DEMO_TOKEN_LAWYER = "shared-demo-token"
+            status, _, body = self.call("/api/whoami", token="shared-demo-token", role_hint="lawyer")
+            self.assertEqual((status, json.loads(body)["role"]), (200, "lawyer"))
+        finally:
+            config.DEMO_TOKEN_STAFF, config.DEMO_TOKEN_LAWYER = old_tokens
         status, _, body = self.call("/api/legal-aid", "POST", {"applicant": {"woman": True}, "district": "Warangal"})
         self.assertEqual((status, json.loads(body)["outcome"]), (200, "likely_eligible"))
 
@@ -293,7 +335,56 @@ class DevServerTests(SeededDb):
                                     {"action": "mark_record_requested"}, token="t-staff")
         self.assertEqual(status, 200)
         self.assertEqual(json.loads(body)["details"]["custody_record_status"], "requested")
+        status, _, body = self.call(f"{url}/staff-action", "POST",
+                                    {"action": "request_lawyer_review"}, token="t-staff")
+        self.assertEqual(status, 200)
+        lawyer_status, _, lawyer_body = self.call("/api/alerts?status=all", token="t-lawyer")
+        self.assertEqual(lawyer_status, 200)
+        lawyer_alert = next(a for a in json.loads(lawyer_body)["alerts"] if a["id"] == alert_id)
+        self.assertTrue(lawyer_alert["details"]["lawyer_review_requested_at"])
         self.assertEqual(self.call(f"{url}/state", "POST", {"status": "approved"}, token="t-staff")[0], 403)
+
+    def test_staff_assigns_undertrial_alert_to_verified_roster_and_lawyer_sees_it(self):
+        case_id = f"UT-ASSIGN/{uuid.uuid4().hex[:8]}"
+        store.upsert_case({"case_id": case_id, "case_type": "criminal_trial", "stage": "trial"}, source="csv")
+        with store.connect() as db:
+            alert_id = db.insert("alerts", [{
+                "case_id": case_id, "kind": "undertrial_release", "status": "pending", "details": {},
+            }], returning="id")
+
+        self.assertEqual(self.call("/api/legal-aid/roster")[0], 401)
+        self.assertEqual(self.call("/api/legal-aid/roster", token="t-lawyer")[0], 403)
+        self.assertEqual(self.call("/api/legal-aid/roster", "POST", [], token="t-staff")[0], 400)
+        status, _, _ = self.call("/api/legal-aid/roster", "POST", {
+            "name": "Advocate Test", "district": "Warangal",
+            "verification_reference": "Official panel list, 2026", "verified": True,
+        }, token="t-staff")
+        self.assertEqual(status, 200)
+        roster = json.loads(self.call("/api/legal-aid/roster", token="t-staff")[2])["lawyers"]
+        lawyer_id = next(item["lawyer_id"] for item in roster if item["name"] == "Advocate Test")
+
+        self.assertEqual(self.call(f"/api/alerts/{alert_id}/assign-lawyer", "POST",
+                                   {"lawyer_id": lawyer_id}, token="t-lawyer")[0], 403)
+        status, _, body = self.call(f"/api/alerts/{alert_id}/assign-lawyer", "POST",
+                                    {"lawyer_id": lawyer_id}, token="t-staff")
+        self.assertEqual(status, 200)
+        details = json.loads(body)["details"]
+        self.assertEqual(details["legal_aid_lawyer_name"], "Advocate Test")
+        self.assertTrue(details["lawyer_review_requested_at"])
+        lawyer_alerts = json.loads(self.call("/api/alerts?status=all", token="t-lawyer")[2])["alerts"]
+        lawyer_alert = next(a for a in lawyer_alerts if a["id"] == alert_id)
+        self.assertEqual(lawyer_alert["case_id"], case_id)
+        self.assertEqual(lawyer_alert["details"]["legal_aid_lawyer_id"], lawyer_id)
+        with store.connect() as db:
+            case_detail = staff_api.case_detail(db, case_id)
+        self.assertEqual(case_detail["legal_aid_assignment"]["lawyer_name"], "Advocate Test")
+        self.assertEqual(case_detail["legal_aid_assignment"]["alert_status"], "pending")
+        status, _, _ = self.call(f"/api/legal-aid/roster/{lawyer_id}/deactivate", "POST", token="t-staff")
+        self.assertEqual(status, 400)
+        with store.connect() as db:
+            db.update("alerts", {"id": alert_id}, {"status": "approved"})
+        status, _, _ = self.call(f"/api/legal-aid/roster/{lawyer_id}/deactivate", "POST", token="t-staff")
+        self.assertEqual(status, 400)
 
     def test_chat_hand_over_and_actions(self):
         status, _, body = self.call("/api/agent/chat", "POST", {"message": "Can I get a free lawyer? I earn 12,000 a month."})
@@ -314,7 +405,7 @@ class StaticContentTests(unittest.TestCase):
         self.assertIn(".home-link {", advocate_style)
         self.assertIn('<a class="portal-home" href="/">Home</a>', staff_html)
         self.assertIn("body.staff-page > .top > .portal-home", staff_style)
-        self.assertIn("styles.css?v=16", staff_html)
+        self.assertIn("styles.css?v=18", staff_html)
 
     def test_theme_is_light_by_default_and_manually_toggleable_on_every_page(self):
         pages = ("index.html", "citizen.html", "staff.html", "advocate.html",
@@ -323,7 +414,7 @@ class StaticContentTests(unittest.TestCase):
             html = (STATIC / filename).read_text(encoding="utf-8")
             self.assertIn('class="theme-toggle"', html, filename)
             self.assertIn('content="#0866ff"', html, filename)
-            self.assertIn('common.js?v=14', html, filename)
+            self.assertIn('common.js?v=15', html, filename)
 
         common = (STATIC / "common.js").read_text(encoding="utf-8")
         styles = (STATIC / "styles.css").read_text(encoding="utf-8")
@@ -344,7 +435,12 @@ class StaticContentTests(unittest.TestCase):
         self.assertIn('data-staff-action="mark_record_requested"', script)
         self.assertIn('data-staff-action="mark_record_received"', script)
         self.assertIn('data-staff-action="request_lawyer_review"', script)
-        self.assertIn("they do not send a message or approve the application", script)
+        self.assertIn("they do not contact officials, file an application, or decide release", script)
+        self.assertIn("Staff flagged this alert for your review", script)
+        self.assertIn("flagged by staff for review", script)
+        self.assertIn("in-app flag, not an external notification", script)
+        self.assertIn("Assign and flag for review", script)
+        self.assertIn('api("/api/legal-aid/roster")', script)
 
     def test_staff_portal_has_no_insights_section(self):
         html = (STATIC / "staff.html").read_text(encoding="utf-8")
@@ -390,8 +486,45 @@ class StaticContentTests(unittest.TestCase):
         self.assertIn("summary-view-lead", script)
         self.assertIn("verification.unverified?.length", script)
         self.assertIn("result.low_confidence_pages?.length", script)
-        self.assertIn("common.js?v=14", html)
-        self.assertIn("staff.js?v=28", html)
+        self.assertIn("common.js?v=15", html)
+        self.assertIn("staff.js?v=37", html)
+
+    def test_undertrial_queue_has_search_refresh_and_update_feedback(self):
+        html = (STATIC / "staff.html").read_text(encoding="utf-8")
+        script = (STATIC / "staff.js").read_text(encoding="utf-8")
+        self.assertIn('id="portalSyncStatus"', html)
+        self.assertIn('id="utSearch"', html)
+        self.assertIn('id="utRefresh"', html)
+        self.assertIn('id="utQueueStatus"', html)
+        self.assertIn('$("#utSearch").addEventListener("input"', script)
+        self.assertIn('$("#utRefresh").addEventListener("click"', script)
+        self.assertIn('await loadAlerts("Lawyer review recorded")', script)
+        self.assertIn('await loadAlerts("Undertrial scan complete")', script)
+        self.assertIn('await loadAlerts(message)', script)
+        self.assertIn('await loadAlerts("Lawyer assigned")', script)
+        self.assertIn('await loadAlerts("Alert dismissed")', script)
+        self.assertIn('await loadAlerts("Alert status updated")', script)
+        self.assertIn('markPortalStatus("Refreshing queue")', script)
+        self.assertIn('markPortalStatus("Refresh failed")', script)
+
+    def test_undertrial_actions_distinguish_lawyer_review_from_court_decision(self):
+        html = (STATIC / "staff.html").read_text(encoding="utf-8")
+        script = (STATIC / "staff.js").read_text(encoding="utf-8")
+        docs = (ROOT / "docs" / "HOW_IT_WORKS.md").read_text(encoding="utf-8")
+        self.assertIn("only the court decides whether to release the person", html)
+        self.assertIn("Mark lawyer review complete", script)
+        self.assertNotIn("Approve - file a release application", script)
+        self.assertIn("Record court order denying release", script)
+        self.assertIn("the court decides", script)
+        self.assertIn("A judge/court—not the lawyer or registry staff—decides", docs)
+
+    def test_metrics_describe_lawyer_review_without_claiming_court_decisions(self):
+        metrics_html = (STATIC / "metrics.html").read_text(encoding="utf-8")
+        metrics_script = (STATIC / "metrics.js").read_text(encoding="utf-8")
+        classic_html = (STATIC / "classic.html").read_text(encoding="utf-8")
+        self.assertIn("metrics.js?v=7", metrics_html)
+        self.assertIn("Lawyer reviews recorded (not court decisions)", metrics_script)
+        self.assertIn("app.js?v=2", classic_html)
 
     def test_staff_daily_desk_explains_the_routine_and_case_flow(self):
         html = (STATIC / "staff.html").read_text(encoding="utf-8")
@@ -409,6 +542,11 @@ class StaticContentTests(unittest.TestCase):
         self.assertIn('data-dtab="readiness"', html)
         self.assertIn("hearing-preparation check", script)
         self.assertIn("readinessPath(current.case_id)", script)
+        self.assertIn('role="tabpanel"', html)
+        self.assertIn("banner-neutral", script)
+        self.assertIn("not a readiness approval", script)
+        self.assertIn('ROLE === "staff" && a.kind === "undertrial_release"', script)
+        self.assertIn('caseApiPath(caseId, "/detail")', script)
 
     def test_citizen_has_four_capabilities_and_safe_legal_research_rendering(self):
         html = (STATIC / "citizen.html").read_text(encoding="utf-8")

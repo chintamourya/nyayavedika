@@ -25,7 +25,7 @@
         ["legal_aid_applications_drafted", "Applications drafted"],
         ["documents_analyzed", "Documents analyzed"],
         ["undertrials_flagged", "Undertrials flagged"],
-        ["release_applications_approved", "Release applications approved"],
+        ["release_applications_approved", "Lawyer reviews recorded (not court decisions)"],
         ["custody_record_requests_marked_sent", "Custody-record requests marked sent"],
         ["custody_records_marked_received", "Custody records marked received"],
         ["lawyer_review_flags", "Undertrial alerts flagged for lawyer review"],

@@ -223,7 +223,7 @@ async function loadImpact() {
     kpi(i.legal_aid.applications_drafted, "legal-aid applications drafted"),
     kpi(i.legal_aid.lawyers_assigned_reported, "lawyers assigned (partner-reported)"),
     kpi(i.undertrials.flagged, "undertrials flagged for release"),
-    kpi(i.undertrials.release_applications_approved, "release applications approved"),
+    kpi(i.undertrials.release_applications_approved, "lawyer reviews recorded", "not court release decisions"),
     kpi(i.documents.pages, "case-file pages analysed", `${i.documents.analyzed} documents`),
     kpi(i.documents.reading_hours_saved_est, "reading hours saved (est.)", `${i.assumptions.minutes_per_page_read} min/page`),
     kpi(i.registry.cases_triaged, "case triage runs (cases)"),

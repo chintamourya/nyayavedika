@@ -26,7 +26,7 @@ from urllib.parse import parse_qs, urlparse
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 # nyayavedika.config reads .env on import.
-from nyayavedika import (advocate, auth, cause_list, feedback, config, db, demo_seed, document_studio, impact, intake, jobs, legal_aid, legal_aid_kb, legal_problem, ocr, staff_api,  # noqa: E402
+from nyayavedika import (advocate, auth, cause_list, feedback, config, db, demo_seed, document_studio, impact, intake, jobs, legal_aid, legal_aid_kb, legal_aid_roster, legal_problem, ocr, staff_api,  # noqa: E402
                    store, summarise, worker, public_docs)
 from nyayavedika.agents import undertrial_watch  # noqa: E402
 from nyayavedika.agents.front_door import FrontDoor, answer_kind  # noqa: E402
@@ -50,7 +50,8 @@ def _db(fn, *a, **k):
 
 def _guard(handler, key):
     try:
-        return auth.check(handler.headers.get("Authorization"), *auth.POLICY[key])
+        return auth.check(handler.headers.get("Authorization"), *auth.POLICY[key],
+                           role_hint=handler.headers.get("X-Demo-Role"))
     except auth.AuthError as exc:
         raise HttpError(exc.status, exc.message)
 
@@ -273,6 +274,42 @@ def routes():
             return _court(undertrial_watch.staff_action, int(m["id"]), d.get("action"), p.actor, p.role)
         except PermissionError as exc:
             raise HttpError(403, str(exc))
+
+    @r("POST", r"/api/alerts/(?P<id>\d+)/assign-lawyer", "POST /api/alerts/{alert_id}/assign-lawyer")
+    def assign_alert_lawyer(h, m, q, b, p):
+        d = json.loads(b or b"{}")
+        if not isinstance(d, dict):
+            raise HttpError(400, "Expected a JSON object")
+        try:
+            return _db(legal_aid_roster.assign_alert, int(m["id"]), d.get("lawyer_id"), p.actor, p.role)
+        except LookupError as exc:
+            raise HttpError(404, str(exc))
+        except ValueError as exc:
+            raise HttpError(400, str(exc))
+
+    @r("GET", "/api/legal-aid/roster", "GET /api/legal-aid/roster")
+    def legal_aid_roster_list(h, m, q, b, p):
+        return _db(legal_aid_roster.list_lawyers, p.role)
+
+    @r("POST", "/api/legal-aid/roster", "POST /api/legal-aid/roster")
+    def legal_aid_roster_add(h, m, q, b, p):
+        d = json.loads(b or b"{}")
+        if not isinstance(d, dict):
+            raise HttpError(400, "Expected a JSON object")
+        try:
+            return _db(legal_aid_roster.add_lawyer, d, p.actor, p.role)
+        except ValueError as exc:
+            raise HttpError(400, str(exc))
+
+    @r("POST", r"/api/legal-aid/roster/(?P<lawyer_id>[a-fA-F0-9]+)/deactivate",
+       "POST /api/legal-aid/roster/{lawyer_id}/deactivate")
+    def legal_aid_roster_deactivate(h, m, q, b, p):
+        try:
+            return _db(legal_aid_roster.deactivate_lawyer, m["lawyer_id"], p.actor, p.role)
+        except LookupError as exc:
+            raise HttpError(404, str(exc))
+        except ValueError as exc:
+            raise HttpError(400, str(exc))
 
     @r("GET", r"/api/alerts/(?P<id>\d+)/release\.docx", "GET /api/alerts/{alert_id}/release.docx")
     def release(h, m, q, b, p):

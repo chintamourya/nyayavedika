@@ -175,7 +175,9 @@ async function api(path, opts = {}) {
   if (token) {
     headers.Authorization = `Bearer ${token}`;
     const path = window.location.pathname.replace(/\/+$/, "");
-    const portalRole = { "/advocate": "lawyer", "/staff": "staff", "/citizen": "citizen" }[path];
+    const staffRole = path === "/staff" && new URLSearchParams(window.location.search).get("role") === "lawyer"
+      ? "lawyer" : "";
+    const portalRole = staffRole || { "/advocate": "lawyer", "/staff": "staff", "/citizen": "citizen" }[path];
     if (portalRole) headers["X-Demo-Role"] = portalRole;
   }
   let body;

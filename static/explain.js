@@ -62,16 +62,21 @@ function custodyMath(a) {
 }
 
 // Today: how a record moves through the screens, with live counts.
-function pipelineStrip(p) {
+function pipelineStrip(p, role) {
   if (!p) return "";
   const cl = p.latest_cause_list;
-  const step = (tab, n, label, sub, tip) => `<button class="pipe" data-pipe="${tab}" title="${esc(tip)}"><b>${esc(n)}</b><span>${esc(label)}</span><small>${esc(sub)}</small></button>`;
+  const step = (tab, n, label, sub, tip, staffOnly = false) => {
+    const body = `<b>${esc(n)}</b><span>${esc(label)}</span><small>${esc(sub)}</small>`;
+    return staffOnly && role !== "staff"
+      ? `<span class="pipe end" aria-disabled="true" title="${esc(tip)} Staff-only screen">${body}</span>`
+      : `<button class="pipe" data-pipe="${tab}" title="${esc(tip)}">${body}</button>`;
+  };
   return `<div class="pipeline" aria-label="How cases move">
-    ${step("intake", p.intake_in_progress, "Intake", "files being read", "Uploaded files are read, summarised, scored and turned into cases")}
+    ${step("intake", p.intake_in_progress, "Intake", "files being read", "Uploaded files are read, summarised, scored and turned into cases", true)}
     <span class="arrow" aria-hidden="true">→</span>
-    ${step("docket", p.docket_pending, "Docket", `${p.docket_needs_review} need a fix`, "Every pending case with its priority score and band")}
+    ${step("docket", p.docket_pending, "Docket", `${p.docket_needs_review} need a fix`, "Every pending case with its priority score and band", true)}
     <span class="arrow" aria-hidden="true">→</span>
-    ${step("cause", p.listed_upcoming, "Cause list", cl ? `latest #${cl.id} ${cl.status}` : "no list yet", "The weekly list: urgent and long-waiting cases first, within bench time")}
+    ${step("cause", p.listed_upcoming, "Cause list", cl ? `latest #${cl.id} ${cl.status}` : "no list yet", "The weekly list: urgent and long-waiting cases first, within bench time", true)}
     <span class="arrow" aria-hidden="true">→</span>
     <span class="pipe end"><b>⚖</b><span>Hearing</span><small>outcome recorded</small></span>
     <span class="branch" aria-hidden="true">↳</span>
@@ -90,7 +95,8 @@ const HOW = {
     <li>The same file sent twice is recognised by its content and not processed again.</li>
     <li>A fact the reader is unsure of is marked <b>needs review</b> with a button to fill it in; the case is re-scored when you save.</li>
     <li>Urgent cases (Critical) get a proposed hearing slot straight away; others wait for the weekly cause list.</li></ul>`,
-  docket: (r) => `<p>The score (0-${r.score_cap}) adds up these points; the band follows from the score.</p>
+  docket: (r) => `<p><b>Use this screen:</b> filter the queue, then open a case to check its facts and cited sources. The score and band help order work; they are not a legal decision or hearing-readiness result.</p>
+    <p>The score (0-${r.score_cap}) adds up these points; the band follows from the score.</p>
     <table class="rules"><tr><th>Factor</th><th>Points</th><th>Rule</th></tr>${r.factors.map((f) =>
       `<tr><td>${esc(f.factor)}</td><td>${esc(f.points)}</td><td>${esc(f.rule)}</td></tr>`).join("")}</table>
     ${bandScale(null, r)}
@@ -107,7 +113,8 @@ const HOW = {
     <ul><li>Unknown first-offence status: ${esc(r.undertrial.unknown_offender)}.</li>
     <li>Not applied to: ${esc(r.undertrial.excluded)}.</li>
     <li>"Near the limit" = ${r.undertrial.near_percent}% or more of the limit.</li>
-    <li>Each alert moves: found (pending) → approved by a legal-aid lawyer → filed → heard → released or denied. A dismissal needs a reason.</li></ul>
+    <li>Each alert moves: found (pending) → approved by a legal-aid lawyer → filed → heard → released or denied. A dismissal needs a reason.</li>
+    <li>Staff can open the case, track custody-record follow-up and flag lawyer review. These are internal notes, not messages or legal approvals.</li></ul>
     <p class="hint">Example: maximum sentence 7 years = 2,555 days. First offence: limit 852 days; otherwise 1,277 days.</p>`,
   insights: () => `<p>Weekly health of the docket and the evidence of impact.</p>
     <ul><li><b>Longest wait</b> per band counts from the day a case became ready to list.</li>
@@ -120,7 +127,7 @@ async function fillHow() {
     const fn = HOW[el.dataset.how];
     if (!fn || !r) { el.innerHTML = ""; return; }
     const open = el.querySelector("details.how")?.open;
-    el.innerHTML = `<details class="how"${open ? " open" : ""}><summary>ⓘ How this works</summary><div>${fn(r)}</div></details>`;
+    el.innerHTML = `<details class="how"${open ? " open" : ""}><summary>ⓘ Why and how to use this screen</summary><div>${fn(r)}</div></details>`;
   });
 }
 

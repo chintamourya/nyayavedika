@@ -60,7 +60,7 @@ NyayaVedika is a set of AI agents and a lawyer workbench with three doors. Every
 | **Court staff** `/staff` | Intake and Docket | Reads case files and scores every pending case, with reasons | Manual sorting of the docket | Cases triaged |
 | | Cause list | Conflict-free weekly hearing list sized by adjournment risk; registrar approves | Clashes and adjourned hearings | Cases listed, conflicts avoided, critical wait gained |
 | | Hearing readiness | Surfaces missing files, unresolved extracted fields, document conflicts and low-confidence OCR; staff add and resolve case-specific checks | Preparation gaps noticed too late | Checklist actions; field outcomes require a pilot |
-| | **Undertrial Watch** (nightly) | Computes the Section 479 threshold and drafts the release application; staff can inspect/correct case facts, track custody-record follow-up and flag lawyer review; lawyer alone approves | Eligible people missed because nobody checked the date, and follow-up left untracked | People flagged, applications approved, record follow-up activity (not legal outcomes) |
+| | **Undertrial Watch** (nightly) | Computes the Section 479 threshold and drafts the release application; staff can inspect/correct case facts, track custody-record follow-up and assign lawyer review; the lawyer reviews the draft and the court alone decides release | Eligible people missed because nobody checked the date, and follow-up left untracked | People flagged, lawyer reviews recorded, record follow-up activity (not legal outcomes) |
 | | Document summary, ADR routing, Insights tab | Briefs any document; routes suitable cases to Lok Adalat; weekly docket health | Reading time; cases that need not go to trial | Documents analysed, ADR candidates |
 | **All** | Feedback wall `/feedback` | Public ratings and notes from field users | Early activity and self-reported feedback; legal outcomes are not independently verified | Responses, average rating, share whose situation changed |
 
@@ -74,7 +74,7 @@ flowchart LR
     NM & DA & RA & UW --> RULES["Deterministic rules in code<br/>Sec. 479, legal aid, triage"]
     NM & DA & WB --> PII["PII masking"] --> LLM["Azure OpenAI<br/>offline fallback"]
     NM & DA & WB --> KB["Pinecone + gov-domain web search"]
-    UW --> G1{{"Lawyer approves"}}
+    UW --> G1{{"Lawyer reviews application"}}
     RA --> G2{{"Registrar approves"}}
     Agents["All agents"] --> IMP["Impact log + feedback wall"]
 ```
@@ -178,7 +178,7 @@ Measured server processing times suggest where work may be shortened, but the ma
 | Assemble a paper-book | About **40 minutes–2.5 hours** |
 | Check Section 479 eligibility for 50 undertrials | About **2.5–6.5 hours** |
 
-At the derived direct custody cost of about **₹4,195 per inmate per month**, 100 people released three months earlier would correspond to about **₹12.6 lakh** in avoided direct custody cost. This is a formula, not a realized saving; one release application has been approved to date, and no release outcome is claimed. Full assumptions and calculations are in [docs/RESEARCH_EVIDENCE.md](docs/RESEARCH_EVIDENCE.md).
+At the derived direct custody cost of about **₹4,195 per inmate per month**, 100 people released three months earlier would correspond to about **₹12.6 lakh** in avoided direct custody cost. This is a formula, not a realized saving; one lawyer review of a release application has been recorded to date, and no release outcome is claimed. Full assumptions and calculations are in [docs/RESEARCH_EVIDENCE.md](docs/RESEARCH_EVIDENCE.md).
 
 
 

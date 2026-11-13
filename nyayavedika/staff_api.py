@@ -29,8 +29,12 @@ def docket(db, band: str = "", case_type: str = "", flag: str = "", deferred3: b
     rows = db.query(f"SELECT {DOCKET_COLUMNS} FROM cases{clause} ORDER BY score DESC", params, table="cases")
     states = {s["case_id"]: s for s in db.select("case_queue_state")}
     today = date.today().isoformat()
-    upcoming = {l["case_id"]: l for l in db.select("listings", {"status": ["planned", "proposed", "accepted", "published"]})
-                if l["day"] >= today}
+    status_order = {"published": 0, "accepted": 1, "planned": 2, "proposed": 3}
+    listings = [l for l in db.select("listings", {"status": list(status_order)}) if l["day"] >= today]
+    listings.sort(key=lambda l: (l["case_id"], l["day"], status_order[l["status"]], l.get("id") or 0))
+    upcoming = {}
+    for listing in listings:
+        upcoming.setdefault(listing["case_id"], listing)
     out = []
     for r in rows:
         st = states.get(r["case_id"], {})
@@ -96,6 +100,19 @@ def case_detail(db, case_id: str) -> Optional[Dict]:
         timeline = [{**t, "filename": names.get(t.get("doc_id"))} for t in brief["timeline"]]
     hearings = db.select("hearings", {"case_id": case_id}, order="hearing_date DESC", limit=30)
     deferrals = db.select("deferrals", {"case_id": case_id}, order="run_at DESC", limit=30)
+    alerts = db.select("alerts", {"case_id": case_id}, order="id DESC", limit=20)
+    legal_aid_alert = next((alert for alert in alerts
+                            if alert["kind"] == "undertrial_release"
+                            and (alert.get("details") or {}).get("legal_aid_lawyer_id")), None)
+    legal_aid_assignment = None
+    if legal_aid_alert:
+        details = legal_aid_alert["details"]
+        legal_aid_assignment = {
+            "lawyer_name": details.get("legal_aid_lawyer_name"),
+            "district": details.get("legal_aid_lawyer_district"),
+            "alert_status": legal_aid_alert["status"],
+            "review_requested_at": details.get("lawyer_review_requested_at"),
+        }
     glance = documents[-1]["glance"] if documents and documents[-1]["glance"] else None
     facts = {k: case.get(k) for k in ("case_type", "stage", "filing_date", "accused_in_custody", "custody_since", "act", "section",
                                       "max_sentence_years", "next_hearing_date", "case_number")}
@@ -106,6 +123,7 @@ def case_detail(db, case_id: str) -> Optional[Dict]:
                                            "chips": _chips(latest.get("reasons") or []),
                                            "ai_adjustment": latest.get("ai_adjustment"), "ai_reason": latest.get("ai_reason")},
             "timeline": timeline, "documents": documents, "conflicts": brief.get("conflicts") or [],
+            "legal_aid_assignment": legal_aid_assignment,
             "readiness": {"items": hearing_readiness.items(case),
                           "signals": hearing_readiness.system_signals(case.get("review_fields") or [],
                                                                        brief.get("conflicts") or [], documents)},

@@ -432,6 +432,16 @@ class IntakeApiTests(IntakeTestCase):
         config.DEMO_TOKEN_STAFF = self.old_token
         super().tearDown()
 
+    def test_shared_demo_token_can_switch_to_lawyer_role(self):
+        old_lawyer_token = config.DEMO_TOKEN_LAWYER
+        config.DEMO_TOKEN_LAWYER = config.DEMO_TOKEN_STAFF
+        try:
+            response = self.client.get("/api/whoami", headers={**self.h, "X-Demo-Role": "lawyer"})
+            self.assertEqual(response.status_code, 200)
+            self.assertEqual(response.json()["role"], "lawyer")
+        finally:
+            config.DEMO_TOKEN_LAWYER = old_lawyer_token
+
     def test_upload_flow(self):
         files = [("files", (n, (SAMPLES / n).read_bytes(), "text/plain"))
                  for n in ("fir_01_theft.txt", "order_02_adjournment.txt", "custody_01_jail_certificate.txt")]
@@ -477,6 +487,17 @@ class IntakeApiTests(IntakeTestCase):
                                    headers=self.h)
         self.assertEqual(flagged.status_code, 200)
         self.assertTrue(flagged.json()["details"]["lawyer_review_requested_at"])
+        roster = self.client.post("/api/legal-aid/roster", json={
+            "name": "Advocate Test", "district": "Warangal",
+            "verification_reference": "Official panel list, 2026", "verified": True,
+        }, headers=self.h)
+        self.assertEqual(roster.status_code, 200)
+        assigned = self.client.post(f"{url}/assign-lawyer", json={"lawyer_id": roster.json()["lawyer_id"]},
+                                    headers=self.h)
+        self.assertEqual(assigned.status_code, 200)
+        self.assertEqual(assigned.json()["details"]["legal_aid_lawyer_name"], "Advocate Test")
+        self.assertEqual(self.client.post(
+            f"/api/legal-aid/roster/{roster.json()['lawyer_id']}/deactivate", headers=self.h).status_code, 400)
         self.assertEqual(self.client.post(f"{url}/state", json={"status": "approved"},
                                           headers=self.h).status_code, 403)
         self.assertEqual(self.client.post(f"{url}/staff-action", json={"action": "approve"},

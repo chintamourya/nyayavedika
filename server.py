@@ -27,7 +27,7 @@ from starlette.concurrency import run_in_threadpool  # noqa: E402
 from langgraph.types import Command  # noqa: E402
 from pydantic import BaseModel  # noqa: E402
 
-from nyayavedika import (advocate, audit, auth, cause_list, config, db, document_studio, documents, drafting, hearing_readiness, impact, intake, jobs, legal_problem,  # noqa: E402
+from nyayavedika import (advocate, audit, auth, cause_list, config, db, document_studio, documents, drafting, hearing_readiness, impact, intake, jobs, legal_aid_roster, legal_problem,  # noqa: E402
                    legal_aid, llm, ocr, sample_data, scheduler, staff_api, store, offline_summary, summarise, triage, vectorstore,
                    websearch, public_docs)
 from nyayavedika.agents import assistants, checkpoint, document_analyst, registry, undertrial_watch  # noqa: E402
@@ -523,6 +523,49 @@ def alert_staff_action(alert_id: int, body: AlertStaffActionIn,
         return _court_call(undertrial_watch.staff_action, alert_id, body.action, principal.actor, principal.role)
     except PermissionError as exc:
         raise HTTPException(403, str(exc))
+
+
+class LegalAidLawyerIn(BaseModel):
+    name: str
+    district: str
+    verification_reference: str
+    verified: bool = False
+
+
+class AlertLawyerAssignmentIn(BaseModel):
+    lawyer_id: str
+
+
+@app.get("/api/legal-aid/roster")
+def list_legal_aid_roster(principal: Principal = guard("GET /api/legal-aid/roster")):
+    return _court_call(legal_aid_roster.list_lawyers, principal.role)
+
+
+@app.post("/api/legal-aid/roster")
+def add_legal_aid_roster_lawyer(body: LegalAidLawyerIn,
+                                principal: Principal = guard("POST /api/legal-aid/roster")):
+    try:
+        return _court_call(legal_aid_roster.add_lawyer, body.dict(), principal.actor, principal.role)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc))
+
+
+@app.post("/api/legal-aid/roster/{lawyer_id}/deactivate")
+def deactivate_legal_aid_roster_lawyer(lawyer_id: str,
+                                       principal: Principal = guard("POST /api/legal-aid/roster/{lawyer_id}/deactivate")):
+    try:
+        return _court_call(legal_aid_roster.deactivate_lawyer, lawyer_id, principal.actor, principal.role)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc))
+
+
+@app.post("/api/alerts/{alert_id}/assign-lawyer")
+def assign_alert_lawyer(alert_id: int, body: AlertLawyerAssignmentIn,
+                        principal: Principal = guard("POST /api/alerts/{alert_id}/assign-lawyer")):
+    try:
+        return _court_call(legal_aid_roster.assign_alert, alert_id, body.lawyer_id, principal.actor, principal.role)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc))
 
 
 @app.get("/api/alerts/data-needed", dependencies=[guard("GET /api/alerts/data-needed")])

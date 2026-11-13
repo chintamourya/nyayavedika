@@ -13,7 +13,7 @@ Event catalogue (value = count unless noted):
   legal_aid_outcome          partner-reported outcome;     meta.status (applied / lawyer_assigned)
   document_analyzed          value = pages;                meta.ocr_pages, meta.verified
   undertrial_flagged         custody case past / near Sec. 479 BNSS threshold
-  release_application_approved   human-approved draft sent to DLSA / jail lawyer
+  release_application_approved   lawyer review completed; not a court release decision (legacy event name)
   undertrial_custody_record_*    staff-recorded request / receipt tracking; not proof a document was sent or received
   undertrial_lawyer_review_flagged staff in-app review flag; no lawyer is assigned or notified
   case_triaged               value = cases scored
