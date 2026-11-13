@@ -32,6 +32,7 @@ POLICY = {
     "POST /api/intake/batches/{batch_id}/jobs/{job_id}/retry": (STAFF,),
     "POST /api/intake/rows": (STAFF,),
     "PATCH /api/cases/{case_id:path}": (STAFF,),
+    "POST /api/cases/{case_id:path}/readiness": (STAFF,),
     "POST /api/cause-lists/draft": (STAFF,),
     "GET /api/cause-lists/{cause_list_id}": (STAFF,),
     "POST /api/cause-lists/{cause_list_id}/publish": (STAFF,),
@@ -56,7 +57,8 @@ POLICY = {
     "POST /api/undertrial/scan": COURT,
     "GET /api/alerts": COURT,
     "POST /api/alerts/decide": (LAWYER,),
-    "POST /api/alerts/{alert_id}/state": COURT,   # lawyer decides; staff may record filed / heard / outcome
+    "POST /api/alerts/{alert_id}/state": COURT,   # lawyer approves/dismisses; staff records later case progress
+    "POST /api/alerts/{alert_id}/staff-action": (STAFF,),
     "GET /api/alerts/data-needed": COURT,
     "POST /api/legal-aid/{request_id}/outcome": COURT,
     # everyone: legal-aid check, assistant (agent chosen by role), feedback

@@ -129,6 +129,12 @@ class FeedbackTests(unittest.TestCase):
             "api_usage_citizen_legal_aid_success": {"count": 3, "total": 90.0},
             "api_usage_advocate_documents_failure": {"count": 1, "total": 30.0},
             "api_usage_staff_court_operations_success": {"count": 2, "total": 80.0},
+            "hearing_readiness_item_added": {"count": 4, "total": 4.0},
+            "hearing_readiness_item_marked_ready": {"count": 2, "total": 2.0},
+            "hearing_readiness_item_marked_not_applicable": {"count": 1, "total": 1.0},
+            "undertrial_custody_record_marked_requested": {"count": 3, "total": 3.0},
+            "undertrial_custody_record_marked_received": {"count": 2, "total": 2.0},
+            "undertrial_lawyer_review_flagged": {"count": 1, "total": 1.0},
             "door_visit_citizen": {"count": 4, "total": 4.0},
         }
         reach = {"unique_browsers": 2, "by_door": {"citizen": 1, "advocate": 1, "staff": 0}}
@@ -147,6 +153,12 @@ class FeedbackTests(unittest.TestCase):
         self.assertEqual(summary["door_visits"], {
             "total": 4, "by_door": {"citizen": 4, "advocate": 0, "staff": 0}
         })
+        self.assertEqual(summary["registry"]["readiness_items_added"], 4)
+        self.assertEqual(summary["registry"]["readiness_items_marked_ready"], 2)
+        self.assertEqual(summary["registry"]["readiness_items_marked_not_applicable"], 1)
+        self.assertEqual(summary["undertrials"]["custody_record_requests_marked_sent"], 3)
+        self.assertEqual(summary["undertrials"]["custody_records_marked_received"], 2)
+        self.assertEqual(summary["undertrials"]["lawyer_review_flags"], 1)
 
     def test_hide_removes_from_wall_but_not_from_numbers(self):
         new_id = feedback.submit(self.db, FULL)["id"]

@@ -27,7 +27,7 @@ from starlette.concurrency import run_in_threadpool  # noqa: E402
 from langgraph.types import Command  # noqa: E402
 from pydantic import BaseModel  # noqa: E402
 
-from nyayavedika import (advocate, audit, auth, cause_list, config, db, document_studio, documents, drafting, impact, intake, jobs, legal_problem,  # noqa: E402
+from nyayavedika import (advocate, audit, auth, cause_list, config, db, document_studio, documents, drafting, hearing_readiness, impact, intake, jobs, legal_problem,  # noqa: E402
                    legal_aid, llm, ocr, sample_data, scheduler, staff_api, store, offline_summary, summarise, triage, vectorstore,
                    websearch, public_docs)
 from nyayavedika.agents import assistants, checkpoint, document_analyst, registry, undertrial_watch  # noqa: E402
@@ -501,6 +501,8 @@ class AlertStateIn(BaseModel):
 @app.post("/api/alerts/{alert_id}/state")
 def alert_state(alert_id: int, body: AlertStateIn, principal: Principal = guard("POST /api/alerts/{alert_id}/state")):
     """Advance an alert: pending -> approved -> filed -> heard -> released | denied, or dismissed with a reason."""
+    if body.status in ("approved", "dismissed") and principal.role != "lawyer":
+        raise HTTPException(403, "Only a legal-aid lawyer can approve or dismiss a release alert")
     try:
         return undertrial_watch.advance_alert(alert_id, body.status, principal.actor, principal.role, body.note or None,
                                               body.reason or None, body.snooze_until)
@@ -508,6 +510,19 @@ def alert_state(alert_id: int, body: AlertStateIn, principal: Principal = guard(
         raise HTTPException(404, str(exc))
     except legal_problem.InvalidResearchInput as exc:
         raise HTTPException(400, str(exc))
+
+
+class AlertStaffActionIn(BaseModel):
+    action: str  # mark_record_requested | mark_record_received | request_lawyer_review
+
+
+@app.post("/api/alerts/{alert_id}/staff-action")
+def alert_staff_action(alert_id: int, body: AlertStaffActionIn,
+                       principal: Principal = guard("POST /api/alerts/{alert_id}/staff-action")):
+    try:
+        return _court_call(undertrial_watch.staff_action, alert_id, body.action, principal.actor, principal.role)
+    except PermissionError as exc:
+        raise HTTPException(403, str(exc))
 
 
 @app.get("/api/alerts/data-needed", dependencies=[guard("GET /api/alerts/data-needed")])
@@ -797,6 +812,13 @@ def intake_rows(file: UploadFile = File(...), principal: Principal = guard("POST
 def patch_case(case_id: str, body: Dict[str, Any], principal: Principal = guard("PATCH /api/cases/{case_id:path}")):
     """Staff correct extracted fields; the case is re-scored and the change is written to audit_log."""
     return _intake_call(intake.patch_case, case_id, body, principal.actor, principal.role)
+
+
+@app.post("/api/cases/{case_id:path}/readiness")
+def case_readiness_update(case_id: str, body: Dict[str, Any],
+                          principal: Principal = guard("POST /api/cases/{case_id:path}/readiness")):
+    """Staff maintain a case-specific hearing checklist; these checks never block or decide a hearing."""
+    return _court_call(hearing_readiness.update, case_id, body, principal.actor, principal.role)
 
 
 # ----------------------------------------------------------------------------- direct tools

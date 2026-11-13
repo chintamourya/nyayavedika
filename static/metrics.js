@@ -26,9 +26,15 @@
         ["documents_analyzed", "Documents analyzed"],
         ["undertrials_flagged", "Undertrials flagged"],
         ["release_applications_approved", "Release applications approved"],
+        ["custody_record_requests_marked_sent", "Custody-record requests marked sent"],
+        ["custody_records_marked_received", "Custody records marked received"],
+        ["lawyer_review_flags", "Undertrial alerts flagged for lawyer review"],
         ["cases_triaged", "Cases triaged"],
         ["cause_lists_published", "Cause lists published"],
         ["cases_listed", "Cases listed"],
+        ["readiness_items_added", "Hearing checks added"],
+        ["readiness_items_marked_ready", "Hearing checks marked checked"],
+        ["readiness_items_marked_not_applicable", "Hearing checks marked not applicable"],
       ];
       const feedback = m.feedback;
       showCards($("#reachCards"), [

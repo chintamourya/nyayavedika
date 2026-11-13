@@ -209,6 +209,53 @@ def decide_alerts(decisions: Dict, actor: str = "", role: str = "", db=None) -> 
     return len(decisions)
 
 
+def staff_action(db, alert_id: int, action: str, actor: str, role: str) -> dict:
+    """Track non-legal staff follow-up without changing the alert's approval state."""
+    if role != "staff":
+        raise PermissionError("Only court staff can update these follow-up records")
+    events = {
+        "mark_record_requested": "undertrial_custody_record_marked_requested",
+        "mark_record_received": "undertrial_custody_record_marked_received",
+        "request_lawyer_review": "undertrial_lawyer_review_flagged",
+    }
+    if action not in events:
+        raise ValueError(f"action must be one of {', '.join(events)}")
+
+    with store._session(db) as s:
+        rows = s.select("alerts", {"id": int(alert_id)})
+        if not rows:
+            raise LookupError(f"No alert {alert_id}")
+        alert = rows[0]
+        if alert["kind"] != "undertrial_release":
+            raise ValueError("Staff follow-up is available only for Undertrial Watch alerts")
+        if alert["status"] not in OPEN:
+            raise ValueError(f"Cannot update a {alert['status']} alert")
+
+        details = dict(alert.get("details") or {})
+        now = _now()
+        if action in ("mark_record_requested", "mark_record_received"):
+            status = "requested" if action == "mark_record_requested" else "received"
+            if details.get("custody_record_status") == status:
+                return {"alert_id": int(alert_id), "status": alert["status"], "details": details}
+            details.update(custody_record_status=status, custody_record_updated_at=now,
+                           custody_record_updated_by=actor)
+        else:
+            if details.get("lawyer_review_requested_at"):
+                return {"alert_id": int(alert_id), "status": alert["status"], "details": details}
+            details.update(lawyer_review_requested_at=now, lawyer_review_requested_by=actor)
+
+        s.update("alerts", {"id": int(alert_id)}, {"details": details})
+        store.audit(actor, role, f"undertrial_{action}", f"alert:{alert_id}",
+                    {"custody_record_status": details.get("custody_record_status"),
+                     "lawyer_review_requested": bool(details.get("lawyer_review_requested_at"))}, db=s)
+        s.commit()
+        case = store.get_case(alert["case_id"], db=s)
+        source = (case or {}).get("source") or "unknown"
+
+    impact.record(events[action], source=source)
+    return {"alert_id": int(alert_id), "status": alert["status"], "details": details}
+
+
 # ----------------------------------------------------------------------------- graph nodes
 def scan(state: WatchState) -> dict:
     return scan_candidates(court_id=state.get("court_id"))

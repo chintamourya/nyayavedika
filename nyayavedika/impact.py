@@ -14,6 +14,8 @@ Event catalogue (value = count unless noted):
   document_analyzed          value = pages;                meta.ocr_pages, meta.verified
   undertrial_flagged         custody case past / near Sec. 479 BNSS threshold
   release_application_approved   human-approved draft sent to DLSA / jail lawyer
+  undertrial_custody_record_*    staff-recorded request / receipt tracking; not proof a document was sent or received
+  undertrial_lawyer_review_flagged staff in-app review flag; no lawyer is assigned or notified
   case_triaged               value = cases scored
   adr_candidate              case routed to Lok Adalat / mediation
   cause_list_published       value = cases listed;         meta.conflicts_avoided, meta.critical_wait_gain
@@ -278,12 +280,18 @@ def summary() -> Dict:
         "undertrials": {
             "flagged": count("undertrial_flagged"),
             "release_applications_approved": count("release_application_approved"),
+            "custody_record_requests_marked_sent": count("undertrial_custody_record_marked_requested"),
+            "custody_records_marked_received": count("undertrial_custody_record_marked_received"),
+            "lawyer_review_flags": count("undertrial_lawyer_review_flagged"),
         },
         "registry": {
             "cases_triaged": int(total("case_triaged")),
             "adr_candidates": count("adr_candidate"),
             "cause_lists_published": count("cause_list_published"),
             "cases_listed": int(total("cause_list_published")),
+            "readiness_items_added": count("hearing_readiness_item_added"),
+            "readiness_items_marked_ready": count("hearing_readiness_item_marked_ready"),
+            "readiness_items_marked_not_applicable": count("hearing_readiness_item_marked_not_applicable"),
         },
         "feedback": {
             "responses": ratings.get("count", 0),
@@ -350,9 +358,15 @@ def demo_summary() -> Dict[str, Any]:
             "documents_analyzed": report["documents"]["analyzed"],
             "undertrials_flagged": report["undertrials"]["flagged"],
             "release_applications_approved": report["undertrials"]["release_applications_approved"],
+            "custody_record_requests_marked_sent": report["undertrials"]["custody_record_requests_marked_sent"],
+            "custody_records_marked_received": report["undertrials"]["custody_records_marked_received"],
+            "lawyer_review_flags": report["undertrials"]["lawyer_review_flags"],
             "cases_triaged": report["registry"]["cases_triaged"],
             "cause_lists_published": report["registry"]["cause_lists_published"],
             "cases_listed": report["registry"]["cases_listed"],
+            "readiness_items_added": report["registry"]["readiness_items_added"],
+            "readiness_items_marked_ready": report["registry"]["readiness_items_marked_ready"],
+            "readiness_items_marked_not_applicable": report["registry"]["readiness_items_marked_not_applicable"],
         },
         "feedback": {
             "responses": survey["responses"],

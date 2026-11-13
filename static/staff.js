@@ -452,6 +452,47 @@ function srcLink(prov) {
   if (prov.doc_id) return `<span class="src">p. ${esc(prov.page)} · confidence ${esc(prov.confidence)} <button class="btn ghost small" data-page="${esc(prov.doc_id)}|${esc(prov.page)}">source page</button></span>`;
   return `<span class="src">${esc(prov.source || "")}</span>`;
 }
+function readinessPath(caseId) {
+  return `/api/cases/${String(caseId).split("/").map(encodeURIComponent).join("/")}/readiness`;
+}
+async function saveReadiness(action) {
+  const out = await api(readinessPath(current.case_id), { json: action });
+  current.readiness = current.readiness || { items: [], signals: [] };
+  current.readiness.items = out.items;
+  drawerTab("readiness");
+}
+function wireReadiness(body) {
+  body.querySelector("#readinessAdd")?.addEventListener("click", async (event) => {
+    const input = body.querySelector("#readinessLabel");
+    const button = event.currentTarget;
+    button.disabled = true;
+    try {
+      await saveReadiness({ action: "add", label: input.value });
+    } catch (e) {
+      toast(e.message, "error");
+    } finally {
+      button.disabled = false;
+    }
+  });
+  $$("[data-readiness-state]", body).forEach((button) => button.addEventListener("click", async () => {
+    button.disabled = true;
+    try {
+      await saveReadiness({ action: "status", item_id: button.dataset.itemId, status: button.dataset.readinessState });
+    } catch (e) {
+      toast(e.message, "error");
+      button.disabled = false;
+    }
+  }));
+  $$("[data-readiness-remove]", body).forEach((button) => button.addEventListener("click", async () => {
+    button.disabled = true;
+    try {
+      await saveReadiness({ action: "remove", item_id: button.dataset.readinessRemove });
+    } catch (e) {
+      toast(e.message, "error");
+      button.disabled = false;
+    }
+  }));
+}
 function drawerTab(tab) {
   $$("#drawer [data-dtab]").forEach((t) => t.classList.toggle("active", t.dataset.dtab === tab));
   const c = current, body = $("#dBody");
@@ -481,6 +522,27 @@ function drawerTab(tab) {
       ${(d.glance || []).length ? `<ul class="reasons">${d.glance.map((l) => `<li>${esc(l)}</li>`).join("")}</ul>` : ""}
       ${d.low_confidence_pages.length ? `<p class="banner-warn">Check pages ${esc(d.low_confidence_pages.join(", "))}: low OCR confidence</p>` : ""}
       <details><summary>One-page brief</summary><pre class="doc">${esc(d.brief || "")}</pre></details></div>`).join("") || "<p class='hint'>No documents.</p>";
+  } else if (tab === "readiness") {
+    const readiness = c.readiness || { items: [], signals: [] };
+    const signals = readiness.signals || [];
+    const items = readiness.items || [];
+    body.innerHTML = `<p class="hint">Preparation prompts from the case record, plus checks entered by staff. Confirm what applies; these checks do not determine whether a hearing should proceed.</p>
+      <h3>System follow-ups</h3>
+      ${signals.length ? signals.map((signal) => `<div class="card"><b>${esc(signal.title)}</b><p class="hint">${esc(signal.detail)}</p>
+        ${signal.field ? `<button class="btn ghost small" data-fix="${esc(c.case_id)}" data-field="${esc(signal.field)}">Review field</button>` : ""}</div>`).join("")
+        : "<p class='banner-ok'>No follow-up signals from the available case data.</p>"}
+      <h3>Staff checklist <span class="hint">(${items.filter((item) => item.status === "open").length} open)</span></h3>
+      <p class="hint">Add only items relevant to this hearing. Checklist labels are kept out of audit and impact logs.</p>
+      <div class="row gap wrap"><input id="readinessLabel" maxlength="500" aria-label="Checklist item" placeholder="Add a hearing-preparation check">
+        <button id="readinessAdd" class="btn small" type="button">Add check</button></div>
+      ${items.length ? items.map((item) => `<div class="card">
+        <div class="row between gap wrap"><b>${esc(item.label)}</b><span class="badge">${pretty(item.status || "open")}</span></div>
+        <div class="row gap wrap">
+          ${item.status !== "ready" ? `<button class="btn small" data-readiness-state="ready" data-item-id="${esc(item.id)}">Mark checked</button>` : ""}
+          ${item.status !== "not_applicable" ? `<button class="btn ghost small" data-readiness-state="not_applicable" data-item-id="${esc(item.id)}">Not applicable</button>` : ""}
+          ${item.status !== "open" ? `<button class="btn ghost small" data-readiness-state="open" data-item-id="${esc(item.id)}">Reopen</button>` : ""}
+          <button class="btn ghost small" data-readiness-remove="${esc(item.id)}">Remove</button>
+        </div></div>`).join("") : "<p class='hint'>No staff checklist items yet.</p>"}`;
   } else {
     const h = c.history;
     const hearings = c.source === "synthetic" ? h.hearings.slice(0, SYNTHETIC_EXAMPLE_LIMIT) : h.hearings;
@@ -492,6 +554,7 @@ function drawerTab(tab) {
       <h3>Deferred by the scheduler</h3><table><tr><th>Run</th><th>Reason</th><th>Band</th></tr>${deferrals.map((x) => `<tr><td>${esc((x.run_at || "").slice(0, 10))}</td><td>${pretty(x.reason)}</td><td>${band(x.band)}</td></tr>`).join("") || "<tr><td colspan=3>None</td></tr>"}</table>`;
   }
   wireCaseButtons(body);
+  if (tab === "readiness") wireReadiness(body);
   $$("[data-page]", body).forEach((b) => b.addEventListener("click", async () => {
     const [doc, page] = b.dataset.page.split("|");
     try {
@@ -760,6 +823,9 @@ function alertCard(a) {
   const over = a.days_over_limit > 0;
   const lawyer = ROLE === "lawyer";
   const releaseReview = ["undertrial_release", "release_review_request"].includes(a.kind);
+  const staffWorkflow = a.details || {};
+  const custodyRecordStatus = staffWorkflow.custody_record_status || "not_requested";
+  const staffCanTrack = ROLE === "staff" && ["pending", "approved", "filed", "heard"].includes(a.status);
   const next = UT_NEXT[a.status];
   const primary = a.status === "pending"
     ? (lawyer ? `<button class="btn" data-approve="${a.id}">Approve - file a release application</button>`
@@ -768,6 +834,18 @@ function alertCard(a) {
   const step = UT_STEP[a.status] || 1;
   const track = ["Found", "Approved", "Filed", "Heard", a.status === "denied" ? "Denied" : "Released"]
     .map((s, i) => `<li class="${i + 1 < step ? "done" : i + 1 === step ? "now" : ""}">${s}</li>`).join("");
+  const staffFollowUp = staffCanTrack ? `<div class="card">
+    <b>Staff follow-up</b>
+    <p>Custody record: <b>${pretty(custodyRecordStatus)}</b></p>
+    <div class="actions">
+      ${custodyRecordStatus !== "requested" ? `<button class="btn ghost small" data-staff-action="mark_record_requested" data-alert-id="${a.id}">${custodyRecordStatus === "received" ? "Mark another request sent" : "Mark request sent"}</button>` : ""}
+      ${custodyRecordStatus !== "received" ? `<button class="btn ghost small" data-staff-action="mark_record_received" data-alert-id="${a.id}">Mark record received</button>` : ""}
+      ${a.status === "pending" && !staffWorkflow.lawyer_review_requested_at
+        ? `<button class="btn small" data-staff-action="request_lawyer_review" data-alert-id="${a.id}">Flag for lawyer review</button>` : ""}
+    </div>
+    ${staffWorkflow.lawyer_review_requested_at ? `<p class="hint">Flagged for lawyer review on ${esc(staffWorkflow.lawyer_review_requested_at.slice(0, 10))}.</p>` : ""}
+    <p class="hint">These actions record staff follow-up only; they do not send a message or approve the application.</p>
+  </div>` : "";
   return `<div class="card ut">
     <div class="row between wrap">
       <div><b>${esc(a.case_id)}</b> ${srcBadge(a.source)}
@@ -778,6 +856,7 @@ function alertCard(a) {
     ${custodyMath(a)}
     ${(a.release_notes || []).length ? `<p class="banner-warn">${a.release_notes.map(esc).join("<br>")}</p>` : ""}
     <div class="actions">${primary}
+      ${a.kind === "undertrial_release" ? `<button class="btn ghost" data-open="${esc(a.case_id)}">Open case details</button>` : ""}
       <button class="btn ghost" data-docx="${a.id}">Download application (Word)</button>
       ${releaseReview ? `<button class="btn ghost" data-superintendent="${a.id}" data-language="en">Custody-record review request (English)</button>
       <button class="btn ghost" data-superintendent="${a.id}" data-language="hi">निरुद्धि-अवधि जाँच निवेदन (हिन्दी)</button>
@@ -785,6 +864,7 @@ function alertCard(a) {
     <details><summary>Read the draft application ${engineBadge(a.draft_engine === "ai" ? "AI" : "rules")} and the checklist</summary>
       <div class="alertcard"><pre class="doc">${esc(a.draft || "")}</pre>
         <div><h3>Verify before filing</h3><div class="checklist">${((a.details || {}).checklist || []).map((c) => `<label><input type="checkbox"> ${esc(c)}</label>`).join("")}</div></div></div></details>
+    ${staffFollowUp}
     ${lawyer && ["pending", "approved"].includes(a.status) ? `<details><summary>Not needed? Dismiss</summary>
       <label>Reason (required) <input data-reason="${a.id}"></label>
       <label>Check again after <input type="date" data-snooze="${a.id}"></label>
@@ -794,7 +874,7 @@ function alertCard(a) {
 async function loadAlerts() {
   loadRules();
   $("#utRole").textContent = ROLE === "lawyer" ? "You are signed in as a legal-aid lawyer: you approve or dismiss."
-    : "You can read these; a legal-aid lawyer approves or dismisses.";
+    : "Staff can open the case, track custody-record follow-up and flag lawyer review; only a legal-aid lawyer approves or dismisses.";
   try {
     // both lists load at once; a failure of the missing-information list does not hide the alerts
     const needP = api("/api/alerts/data-needed").catch((e) => ({ error: e.message, data_needed: [] }));
@@ -815,6 +895,12 @@ async function loadAlerts() {
     $("#utProgress").innerHTML = visibleProgress.map(alertCard).join("")
       || "<p class='hint'>Nothing in progress.</p>";
     const root = $("#tab-undertrial");
+    wireCaseButtons(root);
+    $$("[data-staff-action]", root).forEach((b) => b.addEventListener("click", () => busy(b, async () => {
+      await api(`/api/alerts/${b.dataset.alertId}/staff-action`, { json: { action: b.dataset.staffAction } });
+      toast(b.dataset.staffAction === "request_lawyer_review" ? "Flagged for lawyer review." : "Custody-record status updated.");
+      loadAlerts();
+    })));
     $$("[data-approve]", root).forEach((b) => b.addEventListener("click", () => busy(b, async () => {
       await api("/api/alerts/decide", { json: { decisions: { [b.dataset.approve]: { approve: true } } } }); toast("Approved - now file it in court."); loadAlerts();
     })));

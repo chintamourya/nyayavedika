@@ -14,6 +14,7 @@ Latest updates reflected in this branch:
 - feedback wall with outcome/time-saved reporting
 - legal-aid knowledge-base, draft application and explain flows
 - staff intake, docket, cause-list, alerts and review gates
+- staff-managed hearing-readiness checklist with counts-only usage metrics
 - advocate workspace isolation, studio tooling and page-grounded chat
 - offline-compatible rules engine and deterministic fallback behavior
 
@@ -58,7 +59,8 @@ NyayaVedika is a set of AI agents and a lawyer workbench with three doors. Every
 | | Chat with this document | Page-cited answers from the lawyer's own document only | Hunting through a file for one fact | Questions per session |
 | **Court staff** `/staff` | Intake and Docket | Reads case files and scores every pending case, with reasons | Manual sorting of the docket | Cases triaged |
 | | Cause list | Conflict-free weekly hearing list sized by adjournment risk; registrar approves | Clashes and adjourned hearings | Cases listed, conflicts avoided, critical wait gained |
-| | **Undertrial Watch** (nightly) | Computes the Section 479 threshold, itemises the arithmetic, drafts the release application; lawyer approves | Eligible people missed because nobody checked the date | People flagged, applications approved, custody days over the limit |
+| | Hearing readiness | Surfaces missing files, unresolved extracted fields, document conflicts and low-confidence OCR; staff add and resolve case-specific checks | Preparation gaps noticed too late | Checklist actions; field outcomes require a pilot |
+| | **Undertrial Watch** (nightly) | Computes the Section 479 threshold and drafts the release application; staff can inspect/correct case facts, track custody-record follow-up and flag lawyer review; lawyer alone approves | Eligible people missed because nobody checked the date, and follow-up left untracked | People flagged, applications approved, record follow-up activity (not legal outcomes) |
 | | Document summary, ADR routing, Insights tab | Briefs any document; routes suitable cases to Lok Adalat; weekly docket health | Reading time; cases that need not go to trial | Documents analysed, ADR candidates |
 | **All** | Feedback wall `/feedback` | Public ratings and notes from field users | Early activity and self-reported feedback; legal outcomes are not independently verified | Responses, average rating, share whose situation changed |
 

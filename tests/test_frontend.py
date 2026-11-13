@@ -20,7 +20,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from nyayavedika import auth, cause_list, config, demo_seed, intake, staff_api, store, worker  # noqa: E402
+from nyayavedika import (auth, cause_list, config, demo_seed, hearing_readiness, intake, staff_api,
+                         store, worker)  # noqa: E402
 
 STATIC = ROOT / "static"
 
@@ -89,6 +90,23 @@ class StaffApiTests(SeededDb):
         self.assertEqual(len(d["glance"]), 3)
         self.assertTrue(d["timeline"] and d["timeline"][0]["page"] == 1)
         self.assertIn("14.03.2026", page["text"])  # the fact is on the cited page
+
+    def test_readiness_panel_surfaces_only_observed_followups(self):
+        case_id = "READY/2"
+        store.upsert_case({
+            "case_id": case_id, "case_type": "civil_suit", "stage": "trial", "filing_date": "2025-01-01",
+            "review_fields": ["filing_date"], "case_brief": {"conflicts": [{"field": "filing_date"}]},
+        }, source="csv")
+        with store.connect() as db:
+            detail = staff_api.case_detail(db, case_id)
+            hearing_readiness.update(db, case_id, {"action": "add", "label": "Check papers for the hearing"},
+                                     "demo-staff", "staff")
+            updated = staff_api.case_detail(db, case_id)
+        signal_keys = {signal["key"] for signal in detail["readiness"]["signals"]}
+        self.assertIn("no_documents", signal_keys)
+        self.assertIn("field:filing_date", signal_keys)
+        self.assertIn("conflict:filing_date", signal_keys)
+        self.assertEqual(updated["readiness"]["items"][0]["label"], "Check papers for the hearing")
 
     def test_alerts_sorted_by_days_over_limit(self):
         from nyayavedika.agents import undertrial_watch
@@ -262,6 +280,21 @@ class DevServerTests(SeededDb):
         self.assertEqual(self.call(
             f"/api/alerts/{alert_id}/superintendent.docx?language=kn", token="t-staff")[0], 400)
 
+    def test_staff_followup_route_exists_and_cannot_approve(self):
+        case_id = f"UT-DEV/{uuid.uuid4().hex[:8]}"
+        store.upsert_case({"case_id": case_id, "case_type": "criminal_trial", "stage": "trial"}, source="csv")
+        with store.connect() as db:
+            alert_id = db.insert("alerts", [{
+                "case_id": case_id, "kind": "undertrial_release", "status": "pending", "details": {},
+            }], returning="id")
+
+        url = f"/api/alerts/{alert_id}"
+        status, _, body = self.call(f"{url}/staff-action", "POST",
+                                    {"action": "mark_record_requested"}, token="t-staff")
+        self.assertEqual(status, 200)
+        self.assertEqual(json.loads(body)["details"]["custody_record_status"], "requested")
+        self.assertEqual(self.call(f"{url}/state", "POST", {"status": "approved"}, token="t-staff")[0], 403)
+
     def test_chat_hand_over_and_actions(self):
         status, _, body = self.call("/api/agent/chat", "POST", {"message": "Can I get a free lawyer? I earn 12,000 a month."})
         r = json.loads(body)
@@ -304,6 +337,14 @@ class StaticContentTests(unittest.TestCase):
     def test_undertrial_alert_has_telugu_letter_button(self):
         script = (STATIC / "staff.js").read_text(encoding="utf-8")
         self.assertIn('data-language="te">నిర్బంధ కాల వివరాల పరిశీలన వినతి (తెలుగు)', script)
+
+    def test_undertrial_staff_actions_are_explicitly_non_legal(self):
+        script = (STATIC / "staff.js").read_text(encoding="utf-8")
+        self.assertIn('data-open="${esc(a.case_id)}">Open case details', script)
+        self.assertIn('data-staff-action="mark_record_requested"', script)
+        self.assertIn('data-staff-action="mark_record_received"', script)
+        self.assertIn('data-staff-action="request_lawyer_review"', script)
+        self.assertIn("they do not send a message or approve the application", script)
 
     def test_staff_portal_has_no_insights_section(self):
         html = (STATIC / "staff.html").read_text(encoding="utf-8")
@@ -350,7 +391,7 @@ class StaticContentTests(unittest.TestCase):
         self.assertIn("verification.unverified?.length", script)
         self.assertIn("result.low_confidence_pages?.length", script)
         self.assertIn("common.js?v=14", html)
-        self.assertIn("staff.js?v=26", html)
+        self.assertIn("staff.js?v=28", html)
 
     def test_staff_daily_desk_explains_the_routine_and_case_flow(self):
         html = (STATIC / "staff.html").read_text(encoding="utf-8")
@@ -365,6 +406,9 @@ class StaticContentTests(unittest.TestCase):
             ("today", "Today"), ("intake", "Intake"), ("docket", "Docket"),
             ("cause", "Cause list"), ("summary", "Document summary"), ("undertrial", "Undertrial"),
         ])
+        self.assertIn('data-dtab="readiness"', html)
+        self.assertIn("hearing-preparation check", script)
+        self.assertIn("readinessPath(current.case_id)", script)
 
     def test_citizen_has_four_capabilities_and_safe_legal_research_rendering(self):
         html = (STATIC / "citizen.html").read_text(encoding="utf-8")

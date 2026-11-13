@@ -18,7 +18,7 @@ from unittest import mock
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from nyayavedika import config, extraction, intake, llm, storage, store, worker  # noqa: E402
+from nyayavedika import config, extraction, hearing_readiness, intake, llm, storage, store, worker  # noqa: E402
 
 SAMPLES = ROOT / "sample_docs"
 TRUTH_FIELDS = ("case_type", "stage", "filing_date", "accused_in_custody", "custody_since", "act", "section")
@@ -317,6 +317,38 @@ class CorrectionTests(IntakeTestCase):
             intake.patch_case("NOPE", {"stage": "evidence"}, "demo-staff", "staff")
         self.assertEqual(ctx.exception.status, 404)
 
+    def test_hearing_readiness_is_persisted_and_audited_without_item_text(self):
+        case_id = self._needs_review_case()
+        with store.connect() as db:
+            added = hearing_readiness.update(db, case_id, {
+                "action": "add", "label": "Confirm service of notice; call 9876543210"
+            }, "demo-staff", "staff")
+            item = added["items"][0]
+            self.assertNotIn("9876543210", item["label"])
+            self.assertIn("[PHONE]", item["label"])
+            checked = hearing_readiness.update(db, case_id, {
+                "action": "status", "item_id": item["id"], "status": "ready"
+            }, "demo-staff", "staff")
+            audit = db.select("audit_log", {"action": "hearing_readiness_add"})[0]
+            case = store.get_case(case_id, db=db)
+        self.assertEqual(checked["items"][0]["status"], "ready")
+        self.assertNotIn("Confirm service", str(audit["detail"]))
+        self.assertEqual(case["hearing_readiness"][0]["status"], "ready")
+
+    def test_hearing_readiness_rejects_invalid_actions_and_statuses(self):
+        case_id = self._needs_review_case()
+        with store.connect() as db:
+            for body in ({"action": "add", "label": " "},
+                         {"action": "status", "item_id": "missing", "status": "ready"}):
+                with self.assertRaises((ValueError, LookupError)):
+                    hearing_readiness.update(db, case_id, body, "demo-staff", "staff")
+            item = hearing_readiness.update(db, case_id, {"action": "add", "label": "Check the hearing file"},
+                                            "demo-staff", "staff")["items"][0]
+            with self.assertRaises(ValueError):
+                hearing_readiness.update(db, case_id, {
+                    "action": "status", "item_id": item["id"], "status": "approved"
+                }, "demo-staff", "staff")
+
 
 class StructuredRowTests(IntakeTestCase):
     CSV = ("case_id,case_type,filing_date,stage,accused_in_custody,custody_since,max_sentence_years,advocate_ids\n"
@@ -411,6 +443,44 @@ class IntakeApiTests(IntakeTestCase):
         self.assertIsNotNone(status["files"][2]["result"]["proposed_slot"])
         six = [("files", (f"f{i}.txt", b"FIR", "text/plain")) for i in range(6)]
         self.assertEqual(self.client.post("/api/intake/batches", files=six, headers=self.h).status_code, 400)
+
+    def test_readiness_endpoint_requires_staff_and_accepts_checklist_actions(self):
+        store.upsert_case({"case_id": "READY/1", "case_type": "civil_suit", "stage": "trial",
+                           "filing_date": "2025-01-01"}, source="csv")
+        url = "/api/cases/READY/1/readiness"
+        self.assertEqual(self.client.post(url, json={"action": "add", "label": "Check hearing papers"}).status_code, 401)
+        response = self.client.post(url, json={"action": "add", "label": "Check hearing papers"}, headers=self.h)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["items"][0]["status"], "open")
+
+    def test_staff_can_track_undertrial_followups_but_not_approve(self):
+        store.upsert_case({"case_id": "UT-STAFF/1", "case_type": "criminal_trial", "stage": "trial"},
+                          source="csv")
+        with store.connect() as db:
+            alert_id = db.insert("alerts", [{
+                "case_id": "UT-STAFF/1", "kind": "undertrial_release", "status": "pending", "details": {},
+            }], returning="id")
+
+        url = f"/api/alerts/{alert_id}"
+        self.assertEqual(self.client.post(f"{url}/staff-action", json={"action": "mark_record_requested"},
+                                          headers=self.h).status_code, 200)
+        requested = self.client.get("/api/alerts", headers=self.h).json()["alerts"][0]
+        self.assertEqual(requested["details"]["custody_record_status"], "requested")
+        self.assertEqual(requested["status"], "pending")
+        requested_at = requested["details"]["custody_record_updated_at"]
+        repeated = self.client.post(f"{url}/staff-action", json={"action": "mark_record_requested"},
+                                    headers=self.h).json()
+        self.assertEqual(repeated["details"]["custody_record_updated_at"], requested_at)
+        self.assertEqual(self.client.post(f"{url}/staff-action", json={"action": "mark_record_received"},
+                                          headers=self.h).json()["details"]["custody_record_status"], "received")
+        flagged = self.client.post(f"{url}/staff-action", json={"action": "request_lawyer_review"},
+                                   headers=self.h)
+        self.assertEqual(flagged.status_code, 200)
+        self.assertTrue(flagged.json()["details"]["lawyer_review_requested_at"])
+        self.assertEqual(self.client.post(f"{url}/state", json={"status": "approved"},
+                                          headers=self.h).status_code, 403)
+        self.assertEqual(self.client.post(f"{url}/staff-action", json={"action": "approve"},
+                                          headers=self.h).status_code, 400)
 
 
 if __name__ == "__main__":

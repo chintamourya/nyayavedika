@@ -256,6 +256,8 @@ def routes():
     @r("POST", r"/api/alerts/(?P<id>\d+)/state", "POST /api/alerts/{alert_id}/state")
     def state(h, m, q, b, p):
         d = json.loads(b or b"{}")
+        if d.get("status") in ("approved", "dismissed") and p.role != "lawyer":
+            raise HttpError(403, "Only a legal-aid lawyer can approve or dismiss a release alert")
         try:
             return undertrial_watch.advance_alert(int(m["id"]), d.get("status"), p.actor, p.role, d.get("note"), d.get("reason"),
                                                   d.get("snooze_until"))
@@ -263,6 +265,14 @@ def routes():
             raise HttpError(404, str(exc))
         except ValueError as exc:
             raise HttpError(400, str(exc))
+
+    @r("POST", r"/api/alerts/(?P<id>\d+)/staff-action", "POST /api/alerts/{alert_id}/staff-action")
+    def alert_staff_action(h, m, q, b, p):
+        d = json.loads(b or b"{}")
+        try:
+            return _court(undertrial_watch.staff_action, int(m["id"]), d.get("action"), p.actor, p.role)
+        except PermissionError as exc:
+            raise HttpError(403, str(exc))
 
     @r("GET", r"/api/alerts/(?P<id>\d+)/release\.docx", "GET /api/alerts/{alert_id}/release.docx")
     def release(h, m, q, b, p):

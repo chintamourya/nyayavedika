@@ -12,7 +12,7 @@ import re
 from datetime import date
 from typing import Dict, List, Optional
 
-from . import config, store
+from . import config, hearing_readiness, store
 
 BANDS = ("Critical", "High", "Medium", "Routine")
 DOCKET_COLUMNS = ("case_id, case_type, stage, band, score, flags, data_quality, source, next_hearing_date, "
@@ -106,6 +106,9 @@ def case_detail(db, case_id: str) -> Optional[Dict]:
                                            "chips": _chips(latest.get("reasons") or []),
                                            "ai_adjustment": latest.get("ai_adjustment"), "ai_reason": latest.get("ai_reason")},
             "timeline": timeline, "documents": documents, "conflicts": brief.get("conflicts") or [],
+            "readiness": {"items": hearing_readiness.items(case),
+                          "signals": hearing_readiness.system_signals(case.get("review_fields") or [],
+                                                                       brief.get("conflicts") or [], documents)},
             "history": {"hearings": hearings, "deferrals": deferrals}, "queue": store.queue_state(case_id, db=db) or {},
             "listings": db.select("listings", {"case_id": case_id}, order="day DESC", limit=10)}
 
