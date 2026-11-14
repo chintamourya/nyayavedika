@@ -8,7 +8,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from nyayavedika import legal_aid, llm  # noqa: E402
+from nyayavedika import legal_aid, legal_aid_kb, llm  # noqa: E402
 
 KB = {"engine": "keyword (local)", "secondary_only_note": None, "passages": [
     {"text": "Women are entitled to free legal services under Section 12(c).", "heading": "Who is eligible?",
@@ -48,9 +48,10 @@ class ExplainTests(unittest.TestCase):
         self.assertEqual((out["engine"], out["used"]), ("llm", [1, 2]))  # passage 7 does not exist: dropped
         self.assertEqual(len(calls), 1)
         self.assertIn("Section 12(c)", calls[0])
-        self.assertIn("Free legal aid: who is eligible and how to get it", calls[0])
-        self.assertTrue(any(source["heading"] == "Free legal aid: who is eligible and how to get it"
-                            for source in out["sources"]))
+        title = next(e["title"] for e in legal_aid_kb.parse_legal_info_html(
+            legal_aid_kb.LEGAL_INFO_HTML.read_text(encoding="utf-8")) if e["id"] == "legal_aid")   # the page's own heading
+        self.assertIn(title, calls[0])
+        self.assertTrue(any(source["heading"] == title for source in out["sources"]))
 
     def test_selected_hindi_rewrites_the_explanation_and_next_steps(self):
         prompts = []

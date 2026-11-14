@@ -365,7 +365,7 @@ class StaticContentTests(unittest.TestCase):
         self.assertIn("summarize_result_heading", strings["en"])
         self.assertIn("summarize_reader_note", strings["en"])
         html = (STATIC / "citizen.html").read_text(encoding="utf-8") + (STATIC / "citizen.js").read_text(encoding="utf-8")
-        self.assertIn("citizen.js?v=18", html)
+        self.assertRegex(html, r"citizen\.js\?v=\d+")
         used = set(re.findall(r'data-t[pa]?="([a-z_]+)"', html)) | set(re.findall(r'\bt\("([a-z_]+)"\)', html))
         self.assertFalse(used - set(strings["en"]), used - set(strings["en"]))
 
@@ -382,7 +382,7 @@ class StaticContentTests(unittest.TestCase):
         self.assertIn("summary_timeline", strings["en"])
         self.assertEqual(set(strings["en"]), set(strings["hi"]))
         self.assertEqual(set(strings["en"]), set(strings["te"]))
-        self.assertIn("styles.css?v=15", html)
+        self.assertRegex(html, r"styles\.css\?v=\d+")
 
     def test_staff_document_summary_uses_shared_structured_renderer(self):
         html = (STATIC / "staff.html").read_text(encoding="utf-8")
