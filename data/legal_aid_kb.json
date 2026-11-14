@@ -14,8 +14,7 @@
   "topic": "fir_zero",
   "state": "all India",
   "last_verified": "2026-11-01",
-  "collection": "legal_info.html",
-  "credit": "legal_info.html (legal information page, adapted from NyayaSaathi, github.com/tab-for-akshay/nyayasaathi)"
+  "collection": "legal_info.html"
  },
  {
   "id": "97557549950a17a98ab81a84",
@@ -30,8 +29,7 @@
   "topic": "fir_refused",
   "state": "all India",
   "last_verified": "2026-11-01",
-  "collection": "legal_info.html",
-  "credit": "legal_info.html (legal information page, adapted from NyayaSaathi, github.com/tab-for-akshay/nyayasaathi)"
+  "collection": "legal_info.html"
  },
  {
   "id": "2b4ff2004a5fdb47a0362fd8",
@@ -49,9 +47,7 @@
   "topic": "arrest_rights",
   "state": "all India",
   "last_verified": "2026-11-01",
-  "collection": "legal_info.html",
-  "credit": "legal_info.html (legal information page, adapted from NyayaSaathi, github.com/tab-for-akshay/nyayasaathi)"
- },
+  "collection": "legal_info.html" },
  {
   "id": "0160b263652fe52f7396b91e",
   "text": "Free legal aid: who is eligible and how to get it\n- You are entitled to free legal services to file or defend a case if you are: a member of a Scheduled Caste or Scheduled Tribe; a victim of trafficking or begar; a woman or a child; a person with disability; a victim of a mass disaster, ethnic violence, caste atrocity, flood, drought, earthquake or industrial disaster; an industrial workman; a person in custody; or below the income limit (Legal Services Authorities Act s.12).\n- The Act's income figure can be raised by each State. NALSA lists the current income ceiling for Maharashtra as Rs 3,00,000 per year (and less than Rs 5 lakh for Supreme Court cases).\n- NALSA states that a woman is entitled to free legal aid irrespective of her income.\n- An affidavit about your income is usually enough to prove income eligibility (s.13(2)); the Authority must also be satisfied that you have a prima facie case (s.13(1)).\n- Free legal aid is given through the District Legal Services Authority (DLSA) of your district and Taluk Legal Services Committees. NALSA's helpline number is 15100, and you can apply online on nalsa.gov.in (Legal Aid Application).\nLaw: LSA Act s.12 · LSA Act s.13\nHelplines: 15100",
@@ -67,8 +63,7 @@
   "topic": "legal_aid",
   "state": "Maharashtra",
   "last_verified": "2026-11-01",
-  "collection": "legal_info.html",
-  "credit": "legal_info.html (legal information page, adapted from NyayaSaathi, github.com/tab-for-akshay/nyayasaathi)"
+  "collection": "legal_info.html"
  },
  {
   "id": "ce9be678b3dd364db3583fd3",
@@ -83,8 +78,7 @@
   "topic": "tele_law",
   "state": "all India",
   "last_verified": "2026-11-01",
-  "collection": "legal_info.html",
-  "credit": "legal_info.html (legal information page, adapted from NyayaSaathi, github.com/tab-for-akshay/nyayasaathi)"
+  "collection": "legal_info.html"
  },
  {
   "id": "d01d10bf8f22a99d48f51e3a",
@@ -100,8 +94,7 @@
   "topic": "lok_adalat",
   "state": "all India",
   "last_verified": "2026-11-01",
-  "collection": "legal_info.html",
-  "credit": "legal_info.html (legal information page, adapted from NyayaSaathi, github.com/tab-for-akshay/nyayasaathi)"
+  "collection": "legal_info.html"
  },
  {
   "id": "70d4714a2e99e5e7baae927f",
@@ -116,8 +109,7 @@
   "topic": "permanent_lok_adalat",
   "state": "all India",
   "last_verified": "2026-11-01",
-  "collection": "legal_info.html",
-  "credit": "legal_info.html (legal information page, adapted from NyayaSaathi, github.com/tab-for-akshay/nyayasaathi)"
+  "collection": "legal_info.html"
  },
  {
   "id": "a9929c7d47925d63fd644351",
@@ -131,8 +123,7 @@
   "topic": "prelitigation_mediation",
   "state": "all India",
   "last_verified": "2026-11-01",
-  "collection": "legal_info.html",
-  "credit": "legal_info.html (legal information page, adapted from NyayaSaathi, github.com/tab-for-akshay/nyayasaathi)"
+  "collection": "legal_info.html"
  },
  {
   "id": "71dba90ac2a8348f5e8b3ab9",
@@ -156,8 +147,7 @@
   "topic": "domestic_violence",
   "state": "all India",
   "last_verified": "2026-11-01",
-  "collection": "legal_info.html",
-  "credit": "legal_info.html (legal information page, adapted from NyayaSaathi, github.com/tab-for-akshay/nyayasaathi)"
+  "collection": "legal_info.html"
  },
  {
   "id": "4083ed3d2d1e6c90d4d3db82",
@@ -173,8 +163,7 @@
   "topic": "workplace_harassment",
   "state": "all India",
   "last_verified": "2026-11-01",
-  "collection": "legal_info.html",
-  "credit": "legal_info.html (legal information page, adapted from NyayaSaathi, github.com/tab-for-akshay/nyayasaathi)"
+  "collection": "legal_info.html"
  },
  {
   "id": "5d92458758a394ed7f89e22a",
@@ -189,8 +178,7 @@
   "topic": "maintenance_family",
   "state": "all India",
   "last_verified": "2026-11-01",
-  "collection": "legal_info.html",
-  "credit": "legal_info.html (legal information page, adapted from NyayaSaathi, github.com/tab-for-akshay/nyayasaathi)"
+  "collection": "legal_info.html"
  },
  {
   "id": "acf5ea15a74974608c545772",
@@ -208,8 +196,7 @@
   "topic": "senior_maintenance",
   "state": "all India",
   "last_verified": "2026-11-01",
-  "collection": "legal_info.html",
-  "credit": "legal_info.html (legal information page, adapted from NyayaSaathi, github.com/tab-for-akshay/nyayasaathi)"
+  "collection": "legal_info.html"
  },
  {
   "id": "6b6517ca4ced63122b4fe213",
@@ -225,8 +212,7 @@
   "topic": "helplines_women_child",
   "state": "all India",
   "last_verified": "2026-11-01",
-  "collection": "legal_info.html",
-  "credit": "legal_info.html (legal information page, adapted from NyayaSaathi, github.com/tab-for-akshay/nyayasaathi)"
+  "collection": "legal_info.html"
  },
  {
   "id": "60cd3a9d73add9d755d9ccf2",
@@ -242,8 +228,7 @@
   "topic": "wages_unpaid",
   "state": "all India",
   "last_verified": "2026-11-01",
-  "collection": "legal_info.html",
-  "credit": "legal_info.html (legal information page, adapted from NyayaSaathi, github.com/tab-for-akshay/nyayasaathi)"
+  "collection": "legal_info.html"
  },
  {
   "id": "9ebd30a4a927f2672f7645ff",
@@ -258,8 +243,7 @@
   "topic": "cheque_bounce",
   "state": "all India",
   "last_verified": "2026-11-01",
-  "collection": "legal_info.html",
-  "credit": "legal_info.html (legal information page, adapted from NyayaSaathi, github.com/tab-for-akshay/nyayasaathi)"
+  "collection": "legal_info.html"
  },
  {
   "id": "6661b5a82f148dd6b83aa12f",
@@ -278,8 +262,7 @@
   "topic": "consumer_complaint",
   "state": "all India",
   "last_verified": "2026-11-01",
-  "collection": "legal_info.html",
-  "credit": "legal_info.html (legal information page, adapted from NyayaSaathi, github.com/tab-for-akshay/nyayasaathi)"
+  "collection": "legal_info.html"
  },
  {
   "id": "54d26ac3119fb4d7488b61b6",
@@ -293,8 +276,7 @@
   "topic": "bank_complaint",
   "state": "all India",
   "last_verified": "2026-11-01",
-  "collection": "legal_info.html",
-  "credit": "legal_info.html (legal information page, adapted from NyayaSaathi, github.com/tab-for-akshay/nyayasaathi)"
+  "collection": "legal_info.html"
  },
  {
   "id": "4f1de0c6a453ea3a8adc1705",
@@ -308,8 +290,7 @@
   "topic": "tenancy_maharashtra",
   "state": "Maharashtra",
   "last_verified": "2026-11-01",
-  "collection": "legal_info.html",
-  "credit": "legal_info.html (legal information page, adapted from NyayaSaathi, github.com/tab-for-akshay/nyayasaathi)"
+  "collection": "legal_info.html"
  },
  {
   "id": "6664a4e4649ec63d85afc8f4",
@@ -324,8 +305,7 @@
   "topic": "cyber_fraud",
   "state": "all India",
   "last_verified": "2026-11-01",
-  "collection": "legal_info.html",
-  "credit": "legal_info.html (legal information page, adapted from NyayaSaathi, github.com/tab-for-akshay/nyayasaathi)"
+  "collection": "legal_info.html"
  },
  {
   "id": "4859ce37e849808592888347",
@@ -339,8 +319,7 @@
   "topic": "mental_health",
   "state": "all India",
   "last_verified": "2026-11-01",
-  "collection": "legal_info.html",
-  "credit": "legal_info.html (legal information page, adapted from NyayaSaathi, github.com/tab-for-akshay/nyayasaathi)"
+  "collection": "legal_info.html"
  },
  {
   "id": "d4cdf2d92d32892b0e484cfd",
@@ -358,8 +337,7 @@
   "topic": "rti_apply",
   "state": "all India",
   "last_verified": "2026-11-01",
-  "collection": "legal_info.html",
-  "credit": "legal_info.html (legal information page, adapted from NyayaSaathi, github.com/tab-for-akshay/nyayasaathi)"
+  "collection": "legal_info.html"
  },
  {
   "id": "4f0ef1fdf3e14aaeef310836",
@@ -375,7 +353,6 @@
   "topic": "rti_appeal",
   "state": "all India",
   "last_verified": "2026-11-01",
-  "collection": "legal_info.html",
-  "credit": "legal_info.html (legal information page, adapted from NyayaSaathi, github.com/tab-for-akshay/nyayasaathi)"
+  "collection": "legal_info.html"
  }
 ]

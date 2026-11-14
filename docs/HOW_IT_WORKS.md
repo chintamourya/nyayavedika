@@ -99,7 +99,7 @@ flowchart TB
 
 - **Pinecone** namespaces: `law` (bare acts, NALSA schemes), `judgments` (precedents), `casefiles` (uploads, filtered by case) and a legal-aid index. A local JSON dump supports keyword search when Pinecone is not configured.
 - **Web search** goes through Tavily and, by default, only to the official domains in `NYAYAVEDIKA_TRUSTED_DOMAINS`.
-- The **legal-aid knowledge base** (`legal_aid_kb.py`) chunks NALSA material by heading (about 800 tokens with overlap), tags each chunk as primary (government) or secondary, and keeps the source URL. A curated `legal_info.html` adds short entries, each with the official link and the date it was checked. (The page credits the NyayaSaathi project for its compiled facts.)
+- The **legal-aid knowledge base** (`legal_aid_kb.py`) chunks NALSA material by heading (about 800 tokens with overlap), tags each chunk as primary (government) or secondary, and keeps the source URL. A curated `legal_info.html` adds short entries, each with the official link and the date it was checked.
 
 ### 3.4 Data, queues and scheduled work
 

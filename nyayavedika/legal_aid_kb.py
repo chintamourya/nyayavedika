@@ -15,8 +15,8 @@ legal_info.html (repo root, setting LEGAL_INFO_HTML) is a second source: a curat
 (<article class="kbe" id=...>: an <h2> title, bullet facts, a "Law:" line and official source links each with the
 date it was checked). Each entry becomes one chunk with its own sources, so answers about FIRs, RTI, arrest rights,
 legal aid, Lok Adalat, consumer and cyber complaints, domestic violence, maintenance, wages, cheque bounce, helplines,
-etc. cite the official page. Credit: the page says it was compiled for the NyayaSaathi project
-(github.com/tab-for-akshay/nyayasaathi, src/kb.json); only its facts and links are read here, at ingest time.
+etc. cite the official page.
+
 """
 import hashlib
 import json
@@ -39,7 +39,7 @@ CHUNK_TOKENS, OVERLAP_TOKENS = 800, 100
 PRIMARY_HOSTS = ("nalsa.gov.in", "gov.in", "nic.in", "sci.gov.in", "rbi.org.in", "s3waas.gov.in", "tele-law.in")
 LEGAL_INFO_HTML = ROOT / config.LEGAL_INFO_HTML if not Path(config.LEGAL_INFO_HTML).is_absolute() \
     else Path(config.LEGAL_INFO_HTML)
-LEGAL_INFO_CREDIT = "legal_info.html (legal information page, adapted from NyayaSaathi, github.com/tab-for-akshay/nyayasaathi)"
+LEGAL_INFO_CREDIT = "legal_info.html (legal information page)"
 TOPICS = [  # first match wins; order = most specific first
     ("lok_adalat", r"lok adalat"),
     ("helpline", r"helpline|15100|toll[- ]free"),

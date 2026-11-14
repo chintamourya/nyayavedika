@@ -2,7 +2,7 @@
 
 **Track:** Timely Justice, Legal Backlog (Code for a Billion, impact area 07)
 **Live demo:** [NYAYAVEDIKA](https://nyayavedika.delightfulmushroom-95327f3a.koreacentral.azurecontainerapps.io/) · **Demo video (3 min):** https://youtu.be/D3xo-yJMhwg · **Licence:** MIT
-**Live impact dashboard:** [Metrics](https://nyayavedika.delightfulmushroom-95327f3a.koreacentral.azurecontainerapps.io/metrics) · **Detailed evidence and research:** [docs/RESEARCH_EVIDENCE.md](docs/RESEARCH_EVIDENCE.md)
+**Live impact dashboard:** [Metrics](https://nyayavedika.delightfulmushroom-95327f3a.koreacentral.azurecontainerapps.io/metrics) · **Detailed evidence and research:** [docs/RESEARCH_EVIDENCE.md](docs/RESEARCH_EVIDENCE.md) · **Proven impact report:** [proven_impact_section.md](proven_impact_section.md)
 **Detailed operational metrics:** [live metrics dashboard](https://nyayavedika.delightfulmushroom-95327f3a.koreacentral.azurecontainerapps.io/metrics)
 
 [![Python tests](https://github.com/chintamourya/nyayavedika/actions/workflows/tests.yml/badge.svg)](https://github.com/chintamourya/nyayavedika/actions/workflows/tests.yml)
@@ -155,6 +155,8 @@ The cycle reinforces itself. The people not identified are the least able to fin
 
 ## Proven impact
 
+> Full write-up with reach, reliability, feedback, field summary and limits of the evidence: **[proven_impact_section.md](proven_impact_section.md)**. Source evidence and research: [docs/RESEARCH_EVIDENCE.md](docs/RESEARCH_EVIDENCE.md).
+
 ### How we prove it: verified field reports
 
 Activity counts show use, not impact. So every person who uses NyayaVedika on real work is asked to file an **impact report** at [`/impact-report`](https://nyayavedika.delightfulmushroom-95327f3a.koreacentral.azurecontainerapps.io/impact-report) (role-specific links such as `/impact-report?role=advocate`). Each report records:
@@ -173,34 +175,50 @@ A staff user verifies each report on the review desk (`/impact-report/review`), 
 
 ### Reach and use (Measured)
 
-| Measure | Snapshot |
+| Metric | Value |
 |---|---:|
-| Distinct browsers, all activity | **49** (44 public-site browsers) |
-| Portal visits | **111** (Citizen 32, Advocate 27, Staff 52) |
-| Distinct browsers per door | Citizen 18, Advocate 13, Staff 11 |
-| Browsers that used an API feature | **17** |
-| Tool requests | **374** (Citizen 39, Advocate 41, Staff 293, one role unresolved) |
+| Distinct browsers, all activity | **59** |
+| Public-site browsers | 49 |
+| Portal visits | **223** (Citizen 38, Advocate 61, Staff 124) |
+| Distinct browsers by door | Citizen 18, Advocate 17, Staff 17 |
+| Browsers that used an API feature | **25** |
+| Tool requests | **1,136** (Citizen 48, Advocate 149, Staff 935, 4 role unresolved) |
 | Voluntary feedback responses | **7** |
 
 Staff-door request volume includes reviewer activity, not just ordinary product usage.
 
-| Product activity | Measured total |
+| Product action | Measured total |
 |---|---:|
-| Citizen sessions / completed five-question legal-aid checks | 51 / **50** |
-| Draft legal-aid applications | **23** (46% of checks; Derived) |
-| Court documents analysed | **7** |
-| Undertrials flagged by Undertrial Watch | **23** |
-| Release applications approved by a lawyer | **1** |
-| Cases triaged by the registry agent | **607** |
-| Cause lists published / cases scheduled | **3 / 1,209** |
+| Citizen sessions | 53 |
+| Completed five-question free legal-aid checks | 52 |
+| Legal-aid applications drafted | 26 |
+| Court documents analysed (summary or insights) | 13 |
+| Undertrials flagged by Undertrial Watch | 25 |
+| Release applications approved in the app | 7 |
+| Cases triaged by the registry agent | 613 |
+| Cause lists published | 4 |
+| Cases scheduled in those lists | 1,216 |
 
-The case-triage and scheduling totals include synthetic demo data as well as uploaded cases. An approved application is not evidence that a person was released. Drafts are not filed applications.
+The case-triage and scheduling totals include synthetic demo data as well as uploaded cases. An approved application is not evidence that a person was released. Drafts are not filed applications. Of 52 completed legal-aid checks, 26 produced a drafted application (50%, Derived).
 
-### Reliability, speed and feedback (Measured / Reported)
+### Reliability and speed (Measured / Derived)
 
-- **367 of 374 tool requests succeeded (98.1%, Derived).** The seven logged failures were in Undertrial Watch; they were attributed to internal code testing and have since been fixed. Other features had no logged failures in this snapshot.
-- Typical server latency ranged from 0.08 seconds for case intake to about 32 seconds for document summaries. These are small per-feature samples (1–71 requests), not end-to-end task times or benchmarks.
-- Seven voluntary feedback responses averaged **4.9/5**. Excluding one team member, six external responses (three lawyers, one advocate and two citizens) averaged **4.8/5**. This feedback is self-reported and the sample is small.
+- **1,122 of 1,136 tool requests succeeded (98.8%, Derived).** The 14 logged failures sit in three features: Undertrial alerts 9 of 355 requests, case management 4 of 53, hearing management 1 of 43. Seven earlier failures were attributed to internal code testing and have been fixed; the cause of the remaining failures is still being reviewed. Every other feature had no logged failures.
+- Typical server latency: case intake 0.06 seconds; document tools 0.5 seconds; undertrial alerts 1.7 seconds; docket view 2.2 seconds; Document Studio 2.0 seconds; daily brief 2.8 seconds; document chat 5.0 seconds; document upload 16.5 seconds; AI Insights about 22 seconds; document summary about 29 seconds; hearing management about 53 seconds on average (n = 43).
+- Samples are small (2–355 requests per feature). Latencies are indicative server processing times, not end-to-end task times or benchmark results. Longer documents account for slower summary features; summary and hearing-management time remain improvement areas.
+
+### What users and reviewers told us (Reported)
+
+- Seven voluntary responses averaged **4.9/5**. Excluding one team member, six external responses (three lawyers, one advocate and two citizens) averaged **4.8/5**.
+- **Ease of use:** 7 of 7 rated it 5/5. **Answer quality (self-rated):** 3 "correct and clear", 4 "mostly correct". **Would recommend:** 7 of 7.
+- **What changed for them (self-reported):** 6 of 7 said they understood their rights better; 5 of 7 reached legal aid or a lawyer; 5 of 7 saved time; 4 of 7 said a case moved faster.
+- **Time saved on their task (self-reported):** 2 under 1 hour, 3 between 1 and 3 hours, 2 a day or more. All three lawyers reported savings of 1 hour or more.
+- **Features users named:** case triage and scheduling, document insights, document chat, document summary, the free legal-aid check and the rights guide.
+- **Quotes.** A lawyer in Narsapuram said the tool helped with filing PDFs, understanding case insights and chatting with documents, and that case triage and scheduling "wondered me". A lawyer in Noida said they loved case triage and scheduling. A lawyer in Kurnool said understanding cases got easier.
+- **Direct reviewer feedback (lawyer, by message).** After testing the app, a lawyer reported it "working so well" and liked the workflow and how intuitive it is. They found the page references in AI document insights accurate, said the "nature of dispute" line in the case background was vague, and recommended highlighting the source context from which each issue is identified so it can be verified faster. We have logged that as the next improvement.
+- Feedback is self-reported, voluntary and small (n = 7). It shows that reviewers found the tool useful and its page references accurate; it is not independent verification of outcomes, and no lawyer has certified or approved the product.
+
+**What feedback changed in our roadmap.** (1) Highlight the exact passage behind each Insights issue so a lawyer can verify it in one click (lawyer review, Nov 2026). (2) Tighten the "nature of dispute" line in the case background (same review). (3) Allow longer document summaries (lawyer feedback, Kurnool).
 
 ### Estimated time and cost effects (Estimate, not field measurements)
 
@@ -213,7 +231,9 @@ Measured server processing times suggest where work may be shortened, but the ma
 | Assemble a paper-book | About **40 minutes–2.5 hours** |
 | Check Section 479 eligibility for 50 undertrials | About **2.5–6.5 hours** |
 
-At the derived direct custody cost of about **₹4,195 per inmate per month**, 100 people released three months earlier would correspond to about **₹12.6 lakh** in avoided direct custody cost. This is a formula, not a realized saving; one release application has been approved to date, and no release outcome is claimed. Full assumptions and calculations are in [docs/RESEARCH_EVIDENCE.md](docs/RESEARCH_EVIDENCE.md).
+The self-reported time savings above (1–3 hours for most lawyers, a day or more for two respondents) fall in the same range as these estimates, which is encouraging but not a controlled comparison.
+
+At the derived direct custody cost of about **₹4,195 per inmate per month**, 100 people released three months earlier would correspond to about **₹12.6 lakh** in avoided direct custody cost. This is a formula, not a realized saving; 7 release applications have been approved in the app to date, and no release outcome is claimed. Full assumptions and calculations are in [docs/RESEARCH_EVIDENCE.md](docs/RESEARCH_EVIDENCE.md).
 
 
 
