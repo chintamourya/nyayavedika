@@ -49,7 +49,7 @@ async function init() {
   choiceList($("#accuracyChoices"), "accuracy", OPT.accuracy, "radio");
   choiceList($("#quoteChoices"), "quote_permission", OPT.quote, "radio");
   $("#taskSelect").insertAdjacentHTML("beforeend", OPT.tasks.map((t) => `<option value="${esc(t.value)}">${esc(t.label)}</option>`).join(""));
-  $$(".scale").forEach(scale);
+  $$(".rating").forEach(scale);
   form.enrolment_year.max = OPT.this_year;
   form.used_from.max = new Date().toISOString().slice(0, 10);
   const wanted = new URLSearchParams(location.search).get("role");

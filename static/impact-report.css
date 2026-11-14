@@ -28,7 +28,7 @@
 .narrow { max-width: 280px; display: flex; flex-direction: column; gap: 4px; }
 .scales { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; }
 .scale-row { display: flex; gap: 6px; }
-.scale-row label { flex: 1; }
+.scale-row label { flex: 1; position: relative; }
 .scale-row input { position: absolute; opacity: 0; }
 .scale-row span { display: block; text-align: center; padding: 7px 0; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); color: var(--ink); cursor: pointer; font-weight: 600; }
 .scale-row input:checked + span { background: var(--accent); border-color: var(--accent); color: #fff; }
