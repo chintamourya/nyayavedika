@@ -1,8 +1,14 @@
 # NyayaVedika (న్యాయవేదిక): agentic AI for timely justice
 
 **Track:** Timely Justice, Legal Backlog (Code for a Billion, impact area 07)
-**Live demo:** [NYAYAVEDIKA](https://nyayavedika.delightfulmushroom-95327f3a.koreacentral.azurecontainerapps.io/) · **Demo video (3 min):** https://youtu.be/D3xo-yJMhwg · **Licence:** MIT
-**Live impact dashboard:** [Metrics](https://nyayavedika.delightfulmushroom-95327f3a.koreacentral.azurecontainerapps.io/metrics) · **Detailed evidence and research:** [docs/RESEARCH_EVIDENCE.md](docs/RESEARCH_EVIDENCE.md) · **Proven impact report:** [proven_impact_section.md](proven_impact_section.md)
+
+**Live demo:** [NYAYAVEDIKA](https://nyayavedika.delightfulmushroom-95327f3a.koreacentral.azurecontainerapps.io/) ·
+**Demo video (3 min):** https://youtu.be/D3xo-yJMhwg ·
+**DEMO VIDEO LATEST WITH NEW UI:** https://youtu.be/eZesGxAgIGc
+**Licence:** MIT
+**Live impact dashboard:** [Metrics](https://nyayavedika.delightfulmushroom-95327f3a.koreacentral.azurecontainerapps.io/metrics) ·
+**Detailed evidence and research:** [docs/RESEARCH_EVIDENCE.md](docs/RESEARCH_EVIDENCE.md)
+**Proven impact report:** [proven_impact_section.md](proven_impact_section.md)
 **Detailed operational metrics:** [live metrics dashboard](https://nyayavedika.delightfulmushroom-95327f3a.koreacentral.azurecontainerapps.io/metrics)
 
 [![Python tests](https://github.com/chintamourya/nyayavedika/actions/workflows/tests.yml/badge.svg)](https://github.com/chintamourya/nyayavedika/actions/workflows/tests.yml)

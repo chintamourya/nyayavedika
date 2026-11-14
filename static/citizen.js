@@ -101,6 +101,7 @@ $("#startNewLegalAidSession").addEventListener("click", () => {
 });
 
 function showCitizenTab(name) {
+  if (name === "rights") return; // "Know your rights" is coming soon: tab is disabled for now
   $$(".citizen-tabs [data-citizen-tab]").forEach((button) => {
     const active = button.dataset.citizenTab === name;
     button.classList.toggle("active", active);
