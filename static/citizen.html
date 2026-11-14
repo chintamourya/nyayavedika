@@ -6,7 +6,7 @@
 <title>Nyaya Mitra</title>
 <link rel="icon" href="/static/favicon.svg?v=3" type="image/svg+xml">
 <meta name="theme-color" content="#0866ff">
-<link rel="stylesheet" href="/static/styles.css?v=16">
+<link rel="stylesheet" href="/static/styles.css?v=22">
 </head>
 <body class="cz">
 <header class="top">
@@ -29,7 +29,7 @@
     <button class="tab active" type="button" role="tab" aria-selected="true" data-citizen-tab="legal" data-t="tab_legal_aid"></button>
     <button class="tab" type="button" role="tab" aria-selected="false" data-citizen-tab="summary" data-t="tab_document_summary"></button>
     <button class="tab" type="button" role="tab" aria-selected="false" data-citizen-tab="problem" data-t="tab_problem_research"></button>
-    <button class="tab coming-soon" type="button" role="tab" aria-selected="false" aria-disabled="true" disabled tabindex="-1" data-citizen-tab="rights"><span data-t="tab_rights"></span><small class="soon-badge" data-t="coming_soon"></small></button>
+    <button class="tab" type="button" role="tab" aria-selected="false" data-citizen-tab="rights" data-t="tab_rights"></button>
   </nav>
 
   <!-- ONE CARD: the 5-question eligibility check, its explanation and the application draft -->
@@ -108,16 +108,31 @@
   <section id="citizen-rights" class="card citizen-panel hidden" aria-labelledby="rightsH">
     <h2 id="rightsH" data-t="rights_heading"></h2>
     <p class="hint" data-t="rights_sub"></p>
-    <label class="sr-only" for="rightsSearch" data-t="rights_search"></label>
-    <input id="rightsSearch" type="search" data-tp="rights_search" autocomplete="off">
-    <p class="hint" id="rightsMeta" aria-live="polite"></p>
-    <div id="rightsList" class="rights-list"></div>
+    <p class="notice"><strong>Legal information, not legal advice.</strong> Laws and offices change. For your own case, ask a legal-aid lawyer: call <strong>15100</strong>. In an emergency, call <strong>112</strong>.</p>
+    <div class="kb-help" role="group" aria-label="Helplines">
+      <h3>Helplines</h3>
+      <ul>
+        <li><a href="tel:112"><span class="num">112</span><span class="lbl">Emergency: police, fire, health</span></a></li>
+        <li><a href="tel:15100"><span class="num">15100</span><span class="lbl">Free legal aid (NALSA)</span></a></li>
+        <li><a href="tel:181"><span class="num">181</span><span class="lbl">Women helpline</span></a></li>
+        <li><a href="tel:1098"><span class="num">1098</span><span class="lbl">Child helpline</span></a></li>
+        <li><a href="tel:1915"><span class="num">1915</span><span class="lbl">Consumer helpline</span></a></li>
+        <li><a href="tel:14567"><span class="num">14567</span><span class="lbl">Senior citizens (Elderline)</span></a></li>
+      </ul>
+    </div>
+    <div class="kb-tools">
+      <label class="sr-only" for="rightsSearch" data-t="rights_search"></label>
+      <input id="rightsSearch" type="search" data-tp="rights_search" autocomplete="off">
+      <div class="kb-chips" id="rightsChips" role="group" aria-label="Filter by group"></div>
+      <p class="hint" id="rightsMeta" aria-live="polite"></p>
+    </div>
+    <div id="rightsList" class="kb-list"></div>
   </section>
 
   <p class="helpline" data-t="helpline">Free legal aid helpline: 15100</p>
   <p class="hint" data-t="disclaimer"></p>
 </main>
 <script src="/static/common.js?v=14"></script>
-<script src="/static/citizen.js?v=19"></script>
+<script src="/static/citizen.js?v=24"></script>
 </body>
 </html>

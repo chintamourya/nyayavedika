@@ -166,7 +166,8 @@ class _LegalInfoHtml(HTMLParser):
         a = dict(attrs)
         cls = (a.get("class") or "").split()
         if tag == "article" and "kbe" in cls:
-            self.cur = {"id": a.get("id") or "", "title": "", "facts": [], "meta": [], "sources": []}
+            self.cur = {"id": a.get("id") or "", "title": "", "facts": [], "meta": [], "sources": [],
+                        "new": a.get("data-new") in ("1", "true", "yes"), "cat": a.get("data-cat") or ""}
         elif self.cur is None:
             return
         elif tag == "h2":
@@ -331,9 +332,10 @@ def topics(html_path: Optional[Path] = None) -> Dict:
     out = []
     for e in parse_legal_info_html(path.read_text(encoding="utf-8", errors="replace")):
         out.append({"id": e["id"], "title": e["title"], "facts": e["facts"], "meta": e["meta"],
-                    "sources": e["sources"],
+                    "sources": e["sources"], "new": e.get("new", False), "cat": e.get("cat", ""),
                     "authority": "primary" if e["sources"] and all(authority(s["url"]) == "primary" for s in e["sources"])
                     else "secondary"})
+    out.sort(key=lambda t: not t["new"])   # new rights always come first (stable: the page order is kept inside each part)
     return {"topics": out, "count": len(out), "credit": LEGAL_INFO_CREDIT,
             "checked": max((s["checked"] for t in out for s in t["sources"] if s.get("checked")), default=None),
             "disclaimer": "Legal information, not legal advice. Free legal aid helpline 15100; emergency 112."}

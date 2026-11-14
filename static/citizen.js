@@ -101,7 +101,6 @@ $("#startNewLegalAidSession").addEventListener("click", () => {
 });
 
 function showCitizenTab(name) {
-  if (name === "rights") return; // "Know your rights" is coming soon: tab is disabled for now
   $$(".citizen-tabs [data-citizen-tab]").forEach((button) => {
     const active = button.dataset.citizenTab === name;
     button.classList.toggle("active", active);
@@ -117,18 +116,33 @@ let RIGHTS = null;
 function safeLink(href) {
   try { const u = new URL(href); return ["http:", "https:"].includes(u.protocol) ? u.href : ""; } catch { return ""; }
 }
+const RIGHTS_GROUPS = [
+  ["new", "New: recently added rights", "Rights people often miss. These are always shown first."],
+  ["police", "Police, FIR and arrest", "Reporting a crime, what to do when police refuse, and your rights if you or someone you know is arrested."],
+  ["legal-help", "Free legal help and settling disputes", "Who gets a free lawyer, and ways to settle a dispute without a long court case."],
+  ["family", "Women, children and family", "Protection from violence and harassment, maintenance, and helplines."],
+  ["money", "Money and work", "Unpaid wages, bounced cheques and consumer complaints."],
+];
+let rightsActive = "all";
 function rightsCard(topic, open) {
   const sources = topic.sources.map((s) => {
     const href = safeLink(s.url);
     const host = href ? new URL(href).hostname.replace(/^www\./, "") : "source";
     return `<li>${href ? `<a href="${esc(href)}" target="_blank" rel="noopener">${esc(host)}</a>` : esc(host)}` +
-      `${s.note ? ` - ${esc(s.note)}` : ""}${s.checked ? ` <span class="hint">(checked ${esc(s.checked)})</span>` : ""}</li>`;
+      `${s.note ? ` - ${esc(s.note)}` : ""}${s.checked ? ` <span class="chk">checked ${esc(s.checked)}</span>` : ""}</li>`;
   }).join("");
-  return `<details class="right"${open ? " open" : ""} id="right-${esc(topic.id)}"><summary>${esc(topic.title)}` +
-    `${topic.authority === "primary" ? ' <span class="badge ok">official</span>' : ""}</summary>` +
-    `<ul>${topic.facts.map((f) => `<li>${esc(f)}</li>`).join("")}</ul>` +
-    `${topic.meta.map((m) => `<p class="hint">${esc(m)}</p>`).join("")}` +
-    `<details class="src"><summary>${esc(t("rights_sources"))} (${topic.sources.length})</summary><ul>${sources}</ul></details></details>`;
+  const meta = topic.meta.map((m) => {   // "Law: BNSS s.479" -> bold label + text
+    const i = m.indexOf(":");
+    return i > 0 && i < 12 ? `<p class="meta"><strong>${esc(m.slice(0, i + 1))}</strong> ${esc(m.slice(i + 1).trim())}</p>` : `<p class="meta">${esc(m)}</p>`;
+  }).join("");
+  return `<article class="kbe" id="right-${esc(topic.id)}"><h4>${esc(topic.title)}</h4>${meta}` +
+    `<ul class="facts">${topic.facts.map((f) => `<li>${esc(f)}</li>`).join("")}</ul>` +
+    `<details class="src"${open ? " open" : ""}><summary>${esc(t("rights_sources"))}</summary><ul>${sources}</ul></details></article>`;
+}
+function renderRightsChips() {
+  const chips = [["all", "All topics"], ["new", "New"], ...RIGHTS_GROUPS.slice(1).map((g) => [g[0], g[1]])];
+  $("#rightsChips").innerHTML = chips.map(([k, label]) =>
+    `<button type="button" class="chip" data-cat="${k}" aria-pressed="${k === rightsActive}">${esc(label)}</button>`).join("");
 }
 function renderRights() {
   if (!RIGHTS) return;
@@ -137,13 +151,22 @@ function renderRights() {
   // short words (FIR, RTI) must match a whole word, so "fir" does not find "first"; longer ones may match a word start
   const norm = (s) => " " + s.replace(/[^a-z0-9ऀ-෿]+/g, " ").trim() + " ";
   const startsWord = (hay, w) => { const k = norm(w).trimEnd(); return norm(hay).includes(k.length <= 4 ? k + " " : k); };
+  const catOf = (tp) => tp.cat || (tp.new ? "new" : "");
   const hits = RIGHTS.topics.filter((tp) => {
     const hay = [tp.title, ...tp.facts, ...tp.meta].join(" ").toLowerCase();
-    return words.every((w) => startsWord(hay, w));
+    return (rightsActive === "all" || catOf(tp) === rightsActive) && words.every((w) => startsWord(hay, w));
   });
-  $("#rightsMeta").textContent = `${hits.length} / ${RIGHTS.count}` + (RIGHTS.checked ? ` · checked ${RIGHTS.checked}` : "") +
-    ` · ${t("rights_note")}`;
-  $("#rightsList").innerHTML = hits.map((tp) => rightsCard(tp, words.length > 0 && hits.length <= 3)).join("") ||
+  renderRightsChips();
+  $("#rightsMeta").textContent = (words.length || rightsActive !== "all" ? `${hits.length} of ${RIGHTS.count} topics shown` : `${RIGHTS.count} topics`) +
+    (RIGHTS.checked ? ` · last checked ${RIGHTS.checked}` : "") + ` · ${t("rights_note")}`;
+  const open = words.length > 0 && hits.length <= 3;
+  const sections = RIGHTS_GROUPS.map(([key, title, blurb]) => {
+    const inGroup = hits.filter((tp) => catOf(tp) === key);
+    return inGroup.length ? `<section class="kb-cat"><div class="kb-cat-head"><h3>${esc(title)}</h3><p>${esc(blurb)}</p></div>` +
+      inGroup.map((tp) => rightsCard(tp, open)).join("") + `</section>` : "";
+  });
+  const loose = hits.filter((tp) => !RIGHTS_GROUPS.some((g) => g[0] === catOf(tp)));   // entries without a known group
+  $("#rightsList").innerHTML = sections.join("") + loose.map((tp) => rightsCard(tp, open)).join("") ||
     `<p class="hint">${esc(t("rights_empty"))}</p>`;
 }
 async function loadRights() {
@@ -157,6 +180,10 @@ async function loadRights() {
   }
 }
 $("#rightsSearch")?.addEventListener("input", renderRights);
+$("#rightsChips")?.addEventListener("click", (ev) => {
+  const b = ev.target.closest("[data-cat]");
+  if (b) { rightsActive = b.dataset.cat; renderRights(); }
+});
 $$(".citizen-tabs [data-citizen-tab]").forEach((button) => {
   button.addEventListener("click", () => showCitizenTab(button.dataset.citizenTab));
 });
