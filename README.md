@@ -179,16 +179,16 @@ A staff user verifies each report on the review desk (`/impact-report/review`), 
 
 **Status:** NyayaVedika is live and in early field use. The figures below are a measured product-activity snapshot, not a claim of verified legal outcomes. The [public metrics dashboard](https://nyayavedika.delightfulmushroom-95327f3a.koreacentral.azurecontainerapps.io/metrics) is the live source; see [docs/RESEARCH_EVIDENCE.md](docs/RESEARCH_EVIDENCE.md) for definitions, caveats and the full evidence.
 
-### Reach and use (Measured)
+### Reach and use (Measured, as of 16 Nov 2026)
 
 | Metric | Value |
 |---|---:|
-| Distinct browsers, all activity | **59** |
-| Public-site browsers | 49 |
-| Portal visits | **223** (Citizen 38, Advocate 61, Staff 124) |
-| Distinct browsers by door | Citizen 18, Advocate 17, Staff 17 |
-| Browsers that used an API feature | **25** |
-| Tool requests | **1,136** (Citizen 48, Advocate 149, Staff 935, 4 role unresolved) |
+| Distinct browsers, all activity | **90** |
+| Public-site browsers | 80 |
+| Portal visits | **258** (Citizen 57, Advocate 70, Staff 131) |
+| Distinct browsers by door | Citizen 19, Advocate 20, Staff 18 |
+| Browsers that used an API feature | **28** |
+| Tool requests | **1,252** (Citizen 62, Advocate 161, Staff 1,025, 4 role unresolved) |
 | Voluntary feedback responses | **7** |
 
 Staff-door request volume includes reviewer activity, not just ordinary product usage.
@@ -209,9 +209,9 @@ The case-triage and scheduling totals include synthetic demo data as well as upl
 
 ### Reliability and speed (Measured / Derived)
 
-- **1,122 of 1,136 tool requests succeeded (98.8%, Derived).** The 14 logged failures sit in three features: Undertrial alerts 9 of 355 requests, case management 4 of 53, hearing management 1 of 43. Seven earlier failures were attributed to internal code testing and have been fixed; the cause of the remaining failures is still being reviewed. Every other feature had no logged failures.
-- Typical server latency: case intake 0.06 seconds; document tools 0.5 seconds; undertrial alerts 1.7 seconds; docket view 2.2 seconds; Document Studio 2.0 seconds; daily brief 2.8 seconds; document chat 5.0 seconds; document upload 16.5 seconds; AI Insights about 22 seconds; document summary about 29 seconds; hearing management about 53 seconds on average (n = 43).
-- Samples are small (2–355 requests per feature). Latencies are indicative server processing times, not end-to-end task times or benchmark results. Longer documents account for slower summary features; summary and hearing-management time remain improvement areas.
+- **1,235 of 1,252 tool requests succeeded (98.6%, Derived).** The 17 logged failures sit in three features: Undertrial alerts 9 of 364 requests, case management 7 of 65, hearing management 1 of 60. Seven earlier failures were attributed to internal code testing and have been fixed; the cause of the remaining failures is still being reviewed. Every other feature had no logged failures.
+- Typical server latency: case intake 0.05 seconds; document tools 0.4 seconds; undertrial alerts 1.7 seconds; docket view 2.1 seconds; Document Studio 2.0 seconds; daily brief 2.6 seconds; document chat 5.0 seconds; document upload 16.5 seconds; AI Insights about 22 seconds; document summary about 29 seconds; hearing management about 38 seconds on average (n = 60). Average across all requests: about 3.9 seconds.
+- Samples are small (2–364 requests per feature). Latencies are indicative server processing times, not end-to-end task times or benchmark results. Longer documents account for slower summary features; summary and hearing-management time remain improvement areas.
 
 ### What users and reviewers told us (Reported)
 
@@ -255,16 +255,6 @@ python -m unittest discover -s tests
 
 Open `/citizen`, `/advocate` or `/staff` (the staff desk opens with a short guide on the first visit). Share `/impact-report?role=advocate` (or `legal_aid_lawyer`, `court_staff`, `paralegal`, `law_student`, `citizen`) to collect field evidence, and verify reports at `/impact-report/review` with the staff token. Add `AZURE_OPENAI_*`, `PINECONE_API_KEY` and `TAVILY_API_KEY` to `.env` to switch on the LLM, vector search (needed for document chat) and web search. For Docker Compose, configure the database settings in `.env` as described at the top of `docker-compose.yml`. Scanned pages need Tesseract with language packs (`apt install tesseract-ocr tesseract-ocr-hin tesseract-ocr-tel`). `docker compose up --build` runs the full stack.
 
-## Known limits
-
-- Triage points, income limits and the statutes table (46 rows of demo data) need lawyer review. The demo uses static role tokens, not real authentication. Set `DEMO_MODE=false` and use real authentication before any deployment with real data.
-- The release check sees only docket fields, so a lawyer confirms before filing. Records are fragmented, so we use bulk imports and OCR of remand sheets, not a live e-Prisons link.
-- Names and addresses are not masked. Do not upload real case files to a hosted model without consent.
-- Document chat needs Pinecone and the language model. Studio takes PDFs only, and Insights are capped at 50 pages.
-- Poverty can still block release when a court has ordered it, for example when no surety can be found.
-- Outputs are legal information for a lawyer to review, not legal advice. Nothing is filed without a human decision.
-- Scheduling does not replace the court's own listing practice: timings are estimates, the Presiding Officer decides the order of calling, and nothing is listed until the registrar publishes.
-- Impact reports hold identity details for verification. Keep the staff token and the CSV export private; delete a report when its author asks.
 
 ## Licence
 
