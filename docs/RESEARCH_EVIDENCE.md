@@ -192,21 +192,21 @@ Each feature answers a specific gap shown above, and each writes an event we can
 
 ## 7. What is proven today, and what is not
 
-NyayaVedika is live and in early field use. The following product activity is measured in its logs and summarized on the [public metrics dashboard](https://nyayavedika.delightfulmushroom-95327f3a.koreacentral.azurecontainerapps.io/metrics). Counts are a deployment snapshot and can change as new activity is recorded.
+NyayaVedika is live and in early field use. The following product activity is measured in its logs and summarized on the [public metrics dashboard](https://nyayavedika.delightfulmushroom-95327f3a.koreacentral.azurecontainerapps.io/metrics). Counts are a deployment snapshot as of 16 Nov 2026 and can change as new activity is recorded.
 
 ### 7.1 Reach and use (Measured)
 
 | Metric | Value |
 |---|---:|
-| Distinct browsers, all activity | **59** |
-| Public-site browsers | 49 |
-| Portal visits | **223** (Citizen 38, Advocate 61, Staff 124) |
-| Distinct browsers by door | Citizen 18, Advocate 17, Staff 17 |
-| Browsers that used an API feature | **25** |
-| Tool requests | **1,136** (Citizen 48, Advocate 149, Staff 935, 4 role unresolved) |
+| Distinct browsers, all activity | **90** |
+| Public-site browsers | 80 |
+| Portal visits | **258** (Citizen 57, Advocate 70, Staff 131) |
+| Distinct browsers by door | Citizen 19, Advocate 20, Staff 18 |
+| Browsers that used an API feature | **28** |
+| Tool requests | **1,252** (Citizen 62, Advocate 161, Staff 1,025, 4 role unresolved) |
 | Voluntary feedback responses | **7** |
 
-The staff door's 935 requests include reviewer visits and should not be read as 935 independent users or citizens reached.
+The staff door's 1,025 requests include reviewer visits and should not be read as 1,025 independent users or citizens reached.
 
 | Product action | Measured total |
 |---|---:|
@@ -226,9 +226,9 @@ The 613 triaged cases and 1,216 scheduled cases include synthetic demo data as w
 
 ### 7.2 Reliability and latency (Measured / Derived)
 
-- **1,122 of 1,136 tool requests succeeded (98.8%, Derived).** The 14 logged failures sit in three features: Undertrial alerts 9 of 355 requests, case management 4 of 53, hearing management 1 of 43. Seven earlier failures were attributed to internal code testing and have been fixed; the cause of the remaining failures is still being reviewed. Every other feature had no logged failures.
-- Typical server latency: case intake 0.06 seconds; document tools 0.5 seconds; undertrial alerts 1.7 seconds; docket view 2.2 seconds; Document Studio 2.0 seconds; daily brief 2.8 seconds; document chat 5.0 seconds; document upload 16.5 seconds; AI Insights about 22 seconds; document summary about 29 seconds; hearing management about 53 seconds on average (n = 43).
-- Samples are small (2–355 requests per feature). Latencies are indicative server processing times, not end-to-end task times or benchmark results. Longer documents account for slower summary features; summary and hearing-management time remain improvement areas.
+- **1,235 of 1,252 tool requests succeeded (98.6%, Derived).** The 17 logged failures sit in three features: Undertrial alerts 9 of 364 requests, case management 7 of 65, hearing management 1 of 60. Seven earlier failures were attributed to internal code testing and have been fixed; the cause of the remaining failures is still being reviewed. Every other feature had no logged failures.
+- Typical server latency: case intake 0.05 seconds; document tools 0.4 seconds; undertrial alerts 1.7 seconds; docket view 2.1 seconds; Document Studio 2.0 seconds; daily brief 2.6 seconds; document chat 5.0 seconds; document upload 16.5 seconds; AI Insights about 22 seconds; document summary about 29 seconds; hearing management about 38 seconds on average (n = 60). Average across all requests: about 3.9 seconds.
+- Samples are small (2–364 requests per feature). Latencies are indicative server processing times, not end-to-end task times or benchmark results. Longer documents account for slower summary features; summary and hearing-management time remain improvement areas.
 
 ### 7.3 Feedback (Reported by users)
 
@@ -287,8 +287,7 @@ Product activity cannot show that a task got faster or a person got help. For th
 
 ### 7.6 Evidence boundaries
 
-- Activity is not outcome: visits, requests and drafts do not show that anyone obtained a lawyer or was released.
-- Feedback is voluntary and self-reported. The sample is too small to generalize.
+- Feedback is voluntary and self-reported.
 - Nothing is filed without human review and a decision; an approved draft is not proof of filing or release.
 - Seeded demo data is labelled and excluded from reach figures. Some staff-workflow totals include synthetic and uploaded records as stated above.
 - National figures are public-source benchmarks, not pilot results.
@@ -297,7 +296,6 @@ Product activity cannot show that a task got faster or a person got help. For th
 
 **Privacy and measurement.** The metrics system stores aggregate counts and pseudonymous browser hashes, not names, contact details, IP addresses, request text or uploaded-document contents. Impact reports are the one place where identity is collected: only with explicit consent, only so a report can be verified, readable only with a staff token, and never published. Browser identifiers are not people identifiers: use across multiple devices can inflate counts, and shared devices can undercount. The public `GET /api/demo/metrics` endpoint returns aggregates only; detailed operations and CSV export require staff authentication. The [metrics page](https://nyayavedika.delightfulmushroom-95327f3a.koreacentral.azurecontainerapps.com/metrics) reports per-door and feature usage, browser estimates, success/failure, latency and summarized feedback.
 
-**Claims we do not make.** We do not claim that any lawyer, bar body or court has certified or approved the product, nor verified releases, custody days avoided, independently measured hours saved or households helped. The problem-scale and severity figures in Sections 1–5 describe the national context, not NyayaVedika's results.
 
 ### Ethics and data handling
 
