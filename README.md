@@ -173,8 +173,6 @@ Activity counts show use and impact. So every person who uses NyayaVedika on rea
 - **accuracy:** whether they checked the output against the original papers, and errors found;
 - **the concrete outcome:** an application filed, legal aid obtained, a fact found that would have been missed, a list prepared faster.
 
-A staff user verifies each report on the review desk (`/impact-report/review`), for example against the Bar Council roll, and writes down what was checked. **Only verified reports are counted**, and a person's words are quoted only with their permission.
-
 ### Product activity snapshot
 
 **Status:** NyayaVedika is live and in early field use. The figures below are a measured product-activity snapshot, not a claim of verified legal outcomes. The [public metrics dashboard](https://nyayavedika.delightfulmushroom-95327f3a.koreacentral.azurecontainerapps.io/metrics) is the live source; see [docs/RESEARCH_EVIDENCE.md](docs/RESEARCH_EVIDENCE.md) for definitions, caveats and the full evidence.
