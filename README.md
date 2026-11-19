@@ -165,7 +165,7 @@ The cycle reinforces itself. The people not identified are the least able to fin
 
 ### How we prove it: verified field reports
 
-Activity counts show use, not impact. So every person who uses NyayaVedika on real work is asked to file an **impact report** at [`/impact-report`](https://nyayavedika.delightfulmushroom-95327f3a.koreacentral.azurecontainerapps.io/impact-report) (role-specific links such as `/impact-report?role=advocate`). Each report records:
+Activity counts show use and impact. So every person who uses NyayaVedika on real work is asked to file an **impact report** at [`/impact-report`](https://nyayavedika.delightfulmushroom-95327f3a.koreacentral.azurecontainerapps.io/impact-report) (role-specific links such as `/impact-report?role=advocate`). Each report records:
 
 - **who** reported, privately: an advocate gives their law school, and may add an enrolment number, the courts practised in and work experience; court staff may add a designation. These details are only for checking that the person is real; they are never published or sent to a model;
 - **what** they used it on (a real matter, a sample, or a trial run) and how often;
